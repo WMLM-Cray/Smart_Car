@@ -52,7 +52,7 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y \
   ros-humble-robot-localization \
   ros-humble-cv-bridge python3-colcon-common-extensions \
   ros-humble-ros2-control ros-humble-ros2-controllers \
-  ros-humble-ackermann-steering-controllers
+  ros-humble-tricycle-controller ros-humble-tricycle-steering-controller
 
 echo "==> [5/6] rosdep(官方失败则退回 rosdepc 国内版)"
 if ! rosdep init 2>/dev/null; then
