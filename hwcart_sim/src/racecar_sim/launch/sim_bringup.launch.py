@@ -7,11 +7,12 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, RegisterEventHandler
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, RegisterEventHandler
 from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
 from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 
@@ -28,25 +29,28 @@ def generate_launch_description():
         package='robot_state_publisher',
         executable='robot_state_publisher',
         parameters=[{
-            'robot_description': robot_description_content,
+            # ParameterValue 强制按字符串传,防 launch_ros 把 URDF 当 yaml 解析报错
+            'robot_description': ParameterValue(robot_description_content, value_type=str),
             'use_sim_time': True,
         }],
         output='screen',
     )
 
-    # 2) Gazebo Classic:gzserver(controller_manager 在此进程内)+ gzclient
-    #    cmd_vel 重映射:控制器订阅 ~/cmd_vel → /cmd_vel(标准速度语义)
-    gzserver = Node(
-        package='gazebo_ros',
-        executable='gzserver',
-        arguments=['-s', 'libgazebo_ros_init.so',
-                   '-s', 'libgazebo_ros_factory.so'],
-        remappings=[('/ackermann_steering_controller/cmd_vel', '/cmd_vel')],
+    # 2) Gazebo Classic:系统二进制 gzserver/gzclient(Humble 的 gazebo_ros
+    #    libexec 里没有 gzserver 包装可执行,Node 方式报 not found)
+    #    cmd_vel 重映射经 --ros-args 传入:libgazebo_ros_init.so 会把 gzserver
+    #    的 argv 交给 rclcpp 初始化,进程内 controller_manager(即
+    #    gazebo_ros2_control 插件)继承该重映射:控制器 ~/cmd_vel → /cmd_vel
+    gzserver = ExecuteProcess(
+        cmd=['gzserver', '--verbose',
+             '-s', 'libgazebo_ros_init.so',
+             '-s', 'libgazebo_ros_factory.so',
+             '--ros-args', '-r',
+             '/ackermann_steering_controller/cmd_vel:=/cmd_vel'],
         output='screen',
     )
-    gzclient = Node(
-        package='gazebo_ros',
-        executable='gzclient',
+    gzclient = ExecuteProcess(
+        cmd=['gzclient', '--verbose'],
         condition=IfCondition(use_gui),
         output='screen',
     )

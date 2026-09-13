@@ -18,7 +18,7 @@
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="racecar_sim">
 
   <!-- ============ 参数加载(单一来源 params.yaml) ============ -->
-  <xacro:property name="cfg" value="${load_yaml('$(find racecar_sim)/config/params.yaml')['racecar_sim']}"/>
+  <xacro:property name="cfg" value="${xacro.load_yaml('$(find racecar_sim)/config/params.yaml')['racecar_sim']}"/>
   <xacro:property name="L"     value="${cfg['chassis_length']}"/>
   <xacro:property name="W"     value="${cfg['chassis_width']}"/>
   <xacro:property name="H"     value="${cfg['chassis_height']}"/>
