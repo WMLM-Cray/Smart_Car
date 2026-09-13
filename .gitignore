@@ -10,6 +10,9 @@ __pycache__/
 *.sqlite
 .gazebo/
 
+# --- 生成产物(track_generator 输出) ---
+work/
+
 # --- 数据大文件(地图/包录制的bag不入库,放 release 或网盘) ---
 *.bag
 *.db3

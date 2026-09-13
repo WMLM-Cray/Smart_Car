@@ -1,0 +1,9 @@
+id,color,x,y
+r0,red,0,0
+r1,red,1.2,0
+r2,red,2.4,0
+r3,red,3.6,0
+b0,blue,0,-1.5
+b1,blue,1.2,-1.5
+b2,blue,2.4,-1.5
+b3,blue,3.6,-1.5

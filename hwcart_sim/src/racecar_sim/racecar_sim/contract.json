@@ -1,0 +1,66 @@
+{
+  "status": "source_checked_runtime_not_verified",
+  "topics": {
+    "strategy_input": "/cmd_vel",
+    "driver_input": "/car_cmd_vel",
+    "encoder": "/encoder",
+    "imu": "/IMU_data",
+    "scan": "/scan",
+    "ekf_output": "/odom_combined",
+    "image": "/image_raw (usb_cam default; runtime verification required)"
+  },
+  "tf": {
+    "base_link": {
+      "parent": "base_footprint",
+      "xyz": [
+        0,
+        0,
+        0.15
+      ]
+    },
+    "laser_link": {
+      "parent": "base_footprint",
+      "xyz": [
+        0.07,
+        0,
+        0
+      ]
+    },
+    "IMU_link": {
+      "parent": "base_footprint",
+      "xyz": [
+        0.1653,
+        0,
+        0
+      ]
+    }
+  },
+  "odom_frame": "odom_combined",
+  "camera_launch_resolution": [
+    320,
+    240
+  ],
+  "camera_yaml_profile": {
+    "resolution": [
+      640,
+      480
+    ],
+    "fps": 10
+  },
+  "driver_pwm": {
+    "throttle": "linear.x * 100 + 1500",
+    "steering": "1500 - angular.z * 1300"
+  },
+  "unmeasured": [
+    "wheelbase",
+    "wheel_radius",
+    "track_width",
+    "mass",
+    "inertia",
+    "steering_limits",
+    "pwm_to_speed_curve",
+    "pwm_to_steering_curve",
+    "physical_sensor_extrinsics",
+    "camera_fov_axis_and_distortion"
+  ]
+}

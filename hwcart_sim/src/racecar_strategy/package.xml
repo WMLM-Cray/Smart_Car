@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<package format="3"><name>racecar_strategy</name><version>0.1.0</version>
+<description>HW Autocar simulation foundation; runtime integration pending.</description>
+<maintainer email="team@example.invalid">Racecar team</maintainer><license>Proprietary</license>
+<buildtool_depend>ament_python</buildtool_depend>
+<export><build_type>ament_python</build_type></export></package>
