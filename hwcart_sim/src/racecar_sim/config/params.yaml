@@ -1,0 +1,44 @@
+# =============================================================================
+# 仿真车集中参数(v0 假设值,实车实测后改这里,全局生效)
+# 标注[实测]的项 = 下次碰车用 docs/测量清单.md 量出真值替换
+# 标注[规则]的项 = 来自比赛规则 4.4 节,可信
+# 标注[源码]的项 = 来自出厂源码 contract.json,可信
+# =============================================================================
+
+racecar_sim:
+  # --- 底盘几何 ---
+  chassis_length: 0.56        # [规则] 底盘长 560mm
+  chassis_width: 0.35         # [规则] 底盘宽 350mm
+  chassis_height: 0.10        # [实测] 底盘主体可视厚度(230mm 是整车含上层结构,box 先给主体)
+  chassis_z: 0.15             # [源码] base_footprint→base_link z=0.15(实车 TF 硬编码)
+  ground_clearance: 0.06      # [实测] 底盘离地间隙(假设)
+  wheel_radius: 0.09          # [实测] 车轮半径(假设,轮径180mm)
+  wheel_width: 0.05           # [实测] 轮宽(假设)
+  wheel_base: 0.36            # [实测] 轴距(前轴到后轴,假设)
+  wheel_track: 0.30           # [实测] 轮距(左右轮中心距,假设)
+  max_steer_angle: 0.55       # [实测] 舵角极限 rad(~31°,假设)
+  # --- 质量 ---
+  mass_chassis: 8.0           # [实测] 含电池整备质量 kg(假设;电机2400W级别,整车约5-10kg)
+  mass_wheel: 0.4             # [实测] 单轮 kg(假设)
+  # --- 传感器外参(TF 策略:厂家 frame 原样保留,传感器挂新增 *_sensor_link) ---
+  # laser_link / IMU_link 按[源码契约]保留厂家值(z=0),不挂传感器;
+  # laser_sensor_link / imu_sensor_link = 实际安装高度(下面 z 值,假设待实测),
+  # 传感器消息 frame_id 用 *_sensor_link,与真实测量位置一致
+  laser_x: 0.07               # [源码] base_footprint 前向偏移(厂家 TF)
+  laser_z: 0.21               # [实测] laser_sensor_link 离地高度(假设,待量)
+  camera_x: 0.24              # [实测] 相机前向偏移(假设;相机无厂家 TF)
+  camera_z: 0.24              # [实测] 相机离地高度(假设)
+  imu_x: 0.1653               # [源码] base_footprint→IMU_link x(厂家 TF)
+  imu_z: 0.18                 # [实测] imu_sensor_link 离地高度(假设)
+  # --- 雷达参数(对齐镭神 X10/M10P) ---
+  lidar_hz: 10                # [规则] 10-12Hz
+  lidar_min_range: 0.15       # [源码] min_range
+  lidar_max_range: 25.0       # [规则] 量程25-30m(源码软件裁剪50m,取硬件25)
+  lidar_samples: 2000         # [规则] 采样20000/s ÷ 10Hz = 2000点/圈
+  # --- 相机参数 ---
+  cam_width: 640
+  cam_height: 480
+  cam_hz: 30
+  cam_hfov: 2.618             # 150° [规则](未说明水平/对角,先按水平,待实测)
+  # --- IMU ---
+  imu_hz: 200
