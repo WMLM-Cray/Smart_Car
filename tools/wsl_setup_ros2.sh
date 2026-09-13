@@ -17,21 +17,27 @@ apt-get install -y curl gnupg2 lsb-release git cmake build-essential wget \
 
 echo "==> [3/6] 配置 ROS2 清华源(keyrings 方式)"
 install -d /usr/share/keyrings
-# 密钥获取三级 fallback:清华镜像 asc(常404) → jsDelivr CDN 转 GitHub → keyserver.ubuntu.com
-if ! curl -fsSL --max-time 15 https://mirrors.tuna.tsinghua.edu.cn/ros2/ubuntu/ros.asc \
-     -o /usr/share/keyrings/ros-archive-keyring.gpg 2>/dev/null \
-   || [ ! -s /usr/share/keyrings/ros-archive-keyring.gpg ]; then
-  echo "  镜像站无 ros.asc,尝试 jsDelivr CDN..."
-  if ! curl -fsSL --max-time 15 https://cdn.jsdelivr.net/gh/ros/rosdistro@master/ros.asc \
-       -o /usr/share/keyrings/ros-archive-keyring.gpg 2>/dev/null \
-     || [ ! -s /usr/share/keyrings/ros-archive-keyring.gpg ]; then
-    echo "  CDN 也不通,从 keyserver.ubuntu.com 收官方密钥 F42ED6FBAB17C654"
-    rm -f /usr/share/keyrings/ros-archive-keyring.gpg
-    gpg --no-default-keyring --keyring /usr/share/keyrings/ros-archive-keyring.gpg \
+KEYRING=/usr/share/keyrings/ros-archive-keyring.gpg
+# 幂等:已有有效二进制密钥则跳过(注意 asc 文本直接存 .gpg 无效,必须二进制/dearmor)
+if ! gpg --no-default-keyring --keyring "$KEYRING" --list-keys >/dev/null 2>&1; then
+  echo "  密钥缺失/无效,开始获取(三级 fallback)..."
+  # ① 清华镜像 asc(常404) ② jsDelivr CDN(须 dearmor) ③ keyserver.ubuntu.com
+  if curl -fsSL --max-time 15 https://mirrors.tuna.tsinghua.edu.cn/ros2/ubuntu/ros.asc 2>/dev/null \
+       | gpg --dearmor -o "$KEYRING" 2>/dev/null \
+     && gpg --no-default-keyring --keyring "$KEYRING" --list-keys >/dev/null 2>&1; then
+    echo "  已从清华镜像获取并 dearmor"
+  elif curl -fsSL --max-time 15 https://cdn.jsdelivr.net/gh/ros/rosdistro@master/ros.asc 2>/dev/null \
+       | gpg --dearmor -o "$KEYRING" 2>/dev/null \
+     && gpg --no-default-keyring --keyring "$KEYRING" --list-keys >/dev/null 2>&1; then
+    echo "  已从 jsDelivr CDN 获取并 dearmor"
+  else
+    echo "  从 keyserver.ubuntu.com 收官方密钥 F42ED6FBAB17C654"
+    rm -f "$KEYRING"
+    gpg --no-default-keyring --keyring "$KEYRING" \
       --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys F42ED6FBAB17C654
   fi
 fi
-chmod 644 /usr/share/keyrings/ros-archive-keyring.gpg
+chmod 644 "$KEYRING"
 echo "deb [arch=amd64 signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] https://mirrors.tuna.tsinghua.edu.cn/ros2/ubuntu jammy main" \
   > /etc/apt/sources.list.d/ros2-latest.list
 apt-get update
