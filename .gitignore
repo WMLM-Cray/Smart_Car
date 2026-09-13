@@ -1,0 +1,24 @@
+# --- ROS2 / colcon 构建产物 ---
+build/
+install/
+log/
+*.pyc
+__pycache__/
+
+# --- Gazebo / RViz 运行时 ---
+*.log
+*.sqlite
+.gazebo/
+
+# --- 数据大文件(地图/包录制的bag不入库,放 release 或网盘) ---
+*.bag
+*.db3
+*.pgm.bak
+
+# --- 编辑器/系统 ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+.baiduyun.uploading.cfg
