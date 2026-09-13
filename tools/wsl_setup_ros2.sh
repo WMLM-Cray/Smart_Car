@@ -17,8 +17,21 @@ apt-get install -y curl gnupg2 lsb-release git cmake build-essential wget \
 
 echo "==> [3/6] 配置 ROS2 清华源(keyrings 方式)"
 install -d /usr/share/keyrings
-curl -fsSL https://mirrors.tuna.tsinghua.edu.cn/ros2/ubuntu/ros.asc \
-  -o /usr/share/keyrings/ros-archive-keyring.gpg
+# 密钥获取三级 fallback:清华镜像 asc(常404) → jsDelivr CDN 转 GitHub → keyserver.ubuntu.com
+if ! curl -fsSL --max-time 15 https://mirrors.tuna.tsinghua.edu.cn/ros2/ubuntu/ros.asc \
+     -o /usr/share/keyrings/ros-archive-keyring.gpg 2>/dev/null \
+   || [ ! -s /usr/share/keyrings/ros-archive-keyring.gpg ]; then
+  echo "  镜像站无 ros.asc,尝试 jsDelivr CDN..."
+  if ! curl -fsSL --max-time 15 https://cdn.jsdelivr.net/gh/ros/rosdistro@master/ros.asc \
+       -o /usr/share/keyrings/ros-archive-keyring.gpg 2>/dev/null \
+     || [ ! -s /usr/share/keyrings/ros-archive-keyring.gpg ]; then
+    echo "  CDN 也不通,从 keyserver.ubuntu.com 收官方密钥 F42ED6FBAB17C654"
+    rm -f /usr/share/keyrings/ros-archive-keyring.gpg
+    gpg --no-default-keyring --keyring /usr/share/keyrings/ros-archive-keyring.gpg \
+      --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys F42ED6FBAB17C654
+  fi
+fi
+chmod 644 /usr/share/keyrings/ros-archive-keyring.gpg
 echo "deb [arch=amd64 signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] https://mirrors.tuna.tsinghua.edu.cn/ros2/ubuntu jammy main" \
   > /etc/apt/sources.list.d/ros2-latest.list
 apt-get update
