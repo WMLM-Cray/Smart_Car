@@ -23,6 +23,25 @@
 #   - 工况:零指令静止/直行/倒车/左右转弯(不饱和)/零速停车/限位饱和/
 #     已知障碍物测距/相机非空图像/频率容差/时间戳有效/光学 frame TF
 #   - 阈值集中在 THR_* 变量(负例 tools/verify_negative.sh 用 sed 注入)
+#
+# 2026-09-14 返工第4轮(源码审查收尾 3 问题;2026-09-15 补齐落地):
+#   - pose_ok 前置补全:倒车/左转/右转段 Δ 判据同样保护(一端位姿缺失时,
+#     空值当 0 可能碰巧凑出符合方向的差值 → 假 PASS);gz_pose 检查服务
+#     success 字段(srv 定义:success=false 时 state 是 garbage,正则照样
+#     能解析出数字)
+#   - 限位饱和加下限 THR_STEER_LIM_LO 并接入判据:零角度不再通过;须落在
+#     [0.50, 0.57] 区间(接近配置限位 0.55 且不越界)
+#   - 测距期望=激光射线与箱体 AABB 最近交点距离(2D slab 法):雷达先按
+#     车位姿+LASER_X 变换到世界坐标,射线方向=车前向;射线未命中箱体 →
+#     工况失效显式 FAIL(不用容差吸收外参差异,不用"表面中心点投影"近似)
+#   - 证据命名澄清:瞬时/平均速度均读自控制器里程计(账面速度);
+#     世界系证据仅为全程位移/角位移对账,本脚本不宣称世界系瞬时速度精度
+#
+# 2026-09-15 第5轮(第14轮验收暴露的度量分母缺陷):
+#   - odom_vw 运动段对称定义:首条消息 → 首个"动起来"的消息,消除
+#     pub 冷启动死区(1.5~3s 波动)进 dt 分母造成的 V_AVG 假异常
+#     (第14轮:瞬时 0.494/Gazebo Δx 4.025/账面偏差 0.006 全过,
+#      唯 V_AVG=0.371 假 FAIL;第13轮同代码 0.446 过,差异=冷启动时长)
 # =============================================================================
 export ROS_DOMAIN_ID=42
 export ROS2CLI_NO_DAEMON=1
@@ -40,8 +59,10 @@ THR_RANGE_ERR=0.10    # 障碍测距容差 m
 THR_STILL=0.05        # 静止/停车最大位移 m
 THR_TURN=0.3          # 转弯最小 |Δyaw| rad
 THR_STEER_LIM=0.57    # 限位饱和上限 rad(0.55 + 0.02 余量)
+THR_STEER_LIM_LO=0.50 # 限位饱和下限 rad(实测饱和≈0.549;零角度不得通过)
 THR_STEER_DIFF=0.02   # 内外轮角最小差 rad(理论 0.058)
 THR_WHEEL_DIFF=0.03   # 内外后轮速最小差 m/s(理论 0.09)
+LASER_X=0.07          # 雷达前向偏移 m(=params.yaml laser_x,测距期望计算用)
 
 # joint_states 必须齐全的 6 关节(= URDF ros2_control 块注册的全部:
 # 2 转向 + 2 后驱 + 2 前轮自转 state-only;负例注入点:改坏任一名 → MISSING FAIL)
@@ -89,13 +110,16 @@ precheck
 
 # ---- 通用采集函数 ----
 gz_pose() {  # Gazebo 世界位姿 → "px py pz yaw"
+  # success=False 时 srv 定义明言 state 是 garbage——正则照样能解出数字,
+  # 故必须先验 success 字段再取位姿(2026-09-14 源码审查收尾)
   timeout 8 ros2 service call /get_entity_state gazebo_msgs/srv/GetEntityState \
     "{name: 'racecar', reference_frame: 'world'}" 2>/dev/null | python3 -c "
 import sys, re, math
 t = sys.stdin.read()
+s = re.search(r'success=(\w+)', t)
 m = re.search(r'Point\(x=([-+0-9.eE]+), y=([-+0-9.eE]+), z=([-+0-9.eE]+)\)', t)
 q = re.search(r'Quaternion\(x=([-+0-9.eE]+), y=([-+0-9.eE]+), z=([-+0-9.eE]+), w=([-+0-9.eE]+)\)', t)
-if not (m and q):
+if not (s and s.group(1) == 'True' and m and q):
     print('PARSE_FAIL'); sys.exit(1)
 px, py, pz = (float(v) for v in m.groups())
 qx, qy, qz, qw = (float(v) for v in q.groups())
@@ -136,12 +160,16 @@ for d in re.split(r'(?m)^---\s*$', txt):
         continue   # QoS 警告混入 stdout 的坏文档跳过
 if len(msgs) < 10:
     print('NA NA NA NA NA NA NA NA'); sys.exit(0)
-t1, x1, y1, yaw1 = msgs[0]
-end_i = len(msgs) - 1
-for i in range(len(msgs) - 1):
-    if math.hypot(msgs[i+1][1]-msgs[i][1], msgs[i+1][2]-msgs[i][2]) > 0.001:
-        end_i = i + 1
-t2, x2, y2, yaw2 = msgs[end_i]
+# 运动段对称定义:首个"动起来"的源消息 ↔ 最后一步位移>1mm 的目标消息。
+# 起步前死区(录制建立 + pub 冷启动 1.5~3s 波动)与停车后读窗都不进分母
+# (2026-09-15 第14轮:首条↔收敛点的 dt 含不受控冷启动死区,V_AVG 0.446→0.371
+#  假异常——瞬时 twist/Gazebo 位移/账面偏差三证据全过,FAIL 系分母伪影)
+steps = [i for i in range(len(msgs) - 1)
+         if math.hypot(msgs[i+1][1]-msgs[i][1], msgs[i+1][2]-msgs[i][2]) > 0.001]
+if len(steps) < 2:
+    print('NA NA NA NA NA NA NA NA'); sys.exit(0)
+t1, x1, y1, yaw1 = msgs[steps[0]]
+t2, x2, y2, yaw2 = msgs[steps[-1] + 1]
 dt = t2 - t1
 v = (x2 - x1) / dt if dt > 0.5 else -9
 dyaw = yaw2 - yaw1
@@ -319,9 +347,39 @@ print(f'{vals[n//2]:.3f}' if n > 10 else 'NA')
   done
   echo NA
 }
+# 期望=激光射线与箱体表面的最近交点距离(2D slab 法,不用容差吸收外参差异):
+# 雷达世界坐标 = 车位姿 + LASER_X 沿车前向偏移(先把传感器变换到世界系,
+# 不再从箱距里直减前偏);射线方向 = 车前向 (cosψ,sinψ);
+# 箱 AABB x∈[5.75,6.25] y∈[-0.25,0.25](world:中心(6,0) 尺寸0.5 无旋转)。
+# /scan 角0 返回射线方向最近障碍距离 → 期望=tmin(起点在箱外)。
+# 旧"表面中心点在车前向的投影"在偏航时差 cos 因子,且发现不了射线已越过箱宽
+if pose_ok "$PB"; then
+  RANGE_EXP=$(awk -v x1=5.75 -v x2=6.25 -v y1=-0.25 -v y2=0.25 \
+    -v bx="$BX" -v by="$BY" -v yaw="$BYAW" -v off="$LASER_X" 'BEGIN{
+    c=cos(yaw); s=sin(yaw)
+    lx=bx+off*c; ly=by+off*s
+    if (c>1e-9 || c<-1e-9) {
+      ta=(x1-lx)/c; tb=(x2-lx)/c; if(ta>tb){t=ta;ta=tb;tb=t}; xn=ta; xx=tb
+    } else { if(lx<x1 || lx>x2){print "MISS"; exit}; xn=-1e9; xx=1e9 }
+    if (s>1e-9 || s<-1e-9) {
+      ta=(y1-ly)/s; tb=(y2-ly)/s; if(ta>tb){t=ta;ta=tb;tb=t}; yn=ta; yx=tb
+    } else { if(ly<y1 || ly>y2){print "MISS"; exit}; yn=-1e9; yx=1e9 }
+    tn=(xn>yn)?xn:yn; tx=(xx<yx)?xx:yx
+    if (tx<tn || tx<0) { print "MISS"; exit }
+    printf "%.3f", (tn>0?tn:tx)}')
+else
+  RANGE_EXP=""
+fi
 RANGE=$(scan_range)
-echo "/scan 正前方(角0)读数: ${RANGE}m(期望 5.75±${THR_RANGE_ERR})"
-awk -v r="${RANGE:-0}" 'BEGIN{exit !(r>5.65 && r<5.85)}' && ok "障碍物测距 ${RANGE}m≈5.75m" || bad "障碍测距 ${RANGE:-NA}m 偏差超限"
+if [ "$RANGE_EXP" = "MISS" ]; then
+  bad "测距工况失效:车位姿($BX,$BY,yaw=$BYAW)下正前射线未命中箱体(车被挪走/偏航过大?)"
+elif [ -n "$RANGE_EXP" ]; then
+  echo "/scan 正前方(角0)读数: ${RANGE}m(射线交点期望 ${RANGE_EXP}±${THR_RANGE_ERR})"
+  awk -v r="${RANGE:-0}" -v e="$RANGE_EXP" -v t="$THR_RANGE_ERR" 'BEGIN{exit !(r>e-t && r<e+t)}' \
+    && ok "障碍物测距 ${RANGE}m≈期望${RANGE_EXP}m(射线-AABB 交点,含雷达世界坐标变换)" || bad "障碍测距 ${RANGE:-NA}m 相对期望 ${RANGE_EXP}m 偏差超限"
+else
+  bad "测距期望无法计算(取不到车位姿)"
+fi
 
 # 相机非空:解析消息 data 数组本身——数值个数与最大值;警告行/--- 分隔符
 # 不是合法数值会被解析拒绝,不再用 grep 行匹配(源码审查问题4)
@@ -393,14 +451,21 @@ if [ -n "$GZ_DYAW" ]; then
   awk -v d="$GZ_DYAW" -v t="$THR_YAW_DRIFT" 'BEGIN{exit !(d<t && d>-t)}' && ok "直行 yaw 漂移 ${GZ_DYAW}rad<5°" || bad "直行 yaw 漂移 ${GZ_DYAW}rad≥5°"
 fi
 
-echo "-- 倒车 -0.3m/s × 2s --"
+echo "-- 倒车 -0.3m/s × 4s --"
+# 时长 4s(2026-09-15 第15轮:2s 工况下 pub 冷启动 0.3~2s 波动占指令窗口
+# 15%~95%,位移 -0.06~-0.51m,判据 -0.35 骑分布中间必然抖动;4s 让最坏
+# 冷启动 2s 时仍有 2s 有效窗口 ≥-0.6m,阈值不动、余量翻倍)
 PA=$(gz_pose); read AX AY AZ AYAW <<< "$PA"
-drive -0.3 0 2
+drive -0.3 0 4
 stop_car
 PB=$(gz_pose); read BX BY BZ BYAW <<< "$PB"
-GZ_DX=$(awk -v a="$AX" -v b="$BX" 'BEGIN{printf "%.3f", b-a}')
-echo "倒车真实 Δx=${GZ_DX}m"
-awk -v d="${GZ_DX:-0}" 'BEGIN{exit !(d<-0.35)}' && ok "倒车 Δx=${GZ_DX}m<-0.35" || bad "倒车未后退 Δx=${GZ_DX}m"
+if pose_ok "$PA" && pose_ok "$PB"; then
+  GZ_DX=$(awk -v a="$AX" -v b="$BX" 'BEGIN{printf "%.3f", b-a}')
+  echo "倒车真实 Δx=${GZ_DX}m"
+  awk -v d="${GZ_DX}" 'BEGIN{exit !(d<-0.35)}' && ok "倒车 Δx=${GZ_DX}m<-0.35" || bad "倒车未后退 Δx=${GZ_DX}m"
+else
+  bad "倒车工况取不到 Gazebo 位姿(一端 PARSE_FAIL;空值当 0 会假 PASS,判据不评)"
+fi
 
 echo "===== [7/8] 左右转弯(不饱和)/停车/限位 ====="
 echo "-- 左转 v=0.4 ω=0.25 × 10s(内轮理论角 0.247 < 限位 0.55,不饱和) --"
@@ -429,7 +494,11 @@ DY=$(yaw_delta "$AYAW" "$BYAW")
 echo "稳态瞬时 ω=${W_INST}rad/s | odom 全程平均 ω=${W_AVG}rad/s(收敛点法) | Gazebo 全程 Δyaw=${DY}rad | 指令 0.25"
 awk -v w="${W_INST:-NA}" 'BEGIN{exit !(w>0.225 && w<0.275)}' && ok "左转稳态瞬时角速度 ${W_INST}rad/s≈0.25(odometry 同消息 twist,±10%)" || bad "左转稳态瞬时角速度 ${W_INST}rad/s 偏离 0.25 超过±10%"
 awk -v w="${W_AVG:-NA}" 'BEGIN{exit !(w>0.18 && w<0.32)}' && ok "左转全程平均角速度 ${W_AVG}rad/s(odom stamp 同源)" || bad "左转全程平均角速度 ${W_AVG}rad/s 异常"
-awk -v d="${DY:-0}" -v t="$THR_TURN" 'BEGIN{exit !(d>t)}' && ok "左转 Δyaw=+${DY}rad>$THR_TURN(与 ω 同号)" || bad "左转 Δyaw=${DY}rad 不足或反向"
+if pose_ok "$PA" && pose_ok "$PB"; then
+  awk -v d="${DY}" -v t="$THR_TURN" 'BEGIN{exit !(d>t)}' && ok "左转 Δyaw=+${DY}rad>$THR_TURN(与 ω 同号)" || bad "左转 Δyaw=${DY}rad 不足或反向"
+else
+  bad "左转工况取不到 Gazebo 位姿(Δyaw 判据不评;空值当 0 会凑出假方向)"
+fi
 if js_ok "$LS2" && js_ok "$RS2"; then
   awk -v l="$LS2" -v r="$RS2" -v t="$THR_STEER_DIFF" 'BEGIN{exit !(l-r>t)}' && ok "左转为内侧:左前角${LS2}>右前角${RS2}" || bad "内外轮角关系错(左转应左前>右前,轮序反?)"
 else
@@ -455,7 +524,11 @@ stop_car
 PB=$(gz_pose); read BX BY BZ BYAW <<< "$PB"
 DY=$(yaw_delta "$AYAW" "$BYAW")
 echo "右转真实Δyaw=${DY}rad;前轮角 left=${LS2:-NA} right=${RS2:-NA}"
-awk -v d="${DY:-0}" 'BEGIN{exit !(d<-0.3)}' && ok "右转 Δyaw=${DY}rad<-0.3(与 ω 同号)" || bad "右转 Δyaw=${DY}rad 不足或反向"
+if pose_ok "$PA" && pose_ok "$PB"; then
+  awk -v d="${DY}" -v t="$THR_TURN" 'BEGIN{exit !(d<-t)}' && ok "右转 Δyaw=${DY}rad<-$THR_TURN(与 ω 同号)" || bad "右转 Δyaw=${DY}rad 不足或反向"
+else
+  bad "右转工况取不到 Gazebo 位姿(Δyaw 判据不评;空值当 0 会凑出假方向)"
+fi
 if js_ok "$LS2" && js_ok "$RS2"; then
   awk -v l="$LS2" -v r="$RS2" -v t="$THR_STEER_DIFF" 'BEGIN{al=l<0?-l:l; ar=r<0?-r:r; exit !(ar-al>t)}' && ok "右转为内侧:|右前角${RS2}|>|左前角${LS2}|" || bad "内外轮角关系错(右转应右前绝对值更大)"
 else
@@ -492,12 +565,16 @@ wait $DPID
 stop_car
 echo "限位下前轮角: left=${LS2:-NA} right=${RS2:-NA}"
 if js_ok "$LS2"; then
-  awk -v l="$LS2" -v m="$THR_STEER_LIM" 'BEGIN{exit !(l<m && l>-m)}' && ok "左前角饱和于限位内(|${LS2}|≤$THR_STEER_LIM)" || bad "左前角 ${LS2} 超限位"
+  awk -v l="$LS2" -v hi="$THR_STEER_LIM" -v lo="$THR_STEER_LIM_LO" 'BEGIN{al=(l<0?-l:l); exit !(al>=lo && al<=hi)}' \
+    && ok "左前角饱和于区间内(左前|${LS2}|∈[$THR_STEER_LIM_LO,$THR_STEER_LIM],零角度不通过)" \
+    || bad "左前角 |${LS2}| 未落入饱和区间[$THR_STEER_LIM_LO,$THR_STEER_LIM](未饱和或超限)"
 else
   bad "限位工况取不到左前角(${LS2:-空})"
 fi
 if js_ok "$RS2"; then
-  awk -v r="$RS2" -v m="$THR_STEER_LIM" 'BEGIN{exit !(r<m && r>-m)}' && ok "右前角饱和于限位内(|${RS2}|≤$THR_STEER_LIM)" || bad "右前角 ${RS2} 超限位"
+  awk -v r="$RS2" -v hi="$THR_STEER_LIM" -v lo="$THR_STEER_LIM_LO" 'BEGIN{ar=(r<0?-r:r); exit !(ar>=lo && ar<=hi)}' \
+    && ok "右前角饱和于区间内(右前|${RS2}|∈[$THR_STEER_LIM_LO,$THR_STEER_LIM],零角度不通过)" \
+    || bad "右前角 |${RS2}| 未落入饱和区间[$THR_STEER_LIM_LO,$THR_STEER_LIM](未饱和或超限)"
 else
   bad "限位工况取不到右前角(${RS2:-空})"
 fi
