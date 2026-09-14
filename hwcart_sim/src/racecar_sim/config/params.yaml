@@ -34,11 +34,12 @@ racecar_sim:
   lidar_hz: 10                # [规则] 10-12Hz
   lidar_min_range: 0.15       # [源码] min_range
   lidar_max_range: 25.0       # [规则] 量程25-30m(源码软件裁剪50m,取硬件25)
-  lidar_samples: 2000         # [规则] 采样20000/s ÷ 10Hz = 2000点/圈
+  lidar_samples: 2000         # [建模选择] 2000点/圈=采样20000/s÷10Hz 的折算;
+                              #   仿真为性能计未必逐点复刻,非严格硬件指标
   # --- 相机参数 ---
   cam_width: 640
   cam_height: 480
   cam_hz: 30
-  cam_hfov: 2.618             # 150° [规则](未说明水平/对角,先按水平,待实测)
+  cam_hfov: 2.618             # [建模选择] 150°(规则未说明水平/对角,先按水平)
   # --- IMU ---
   imu_hz: 200

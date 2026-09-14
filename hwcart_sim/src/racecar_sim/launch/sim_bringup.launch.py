@@ -10,9 +10,10 @@ import yaml
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess, RegisterEventHandler
+from launch.actions import DeclareLaunchArgument, EmitEvent, ExecuteProcess, RegisterEventHandler
 from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
+from launch.events import Shutdown
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
@@ -119,13 +120,27 @@ def generate_launch_description():
     )
 
     # 5) 接线箱:控制器激活后启动(/cmd_vel 转发 + odom TF 桥,见 sim_wiring.py)
+    #    use_sim_time:全节点统一走 /clock 仿真时钟(复验补齐;该节点只透传
+    #    消息不产生时间戳,但时钟一致性要求从配置上满足)
     sim_wiring = Node(
         package='racecar_sim',
         executable='sim_wiring',
+        parameters=[{'use_sim_time': True}],
         output='screen',
     )
 
-    # 事件链:spawn 退出(成功) → joint_state_broadcaster → ackermann → 接线箱
+    # 事件链:每步检查退出码,前一步失败就 Shutdown 整个 launch 并说明原因
+    # (OnProcessExit 的 on_exit 传 callable(event, context) → 返回 action 列表;
+    #  默认行为不分成败,spawn 失败也会继续拉起 spawner 干等,2026-09-14 复验指出)
+    def _chain_on_ok(step_label, next_action):
+        def _handler(event, context):
+            rc = getattr(event, 'returncode', 0)
+            if rc != 0:
+                return [EmitEvent(event=Shutdown(
+                    reason=f'{step_label} 失败(exit={rc}),终止启动链'))]
+            return [next_action]
+        return _handler
+
     return LaunchDescription([
         DeclareLaunchArgument('use_gui', default_value='true',
                               description='启动 gzclient 图形界面(headless 测试传 false)'),
@@ -134,12 +149,15 @@ def generate_launch_description():
         gzclient,
         spawn_entity,
         RegisterEventHandler(
-            OnProcessExit(target_action=spawn_entity, on_exit=[jsb_spawner])
+            OnProcessExit(target_action=spawn_entity,
+                          on_exit=_chain_on_ok('spawn_entity', jsb_spawner))
         ),
         RegisterEventHandler(
-            OnProcessExit(target_action=jsb_spawner, on_exit=[ackermann_spawner])
+            OnProcessExit(target_action=jsb_spawner,
+                          on_exit=_chain_on_ok('joint_state_broadcaster spawner', ackermann_spawner))
         ),
         RegisterEventHandler(
-            OnProcessExit(target_action=ackermann_spawner, on_exit=[sim_wiring])
+            OnProcessExit(target_action=ackermann_spawner,
+                          on_exit=_chain_on_ok('ackermann spawner', sim_wiring))
         ),
     ])

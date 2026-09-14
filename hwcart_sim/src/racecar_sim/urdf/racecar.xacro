@@ -14,6 +14,11 @@
 
  驱动: ros2_control + ackermann_steering_controller 2.53.3(本机已装,已核对接口:
    front_wheels_names ×2 转向 / rear_wheels_names ×2 驱动 / wheelbase / *_wheel_track)
+
+ 与实车契约的已知差异(2026-09-14 记录,阶段3 接 EKF 前处理):
+   里程计 frame 仿真用 odom(控制器默认),厂家契约用 odom_combined;
+   阶段1 定位为仿真差异不宣称对齐;阶段3 需确定唯一 TF 发布者并关闭
+   控制器 TF 桥(sim_wiring 的 /tf 桥接)避免双发
 ============================================================================= -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="racecar_sim">
 
@@ -63,14 +68,15 @@
         <origin xyz="0 0 0" rpy="${pi/2.0} 0 0"/>
         <geometry><cylinder radius="${WR}" length="${WW}"/></geometry>
       </collision>
-      <!-- 惯性主轴随几何轴一起转:圆柱几何轴(局部 z)侧躺后指向 y,
-           故 iyy 取轴向 mWR^2/2,ixx/izz 取直径轴 -->
+      <!-- 惯量直接按 link frame 分量写,origin rpy=0:几何侧躺(visual rpy)
+           与分量值若同时做就双重转换(2026-09-14 复验指出)。实心圆柱:
+           轴向(此处的 y)= mR²/2;直径轴(x/z)= m(3R²+W²)/12 -->
       <inertial>
-        <origin xyz="0 0 0" rpy="${pi/2.0} 0 0"/>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
         <mass value="${MW}"/>
-        <inertia ixx="${MW*(WW*WW)/12.0 + 0.75*MW*WR*WR}" ixy="0" ixz="0"
+        <inertia ixx="${MW*(3.0*WR*WR + WW*WW)/12.0}" ixy="0" ixz="0"
                  iyy="${MW*WR*WR/2.0}" iyz="0"
-                 izz="${MW*(WW*WW)/12.0 + 0.75*MW*WR*WR}"/>
+                 izz="${MW*(3.0*WR*WR + WW*WW)/12.0}"/>
       </inertial>
     </link>
     <joint name="${prefix}_front_wheel_spin_joint" type="continuous">
@@ -102,11 +108,11 @@
         <geometry><cylinder radius="${WR}" length="${WW}"/></geometry>
       </collision>
       <inertial>
-        <origin xyz="0 0 0" rpy="${pi/2.0} 0 0"/>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
         <mass value="${MW}"/>
-        <inertia ixx="${MW*(WW*WW)/12.0 + 0.75*MW*WR*WR}" ixy="0" ixz="0"
+        <inertia ixx="${MW*(3.0*WR*WR + WW*WW)/12.0}" ixy="0" ixz="0"
                  iyy="${MW*WR*WR/2.0}" iyz="0"
-                 izz="${MW*(WW*WW)/12.0 + 0.75*MW*WR*WR}"/>
+                 izz="${MW*(3.0*WR*WR + WW*WW)/12.0}"/>
       </inertial>
     </link>
     <joint name="${prefix}_rear_wheel_joint" type="continuous">
@@ -240,6 +246,17 @@
     <origin xyz="${cfg['camera_x']} 0 ${cfg['camera_z'] - CZ}" rpy="0 0 0"/>
   </joint>
 
+  <!-- 相机光学 frame:ROS 图像消息约定光学轴 z 前 x 右 y 下(REP 103/104)。
+       camera link 是物理安装位姿(与车体同向),camera_optical 仅作旋转,
+       相机插件 frame_name 用它 → 正前方物体的反投影方向在 base 中为 +x
+       (2026-09-14 复验补齐;实车 frame 名对齐留待实车接入阶段) -->
+  <link name="camera_optical"/>
+  <joint name="camera_optical_joint" type="fixed">
+    <parent link="camera"/>
+    <child link="camera_optical"/>
+    <origin xyz="0 0 0" rpy="${-pi/2.0} 0 ${-pi/2.0}"/>
+  </joint>
+
   <!-- ============ ros2_control(ackermann:2 转向 position + 2 驱动 velocity) ============ -->
   <ros2_control name="RacecarSimSystem" type="system">
     <hardware>
@@ -262,6 +279,16 @@
     </joint>
     <joint name="right_rear_wheel_joint">
       <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <!-- 前轮自转关节:纯物理被动轮,不进控制回路,只注册 state 接口让
+         joint_states 完整发布(复验要求:前轮滚动可观测,诊断打滑用) -->
+    <joint name="left_front_wheel_spin_joint">
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="right_front_wheel_spin_joint">
       <state_interface name="position"/>
       <state_interface name="velocity"/>
     </joint>
@@ -339,7 +366,7 @@
           <remapping>camera_sensor/image_raw:=/image_raw</remapping>
           <remapping>camera_sensor/camera_info:=/camera_info</remapping>
         </ros>
-        <frame_name>camera</frame_name>
+        <frame_name>camera_optical</frame_name>
       </plugin>
     </sensor>
   </gazebo>

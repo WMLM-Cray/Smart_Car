@@ -30,12 +30,32 @@ class SimWiring(Node):
             TFMessage, '/ackermann_steering_controller/tf_odometry',
             self.on_tf_odometry, 10)
 
+        # 3) cmd_vel 超时保护:来源停发(遥控断链/脚本超时)后 cmd_timeout 秒
+        #    自动向控制器发零速,车停住(安全语义,2026-09-14 收尾补验项;
+        #    时钟用 /clock 仿真时间,launch 已传 use_sim_time)
+        self.declare_parameter('cmd_timeout', 0.5)
+        self._cmd_timeout = float(self.get_parameter('cmd_timeout').value)
+        self._last_cmd_time = self.get_clock().now()
+        self._zero_sent = True   # 初始视为已发零速(车静止)
+        self.create_timer(0.1, self._cmd_watchdog)
+
         self.get_logger().info(
             'sim_wiring: /cmd_vel -> reference_unstamped, '
-            'tf_odometry -> /tf')
+            'tf_odometry -> /tf, watchdog=%.2fs' % self._cmd_timeout)
 
     def on_cmd_vel(self, msg: Twist):
         self.vel_pub.publish(msg)
+        self._last_cmd_time = self.get_clock().now()
+        self._zero_sent = False
+
+    def _cmd_watchdog(self):
+        if self._zero_sent:
+            return
+        elapsed = (self.get_clock().now() - self._last_cmd_time).nanoseconds
+        if elapsed > self._cmd_timeout * 1e9:
+            self.vel_pub.publish(Twist())   # 全零 = 停车
+            self._zero_sent = True
+            self.get_logger().warn('cmd_vel 超时,已自动下发零速停车')
 
     def on_tf_odometry(self, msg: TFMessage):
         self.tf_pub.publish(msg)
