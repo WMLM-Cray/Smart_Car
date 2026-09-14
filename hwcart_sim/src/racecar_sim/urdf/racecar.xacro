@@ -248,9 +248,11 @@
   </ros2_control>
 
   <gazebo>
+    <!-- 写法对齐官方 gazebo_ros2_control_demos(0.4.10):只留 parameters 子标签。
+         原先的 robot_param 与 robot_param_node 会让插件走"远程取 URDF 再整体
+         注入参数"分支,URDF 文本按 YAML 规则解析必炸(2026-09-14 实测) -->
     <plugin filename="libgazebo_ros2_control.so" name="gazebo_ros2_control">
-      <robot_param>robot_description</robot_param>
-      <robot_param_node>robot_state_publisher</robot_param_node>
+      <parameters>$(find racecar_sim)/config/ros2_control.yaml</parameters>
     </plugin>
   </gazebo>
 
@@ -284,7 +286,10 @@
       <plugin name="lidar_plugin" filename="libgazebo_ros_ray_sensor.so">
         <ros>
           <namespace>/</namespace>
-          <remapping>~/out:=scan</remapping>
+          <!-- remap 一律用绝对名(带前导斜杠):gazebo_plugins 老式插件的
+               命名空间会落在 /sensor_name 层,相对名跟着落层(2026-09-14
+               实测 camera 的 image_raw 落在 /camera_sensor/ 下) -->
+          <remapping>~/out:=/scan</remapping>
         </ros>
         <output_type>sensor_msgs/LaserScan</output_type>
         <frame_name>laser_sensor_link</frame_name>
@@ -308,8 +313,11 @@
       <plugin name="camera_plugin" filename="libgazebo_ros_camera.so">
         <ros>
           <namespace>/</namespace>
-          <remapping>~/image_raw:=image_raw</remapping>
-          <remapping>~/camera_info:=camera_info</remapping>
+          <!-- 实测该插件话题原始名 = sensor名/子话题(camera_info_manager
+               风格,ros2 node info /camera_plugin 确认为
+               camera_sensor/image_raw 相对名),remap 按此全名命中 -->
+          <remapping>camera_sensor/image_raw:=/image_raw</remapping>
+          <remapping>camera_sensor/camera_info:=/camera_info</remapping>
         </ros>
         <frame_name>camera</frame_name>
       </plugin>
@@ -320,6 +328,8 @@
   <gazebo reference="imu_sensor_link">
     <sensor type="imu" name="imu_sensor">
       <update_rate>${cfg['imu_hz']}</update_rate>
+      <!-- always_on:防 Gazebo 惰性更新导致 ROS 插件不发布(排查项) -->
+      <always_on>true</always_on>
       <imu>
         <angular_velocity><x><noise type="gaussian"><mean>0</mean><stddev>0.0002</stddev></noise></x>
           <y><noise type="gaussian"><mean>0</mean><stddev>0.0002</stddev></noise></y>
@@ -331,7 +341,7 @@
       <plugin name="imu_plugin" filename="libgazebo_ros_imu_sensor.so">
         <ros>
           <namespace>/</namespace>
-          <remapping>~/out:=IMU_data</remapping>
+          <remapping>~/out:=/IMU_data</remapping>
         </ros>
         <frame_name>imu_sensor_link</frame_name>
         <initial_orientation_as_reference>false</initial_orientation_as_reference>

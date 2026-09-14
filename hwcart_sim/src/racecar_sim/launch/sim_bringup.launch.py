@@ -5,48 +5,58 @@
 # =============================================================================
 import os
 
+import xacro
+
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, RegisterEventHandler
 from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
-from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
-from launch_ros.parameter_descriptions import ParameterValue
-from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
     pkg_share = get_package_share_directory('racecar_sim')
     use_gui = LaunchConfiguration('use_gui')
 
-    # 1) robot_description:xacro 实时展开(参数单一来源 params.yaml)
-    robot_description_content = Command([
-        FindExecutable(name='xacro'), ' ',
-        PathJoinSubstitution([FindPackageShare('racecar_sim'), 'urdf', 'racecar.xacro'])
-    ])
+    # 1) robot_description:官方 demo 姿势(Python xacro + doc.toxml())。
+    #    另:必须剥掉全部 XML 注释再传参。gazebo_ros2_control 0.4.10 源码
+    #    (gazebo_ros2_control_plugin.cpp:223)会把本参数值拼成
+    #    "robot_description:=<值>" 走 rcl_parse_arguments 注入,值部分按
+    #    YAML 规则解析;XML 注释里的 "冒号+空格"/行尾冒号会被 YAML 当
+    #    mapping 结构导致解析失败,插件 return 死亡、controller_manager
+    #    永远不建(2026-09-14 读 0.4.10 源码+对照 demo 定位;demo 的
+    #    <!-- Base Link --> 短注释无冒号故不炸,<?xml 声明行也非雷)
+    xacro_file = os.path.join(pkg_share, 'urdf', 'racecar.xacro')
+    doc = xacro.parse(open(xacro_file))
+    xacro.process_doc(doc)
+
+    def strip_comments(node):
+        for child in list(node.childNodes):
+            if child.nodeType == child.COMMENT_NODE:
+                node.removeChild(child)
+            else:
+                strip_comments(child)
+    strip_comments(doc)
+    robot_xml = doc.toxml()
+
     robot_state_publisher = Node(
         package='robot_state_publisher',
         executable='robot_state_publisher',
-        parameters=[{
-            # ParameterValue 强制按字符串传,防 launch_ros 把 URDF 当 yaml 解析报错
-            'robot_description': ParameterValue(robot_description_content, value_type=str),
-            'use_sim_time': True,
-        }],
+        parameters=[{'robot_description': robot_xml, 'use_sim_time': True}],
         output='screen',
     )
 
     # 2) Gazebo Classic:系统二进制 gzserver/gzclient(Humble 的 gazebo_ros
-    #    libexec 里没有 gzserver 包装可执行,Node 方式报 not found)
-    #    cmd_vel 重映射经 --ros-args 传入:libgazebo_ros_init.so 会把 gzserver
-    #    的 argv 交给 rclcpp 初始化,进程内 controller_manager(即
-    #    gazebo_ros2_control 插件)继承该重映射:控制器 ~/cmd_vel → /cmd_vel
+    #    libexec 里没有 gzserver 包装可执行,Node 方式报 not found)。
+    #    注意:gzserver 不解析 --ros-args(官方 gzserver.launch.py 无此透传,
+    #    实测 gzserver 会把 remap 串当 world 路径打开报错)。
+    #    /cmd_vel 接线与 odom TF 桥由 launch 末尾的 sim_wiring 节点完成。
     gzserver = ExecuteProcess(
         cmd=['gzserver', '--verbose',
              '-s', 'libgazebo_ros_init.so',
-             '-s', 'libgazebo_ros_factory.so',
-             '--ros-args', '-r',
-             '/ackermann_steering_controller/cmd_vel:=/cmd_vel'],
+             '-s', 'libgazebo_ros_factory.so'],
         output='screen',
     )
     gzclient = ExecuteProcess(
@@ -82,7 +92,14 @@ def generate_launch_description():
         output='screen',
     )
 
-    # 事件链:spawn 退出(成功) → joint_state_broadcaster → ackermann
+    # 5) 接线箱:控制器激活后启动(/cmd_vel 转发 + odom TF 桥,见 sim_wiring.py)
+    sim_wiring = Node(
+        package='racecar_sim',
+        executable='sim_wiring',
+        output='screen',
+    )
+
+    # 事件链:spawn 退出(成功) → joint_state_broadcaster → ackermann → 接线箱
     return LaunchDescription([
         DeclareLaunchArgument('use_gui', default_value='true',
                               description='启动 gzclient 图形界面(headless 测试传 false)'),
@@ -95,5 +112,8 @@ def generate_launch_description():
         ),
         RegisterEventHandler(
             OnProcessExit(target_action=jsb_spawner, on_exit=[ackermann_spawner])
+        ),
+        RegisterEventHandler(
+            OnProcessExit(target_action=ackermann_spawner, on_exit=[sim_wiring])
         ),
     ])

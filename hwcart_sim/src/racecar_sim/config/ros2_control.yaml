@@ -35,5 +35,10 @@ ackermann_steering_controller:
     rear_wheels_radius: 0.09   # [实测假设]
     open_loop: false           # 闭环:轮速反馈参与运动学
     use_sim_time: true
-    # cmd_vel 话题重映射在 launch 文件 gzserver 节点上做
-    # (controller_manager 运行于 gzserver 进程内,订阅 ~/cmd_vel → /cmd_vel)
+    # 里程计 TF:steering_controllers_library 默认 enable_odom_tf=false
+    # (与 diff_drive 默认 true 不同,不开就没有 odom frame,2026-09-14 实测)
+    enable_odom_tf: true
+    odom_frame_id: odom
+    base_frame_id: base_footprint
+    # /cmd_vel 接线:gzserver 不解析 --ros-args,无法 remap;由 racecar_sim
+    # 的 cmd_vel_relay 节点转发到 ~/reference_unstamped(见 launch 第 5 步)
