@@ -5,15 +5,24 @@
 #               bash ~/hwcart_sim/tools/verify_phase1.sh --selftest-fail  # 失败路径退出码自检
 # 构建证据由独立步骤提供: bash ~/hwcart_sim/tools/rebuild_racecar.sh(本脚本不含构建)
 #
-# 2026-09-14 返工第2轮(按独立验收收尾清单):
-#   - 失败必须 exit 非零(原来只 echo,退出码恒 0)
-#   - 清理只针对本次启动的进程:launch 记 PID 先 TERM 后 KILL;gzserver/gzclient
-#     只杀"本次新增"PID 集合(记录启动前快照,comm 求差);开场仅清占用
-#     11345 的上轮残留 gzserver,不再全局 pkill
-#   - 按 /clock 仿真时间增量计算期望(不再只靠墙钟 sleep)
-#   - 工况补齐:零指令静止/直行/倒车/左右转弯(不饱和)/零速停车/限位饱和/
+# 2026-09-14 返工第2轮(独立验收收尾清单) + 第3轮定稿(源码审查 3 问题):
+#   - 清理只针对本次进程组:launch 用 setsid 启动(独立进程组,PGID=launch PID),
+#     cleanup 只向 -PGID 发 TERM/KILL;端口 11345 已占用直接 exit 2 不代杀;
+#     删除 pkill -f / PID 快照差集(无法证明进程归属本次测试,可能误杀他方)
+#   - 关节检查解析真实消息:N=6 关节名齐全(含前轮自转 spin joint)、
+#     position/velocity 数组长度与 name 一致、值全部有限——不再数固定输出的行数
+#   - 稳态速度同源度量:
+#     ① 瞬时:控制器 /ackermann_steering_controller/odometry 同一条消息的
+#        twist(header.stamp 与 twist 同源) → ±10% 紧判据
+#     ② 全程:录制 odometry 消息流,取首条与"运动收敛点"(相邻消息位移<1mm)
+#        两条消息的 stamp 差与位姿差——停车后的读窗不进分母,无采样拼接;
+#        odom 位姿为账面,物理真实性由 Gazebo 世界系位移对账判据独立保证
+#     (旧"两次订阅拼 sec/nanosec + 窗口差分 ±30% 容差"已删除)
+#   - echo 输出过滤:QoS 警告会混入 stdout 且与 --- 粘连(tab 缩进炸 YAML),
+#     解析一律 try/except,缺数据显式失败,空值判据前置非空检查
+#   - 工况:零指令静止/直行/倒车/左右转弯(不饱和)/零速停车/限位饱和/
 #     已知障碍物测距/相机非空图像/频率容差/时间戳有效/光学 frame TF
-#   - 阈值集中在 THR_* 变量(负例测试 tools/verify_negative.sh 用 sed 注入)
+#   - 阈值集中在 THR_* 变量(负例 tools/verify_negative.sh 用 sed 注入)
 # =============================================================================
 export ROS_DOMAIN_ID=42
 export ROS2CLI_NO_DAEMON=1
@@ -34,6 +43,10 @@ THR_STEER_LIM=0.57    # 限位饱和上限 rad(0.55 + 0.02 余量)
 THR_STEER_DIFF=0.02   # 内外轮角最小差 rad(理论 0.058)
 THR_WHEEL_DIFF=0.03   # 内外后轮速最小差 m/s(理论 0.09)
 
+# joint_states 必须齐全的 6 关节(= URDF ros2_control 块注册的全部:
+# 2 转向 + 2 后驱 + 2 前轮自转 state-only;负例注入点:改坏任一名 → MISSING FAIL)
+EXP_JOINTS="left_steering_joint right_steering_joint left_rear_wheel_joint right_rear_wheel_joint left_front_wheel_spin_joint right_front_wheel_spin_joint"
+
 # ---- 失败路径退出码自检(负例之一,秒回) ----
 if [ "$1" = "--selftest-fail" ]; then
   bad "故意失败(失败路径退出码自检)"
@@ -42,46 +55,34 @@ if [ "$1" = "--selftest-fail" ]; then
   exit $FAIL
 fi
 
-# ---- 进程管理:只针对本次启动 ----
-GZ_BEFORE=$(pgrep -x gzserver 2>/dev/null | sort)
-GZC_BEFORE=$(pgrep -x gzclient 2>/dev/null | sort)
+# ---- 进程管理:只针对本次启动的进程组 ----
+# launch 用 setsid 起在独立进程组(PGID=launch PID),gzserver/spawner/sim_wiring
+# 全是该组子孙;cleanup 向 -PGID 发信号即精确覆盖本次全部进程,不碰组外任何进程
 LAUNCH_PID=""
 
 precheck() {
-  # 上轮崩溃残留的 gzserver 占 11345 会让本次启动 exit 255:
-  # 只清"占用 11345 且确为 gzserver"的进程,其他占用者报告后退出
+  # 端口被占一律退出,不代杀:占用者可能是别的会话正在跑的 Gazebo,
+  # 脚本无法证明其归属,自动 kill 有误杀风险(2026-09-14 源码审查问题1)
   if ss -ltn 2>/dev/null | grep -q 11345; then
-    local pid
-    pid=$(ss -ltnp 2>/dev/null | grep 11345 | grep -oP 'pid=\K[0-9]+' | head -1)
-    if [ -n "$pid" ] && [ "$(ps -p "$pid" -o comm= 2>/dev/null)" = "gzserver" ]; then
-      echo "[预检] 清理上轮残留 gzserver(pid=$pid,占 11345)"
-      kill -9 "$pid" 2>/dev/null
-    else
-      echo "[预检] 端口 11345 被其他进程占用(pid=${pid:-未知}),请手动处理后重试"
-      exit 2
-    fi
-    for i in 1 2 3 4 5; do ss -ltn 2>/dev/null | grep -q 11345 || break; sleep 1; done
+    echo "[预检] 端口 11345 已被占用,本脚本只管理自己启动的进程组,不代杀:"
+    ss -ltnp 2>/dev/null | grep 11345
+    echo "[预检] 请手动确认后清理(如为残留: kill -9 <上面查到的 PID>),再重试"
+    exit 2
   fi
 }
 
 cleanup() {
-  # 1) launch 优先优雅退出(SIGTERM → launch 关停自己的全部子进程)
+  # 仅向本次进程组发信号:先 TERM 优雅关停(ros2 launch 会关停自己的子进程),
+  # 超时再整组 KILL(组长已死时 -PGID 仍命中组内孤儿,如 gzserver)
   if [ -n "$LAUNCH_PID" ]; then
-    kill -TERM "$LAUNCH_PID" 2>/dev/null
-    for i in 1 2 3 4 5 6 7 8; do kill -0 "$LAUNCH_PID" 2>/dev/null || break; sleep 1; done
-    kill -9 "$LAUNCH_PID" 2>/dev/null
+    kill -TERM -- "-$LAUNCH_PID" 2>/dev/null
+    for i in 1 2 3 4 5 6 7 8; do
+      kill -0 -- "-$LAUNCH_PID" 2>/dev/null || break
+      sleep 1
+    done
+    kill -KILL -- "-$LAUNCH_PID" 2>/dev/null
   fi
-  # 2) gzserver/gzclient 不理 SIGTERM,只杀本次启动"新增"的
-  local new
-  new=$(comm -13 <(printf '%s\n' "$GZ_BEFORE") <(pgrep -x gzserver 2>/dev/null | sort) | grep -v '^$')
-  [ -n "$new" ] && kill -9 $new 2>/dev/null
-  new=$(comm -13 <(printf '%s\n' "$GZC_BEFORE") <(pgrep -x gzclient 2>/dev/null | sort) | grep -v '^$')
-  [ -n "$new" ] && kill -9 $new 2>/dev/null
-  # 3) 兜底:仅杀 racecar_sim 命名空间的可执行(launch -9 后的孤儿 sim_wiring)
-  pkill -9 -f "racecar_sim" 2>/dev/null
-  ros2 daemon stop >/dev/null 2>&1
   for i in 1 2 3 4 5; do ss -ltn 2>/dev/null | grep -q 11345 || break; sleep 1; done
-  sleep 1
 }
 trap cleanup EXIT
 precheck
@@ -102,19 +103,53 @@ yaw = math.atan2(2*(qw*qz + qx*qy), 1 - 2*(qy*qy + qz*qz))
 print(f'{px:.4f} {py:.4f} {pz:.4f} {yaw:.4f}')
 "
 }
-simsec() {  # /clock 仿真时间(浮点秒;sec/nsec 两次 echo 并行,各 ~1.2s。
-  local T=/tmp/.ss.$$ P1 P2 s n   # 串联 5s 拖垮采样窗口;--once 在验收
-  # 负载下实测拿不到值(第4-6轮 NA),流式+grep -m1 是第 3 轮实证过的取法)
-  timeout 8 ros2 topic echo /clock --field clock.sec 2>/dev/null \
-    | grep -m1 -E '^[0-9]+$' > $T.s &
-  P1=$!
-  timeout 8 ros2 topic echo /clock --field clock.nanosec 2>/dev/null \
-    | grep -m1 -E '^[0-9]+$' > $T.n &
-  P2=$!
-  wait $P1 $P2
-  s=$(cat $T.s 2>/dev/null); n=$(cat $T.n 2>/dev/null); rm -f $T.s $T.n
-  [ -z "$s" ] && { echo "NA"; return; }
-  awk -v s="$s" -v n="${n:-0}" 'BEGIN{printf "%.3f", s+n/1e9}'
+odom_twist() {  # 控制器 odometry 同一条消息的瞬时 twist 标量:
+  # $1 = linear.x | angular.z。header.stamp 与 twist 同源同消息,无采样拼接
+  local v
+  v=$(timeout 8 ros2 topic echo /ackermann_steering_controller/odometry \
+        --field "twist.twist.$1" 2>/dev/null | grep -m1 -E '^-?[0-9.]+$')
+  echo "${v:-NA}"
+}
+odom_stream() {  # 后台录制 odometry 消息流到文件(运动全程,含起步前/停稳后)
+  timeout 30 ros2 topic echo /ackermann_steering_controller/odometry \
+    2>/dev/null > "$1"
+}
+odom_vw() {  # 解析录制文件 → "T1 X1 YAW1 T2 X2 YAW2 V_AVG W_AVG"
+  # T1/X1=首条消息;T2/X2=运动收敛点(与下一条相邻位移<1mm 的首条)——
+  # 停车后的读窗不计入分母;V 用 x 分量(直行工况),W 用归一化 yaw 差
+  python3 - "$1" <<'PYEOF'
+import sys, re, math, yaml
+txt = open(sys.argv[1]).read()
+msgs = []
+for d in re.split(r'(?m)^---\s*$', txt):
+    d = d.strip()
+    if 'header' not in d:
+        continue
+    try:
+        m = yaml.safe_load(d)
+        t = m['header']['stamp']['sec'] + m['header']['stamp']['nanosec'] / 1e9
+        p = m['pose']['pose']['position']
+        q = m['pose']['pose']['orientation']
+        yaw = math.atan2(2*(q['w']*q['z']+q['x']*q['y']), 1-2*(q['y']**2+q['z']**2))
+        msgs.append((t, p['x'], p['y'], yaw))
+    except Exception:
+        continue   # QoS 警告混入 stdout 的坏文档跳过
+if len(msgs) < 10:
+    print('NA NA NA NA NA NA NA NA'); sys.exit(0)
+t1, x1, y1, yaw1 = msgs[0]
+end_i = len(msgs) - 1
+for i in range(len(msgs) - 1):
+    if math.hypot(msgs[i+1][1]-msgs[i][1], msgs[i+1][2]-msgs[i][2]) > 0.001:
+        end_i = i + 1
+t2, x2, y2, yaw2 = msgs[end_i]
+dt = t2 - t1
+v = (x2 - x1) / dt if dt > 0.5 else -9
+dyaw = yaw2 - yaw1
+if dyaw > math.pi: dyaw -= 2 * math.pi
+if dyaw < -math.pi: dyaw += 2 * math.pi
+w = dyaw / dt if dt > 0.5 else -9
+print('%.3f %.4f %.4f %.3f %.4f %.4f %.3f %.3f' % (t1, x1, yaw1, t2, x2, yaw2, v, w))
+PYEOF
 }
 yaw_delta() {  # 归一化角差
   awk -v a="$1" -v b="$2" 'BEGIN{d=b-a; if(d>3.14159)d-=6.28319; if(d<-3.14159)d+=6.28319; printf "%.4f", d}'
@@ -124,27 +159,44 @@ drive() {  # v w 时长s
     "{linear: {x: $1}, angular: {z: $2}}" >/dev/null 2>&1
 }
 stop_car() { drive 0 0 1; }
-get_js() {  # joint_states → KEY=VAL 行
+get_js() {  # joint_states 首条消息 → 单行 TSV(9 字段,bash 一次 read 解包):
+  # N POS_LEN VEL_LEN MISSING NONFINITE LEFT_STEER RIGHT_STEER LEFT_REAR_V RIGHT_REAR_V
+  # 解析真实消息——关节数/数组长度/缺失关节/非有限值全部暴露;单行原子输出,
+  # 多行 print 存在偶发中间行丢失(第 10 轮 VEL_LEN 消失),单行结构上不可能。
+  # awk 从 header:/name: 行起放行:QoS 警告会混入 stdout 且与 --- 粘连
+  # (tab 缩进炸 YAML),不能从头直通
   timeout 8 ros2 topic echo /joint_states 2>/dev/null \
-    | awk '/^name:/{flag=1} /^---$/{if(flag)exit} flag{print}' \
+    | awk '/^(header|name):/{flag=1} flag && /^---$/{exit} flag{print}' \
     | python3 -c "
-import sys, yaml
-d = yaml.safe_load(sys.stdin) or {}
-names = d.get('name', [])
-pos = d.get('position', [])
-vel = d.get('velocity', [])
+import sys, math, yaml
+try:
+    d = yaml.safe_load(sys.stdin) or {}
+except Exception:
+    d = {}
+names = list(d.get('name') or [])
+pos = list(d.get('position') or [])
+vel = list(d.get('velocity') or [])
+exp = '''$EXP_JOINTS'''.split()
+missing = [j for j in exp if j not in names]
+bad = [j for j, v in zip(names, pos) if not math.isfinite(v)]
+bad += [j for j, v in zip(names, vel) if not math.isfinite(v)]
 def g(n, arr):
     return arr[names.index(n)] if n in names and len(arr) == len(names) else 'NA'
-print('LEFT_STEER=' + str(g('left_steering_joint', pos)))
-print('RIGHT_STEER=' + str(g('right_steering_joint', pos)))
-print('LEFT_REAR_V=' + str(g('left_rear_wheel_joint', vel)))
-print('RIGHT_REAR_V=' + str(g('right_rear_wheel_joint', vel)))
+print('\t'.join(str(x) for x in [
+    len(names), len(pos), len(vel),
+    ','.join(missing) if missing else 'ok',
+    ','.join(bad) if bad else 'ok',
+    g('left_steering_joint', pos), g('right_steering_joint', pos),
+    g('left_rear_wheel_joint', vel), g('right_rear_wheel_joint', vel)]))
 "
 }
-js_var() { echo "$JSV" | grep -m1 -oP "^$1=\K[-+0-9.eE]+"; }
+js_ok() { [ -n "$1" ] && [ "$1" != "NA" ]; }  # 数值字段非空且非 NA
+pose_ok() { case "$1" in ""|*FAIL*) false;; *) true;; esac; }  # gz_pose 结果有效
 
 echo "===== [1/8] 一键启动(use_gui:=false) ====="
-ros2 launch racecar_sim sim_bringup.launch.py use_gui:=false > /tmp/sim_test.log 2>&1 &
+# setsid:launch 及其全部子孙(gzserver/spawner/sim_wiring)落进独立进程组,
+# PGID=$LAUNCH_PID;cleanup 的 -PGID 信号只覆盖这组,不碰组外进程
+setsid ros2 launch racecar_sim sim_bringup.launch.py use_gui:=false > /tmp/sim_test.log 2>&1 &
 LAUNCH_PID=$!
 sleep 35
 if grep -q "SpawnEntity: Successfully spawned entity" /tmp/sim_test.log; then ok "spawn 成功"; else bad "spawn 失败(见 /tmp/sim_test.log)"; fi
@@ -157,10 +209,15 @@ CTRL=$(timeout 20 ros2 control list_controllers 2>/dev/null)
 echo "$CTRL"
 echo "$CTRL" | grep -q "joint_state_broadcaster.*active" && ok "joint_state_broadcaster active" || bad "joint_state_broadcaster 未激活"
 echo "$CTRL" | grep -q "ackermann_steering_controller.*active" && ok "ackermann_steering_controller active" || bad "ackermann 未激活"
-# 前轮自转关节完整发布(state-only 接口进 joint_states)
+# 关节完整性:解析真实消息——6 关节名齐全(含前轮自转)、数组长度一致、值有限
 JSV=$(get_js)
-N_JS=$(echo "$JSV" | grep -c '=')
-[ "$N_JS" = "4" ] && ok "joint_states 含 4 关节(含前轮自转)" || bad "joint_states 缺关节(取到 $N_JS/4)"
+IFS=$'\t' read -r NJS PLEN VLEN MISS NFJ _ _ _ _ <<< "$JSV"
+echo "joint_states: N=${NJS:-NA} POS_LEN=${PLEN:-NA} VEL_LEN=${VLEN:-NA} MISSING=${MISS:-NA} NONFINITE=${NFJ:-NA}"
+[ "${NJS:-NA}" = "NA" ] && bad "joint_states 取不到消息(echo 无输出或解析失败)"
+[ "$NJS" = "6" ] && ok "joint_states 含 6 关节(4 控制关节 + 2 前轮自转)" || bad "joint_states 关节数=${NJS:-取不到}(应 6)"
+[ "$PLEN" = "6" ] && [ "$VLEN" = "6" ] && ok "position/velocity 数组长度=6 与关节名一致" || bad "数组长度不符(POS=${PLEN:-NA} VEL=${VLEN:-NA} 应 6)"
+[ "$MISS" = "ok" ] && ok "6 关节名齐全(含前轮自转 spin joint)" || bad "joint_states 缺关节: ${MISS:-NA}"
+[ "$NFJ" = "ok" ] && ok "位置/速度值全部有限" || bad "joint_states 非有限值: ${NFJ:-NA}"
 
 echo "===== [3/8] 传感器(频率容差) ====="
 wait_topic_alive() {
@@ -211,15 +268,21 @@ timeout 12 ros2 topic echo /IMU_data --field header.frame_id 2>/dev/null | grep 
 timeout 12 ros2 topic echo /image_raw --field header.frame_id 2>/dev/null | grep -m1 -qx "camera_optical" && ok "/image_raw frame_id=camera_optical" || bad "/image_raw frame_id 不对"
 
 # 光学 frame 方向:base→camera_optical 的 rpy 应为 (-pi/2, 0, -pi/2)
-# (z 前 x 右 y 下;正前方物体反投影方向在 base 中 +x)
+# (z 前 x 右 y 下;正前方物体反投影方向在 base 中 +x)。
+# 匹配失败(无输出)显式失败——空输入进 awk 会静默通过(源码审查问题4)
 RPY_LINE=$(timeout 8 ros2 run tf2_ros tf2_echo base_footprint camera_optical 2>/dev/null | grep -m1 -i "radian")
 echo "camera_optical:    $RPY_LINE"
-echo "$RPY_LINE" | grep -oP '\[\K-?[0-9.]+, *-?[0-9.]+, *-?[0-9.]+' | awk -F', *' '{
-  r=$1+0; p=$2+0; y=$3+0
-  if (r<-1.591 || r>-1.551) exit 1
-  if (p<-0.02 || p>0.02) exit 1
-  if (y<-1.591 || y>-1.551) exit 1
-}' && ok "camera_optical rpy=(-π/2,0,-π/2) 光学约定" || bad "camera_optical 旋转不对(应 -π/2 0 -π/2)"
+RPY3=$(echo "$RPY_LINE" | grep -oP '\[\K-?[0-9.]+, *-?[0-9.]+, *-?[0-9.]+')
+if [ -z "$RPY3" ]; then
+  bad "camera_optical rpy 取不到数据(tf2_echo 无 Rotation 输出)"
+else
+  echo "$RPY3" | awk -F', *' '{
+    r=$1+0; p=$2+0; y=$3+0
+    if (r<-1.591 || r>-1.551) exit 1
+    if (p<-0.02 || p>0.02) exit 1
+    if (y<-1.591 || y>-1.551) exit 1
+  }' && ok "camera_optical rpy=(-π/2,0,-π/2) 光学约定" || bad "camera_optical 旋转不对(应 -π/2 0 -π/2)"
+fi
 
 echo "===== [5/8] 静止/测距/图像(车未动) ====="
 PA=$(gz_pose); read AX AY AZ AYAW <<< "$PA"
@@ -227,14 +290,17 @@ sleep 2
 PB=$(gz_pose); read BX BY BZ BYAW <<< "$PB"
 echo "静止 2s: ($AX,$AY,z=$AZ) → ($BX,$BY,z=$BZ)"
 STILL=$(awk -v a="$AX" -v b="$BX" -v c="$AY" -v d="$BY" 'BEGIN{printf "%.4f", sqrt((b-a)^2+(d-c)^2)}')
-awk -v s="$STILL" -v t="$THR_STILL" 'BEGIN{exit !(s<t)}' && ok "零指令静止(位移 ${STILL}m<$THR_STILL)" || bad "零指令漂移 ${STILL}m"
+if pose_ok "$PA" && pose_ok "$PB"; then
+  awk -v s="$STILL" -v t="$THR_STILL" 'BEGIN{exit !(s<t)}' && ok "零指令静止(位移 ${STILL}m<$THR_STILL)" || bad "零指令漂移 ${STILL}m"
+else
+  bad "静止工况取不到 Gazebo 位姿(PARSE_FAIL=服务无响应)"
+fi
 # 接地检查:静止时 base_footprint(实体原点)世界 z ≈ 0(轮心 WR-CZ 修正的
 # 直接证据;GPT:不要只看静态 TF 的 z 数字)
 awk -v z="${AZ:-9}" 'BEGIN{exit !(z>-0.05 && z<0.05)}' && ok "接地:静止时 z=${AZ}m≈0(footprint 贴地)" || bad "接地异常 z=${AZ}m(轮心高度错?)"
 
 # 已知障碍物:world 内 marker_box(中心 x=6)前表面距原点 5.75m → /scan 正前方读数
-# (echo --field 大数组输出是单行 flow 风格 [v1, v2, ...];小数组才是 '- v' 逐行,
-#  两种都兼容;--- 分隔符与警告行丢弃;首条消息慢,重试)
+# (echo --field 大数组输出是单行 flow 风格 [v1, v2, ...];--- 分隔符与警告行丢弃)
 scan_range() {
   local v
   for try in 1 2 3; do
@@ -242,18 +308,9 @@ scan_range() {
 import sys, re
 txt = sys.stdin.read()
 vals = []
-m = re.search(r'\[([0-9eE+.,\s inf-]+)\]', txt)   # flow: [v1, v2, ...](长数组会折行,字符类含 \s 跨行匹配)
+m = re.search(r'\[([0-9eE+.,\s inf-]+)\]', txt)   # flow: [v1, v2, ...](字符类含 \s 跨行匹配)
 if m:
     vals = [float(x) for x in m.group(1).split(',') if x.strip()]
-else:
-    for raw in txt.splitlines():                        # block: '- v' 逐行
-        s = raw.strip()
-        if s.startswith('- '):
-            s = s[2:].strip()
-        try:
-            vals.append(float(s))
-        except ValueError:
-            pass
 n = len(vals)
 print(f'{vals[n//2]:.3f}' if n > 10 else 'NA')
 ")
@@ -266,45 +323,75 @@ RANGE=$(scan_range)
 echo "/scan 正前方(角0)读数: ${RANGE}m(期望 5.75±${THR_RANGE_ERR})"
 awk -v r="${RANGE:-0}" 'BEGIN{exit !(r>5.65 && r<5.85)}' && ok "障碍物测距 ${RANGE}m≈5.75m" || bad "障碍测距 ${RANGE:-NA}m 偏差超限"
 
-# 相机非空:图像数据存在非零像素(排除空行,防 -v 假阳性)
-timeout 8 ros2 topic echo /image_raw --field data 2>/dev/null | head -500 \
-  | grep -m1 -q -v -e '^$' -e '^-\{0,1\} *0$' \
-  && ok "/image_raw 非空图像" || bad "/image_raw 图像全零"
+# 相机非空:解析消息 data 数组本身——数值个数与最大值;警告行/--- 分隔符
+# 不是合法数值会被解析拒绝,不再用 grep 行匹配(源码审查问题4)
+IMG_VERDICT=$(timeout 25 ros2 topic echo /image_raw --field data 2>/dev/null | python3 -c "
+import sys, re
+txt = sys.stdin.read()
+m = re.search(r'\[([^\]]*)\]', txt)   # 首条消息的数组字面量(大数组为 repr 单行)
+n = 0; vmax = -1
+if m:
+    for tok in m.group(1).split(','):
+        tok = tok.strip()
+        if not tok:
+            continue
+        try:
+            x = int(tok)
+        except ValueError:
+            continue
+        n += 1
+        if x > vmax: vmax = x
+print('IMG_OK n=%d max=%d' % (n, vmax) if n >= 1000 and vmax > 0 else 'IMG_BAD n=%d max=%d' % (n, vmax))
+")
+echo "/image_raw data: ${IMG_VERDICT}(期望 n≈921600=640×480×3)"
+case "$IMG_VERDICT" in
+  IMG_OK*) ok "/image_raw 非空图像(${IMG_VERDICT#IMG_OK })" ;;
+  *)       bad "/image_raw 图像数据异常: ${IMG_VERDICT:-取不到}" ;;
+esac
 
-echo "===== [6/8] 直行与倒车(/clock 度量稳态速度) ====="
-echo "-- 直行 0.5m/s × 10s:稳态窗口测速度(位移/仿真时长,RTF 与斜坡无关) --"
-# 采样对称性:TA/TB 都在 gz_pose 之后取 —— simsec 各滞后采样点 ~1.2s,
-# 两次滞后近似相等在 dt 中抵消(原 TA 在前/TB 在后,分母虚大 ~2s 是第 3 轮
-# V=0.097 假阴性的根因)。drive 10s 覆盖整个采样序列(墙钟 ~9s)保证窗口
-# 两端都在匀速段内;车行程 ~4.6m+车头 < 5.75m(box 前表面,已远置)
+echo "===== [6/8] 直行与倒车(同消息稳态度量) ====="
+echo "-- 直行 0.5m/s × 10s --"
+# 稳态速度双证据(全部同源,无采样拼接):
+#   ① 瞬时:odometry 同一条消息的 twist(header.stamp 与 twist 同源) → ±10%
+#   ② 全程:录制 odometry 消息流,首条 ↔ 运动收敛点(相邻位移<1mm)的
+#      stamp 差与 x 差——停车后读窗不进分母。odom 位姿是账面,
+#      物理真实性由下面的 Gazebo 世界系位移判据独立保证
 PA=$(gz_pose); read AX AY AZ AYAW <<< "$PA"
+odom_stream /tmp/odom_str.txt & OPID=$!
+sleep 1                            # 订阅建立(~1.2s)完成于车动之前
 drive 0.5 0 10 &
 DPID=$!
-sleep 1.2                          # 跳过起步斜坡
-PW=$(gz_pose); read WX1 WY1 WZ1 WYAW1 <<< "$PW"; TA=$(simsec)
-sleep 1.5
-PW=$(gz_pose); read WX2 WY2 WZ2 WYAW2 <<< "$PW"; TB=$(simsec)
+sleep 2.5                          # pub 冷启动 ~1.5s + 起步斜坡,进入稳态
+V_INST=$(odom_twist linear.x)
 wait $DPID
 stop_car
+sleep 1.5                          # watchdog 0.5s + 减速,确保流里含停稳后的消息
+kill $OPID 2>/dev/null; wait $OPID 2>/dev/null
+read _ _ _ _ OX2 _ V_AVG _ <<< "$(odom_vw /tmp/odom_str.txt)"
+rm -f /tmp/odom_str.txt
 PB=$(gz_pose); read BX BY BZ BYAW <<< "$PB"
-V_MEAS=$(awk -v a="$WX1" -v b="$WX2" -v t1="${TA:-0}" -v t2="${TB:-0}" \
-  'BEGIN{dt=t2-t1; printf "%.3f", (dt>0.5)?(b-a)/dt:-9}')
-DTW=$(awk -v a="${TA:-0}" -v b="${TB:-0}" 'BEGIN{printf "%.2f", b-a}')
-GZ_DX=$(awk -v a="$AX" -v b="$BX" 'BEGIN{printf "%.3f", b-a}')
-GZ_DYAW=$(yaw_delta "$AYAW" "$BYAW")
-echo "稳态窗口 Δt_sim=${DTW}s 速度实测=${V_MEAS}m/s(指令 0.5) | 全程 Δx=${GZ_DX}m Δyaw=${GZ_DYAW}rad"
+echo "稳态瞬时 V=${V_INST}m/s | odom 全程平均 V=${V_AVG}m/s(收敛点法) | 指令 0.5"
+awk -v v="${V_INST:-NA}" 'BEGIN{exit !(v>0.45 && v<0.55)}' && ok "直行稳态瞬时速度 ${V_INST}m/s≈0.5(odometry 同消息 twist,±10%)" || bad "直行稳态瞬时速度 ${V_INST}m/s 偏离 0.5 超过±10%"
+awk -v v="${V_AVG:-NA}" 'BEGIN{exit !(v>0.40 && v<0.60)}' && ok "直行全程平均速度 ${V_AVG}m/s(odom stamp 同源,含斜坡损耗)" || bad "直行全程平均速度 ${V_AVG}m/s 异常"
+if pose_ok "$PA" && pose_ok "$PB"; then
+  GZ_DX=$(awk -v a="$AX" -v b="$BX" 'BEGIN{printf "%.3f", b-a}')
+  GZ_DYAW=$(yaw_delta "$AYAW" "$BYAW")
+  echo "Gazebo 全程 Δx=${GZ_DX}m Δyaw=${GZ_DYAW}rad"
+  awk -v d="${GZ_DX:-0}" 'BEGIN{exit !(d>3.5 && d<5.5)}' && ok "直行 Gazebo 全程位移 Δx=${GZ_DX}m(0.5×10s 扣冷启动/斜坡)" || bad "直行 Gazebo 全程位移 Δx=${GZ_DX}m 异常"
+else
+  GZ_DX=""; GZ_DYAW=""
+  bad "直行工况取不到 Gazebo 位姿(位移/偏差/漂移判据跳过)"
+fi
 POS=$(timeout 8 ros2 run tf2_ros tf2_echo odom base_footprint 2>/dev/null | grep -m1 "Translation")
 X=$(echo "$POS" | grep -oP "Translation: \[\K-?[0-9.]+")
 echo "odom→base_footprint: $POS"
-# 容差 ±30%:窗口法的系统误差——TA/TB 各滞后采样点 ~1-2s 且不对称
-# (残差 ~0.4s/窗口 2.4s),V 实测 0.60(虚高 20%)、ω 实测 0.215(偏低 14%)
-# 均在第 7 轮实证;速度绝对精度由位移判据(odom/Gazebo 对账)保证
-awk -v v="$V_MEAS" 'BEGIN{exit !(v>0.35 && v<0.65)}' && ok "直行稳态速度 ${V_MEAS}m/s≈0.5(/clock 度量,容差±30%)" || bad "直行稳态速度 ${V_MEAS}m/s 偏离 0.5"
 awk -v x="${X:-0}" -v t="$THR_STRAIGHT" 'BEGIN{exit !(x>t)}' && ok "直行 odom 位移 x=${X}m>$THR_STRAIGHT" || bad "直行 odom 位移不足 x=${X}m"
-awk -v d="${GZ_DX:-0}" -v t="$THR_STRAIGHT" 'BEGIN{exit !(d>t)}' && ok "直行 Gazebo 真实位移 Δx=${GZ_DX}m>$THR_STRAIGHT" || bad "直行真实位移不足 Δx=${GZ_DX}m"
-DEV=$(awk -v x="${X:-0}" -v d="${GZ_DX:-0}" 'BEGIN{printf "%.3f", x-d}')
-awk -v d="$DEV" -v t="$THR_STRAIGHT_DEV" 'BEGIN{exit !(d<t && d>-t)}' && ok "账面-真实偏差 ${DEV}m<$THR_STRAIGHT_DEV" || bad "账面-真实偏差 ${DEV}m≥$THR_STRAIGHT_DEV"
-awk -v d="${GZ_DYAW:-0}" -v t="$THR_YAW_DRIFT" 'BEGIN{exit !(d<t && d>-t)}' && ok "直行 yaw 漂移 ${GZ_DYAW}rad<5°" || bad "直行 yaw 漂移 ${GZ_DYAW}rad≥5°"
+if [ -n "$GZ_DX" ] && [ -n "$X" ]; then
+  awk -v x="$X" -v d="$GZ_DX" -v t="$THR_STRAIGHT_DEV" 'BEGIN{exit !((x-d<t)&&(x-d>-t))}' && ok "账面-真实偏差 $(awk -v x="$X" -v d="$GZ_DX" 'BEGIN{printf "%.3f", x-d}')m<$THR_STRAIGHT_DEV" || bad "账面-真实偏差 $(awk -v x="$X" -v d="$GZ_DX" 'BEGIN{printf "%.3f", x-d}')m≥$THR_STRAIGHT_DEV"
+fi
+if [ -n "$GZ_DYAW" ]; then
+  awk -v d="$GZ_DYAW" -v t="$THR_YAW_DRIFT" 'BEGIN{exit !(d<t && d>-t)}' && ok "直行 yaw 漂移 ${GZ_DYAW}rad<5°" || bad "直行 yaw 漂移 ${GZ_DYAW}rad≥5°"
+fi
 
 echo "-- 倒车 -0.3m/s × 2s --"
 PA=$(gz_pose); read AX AY AZ AYAW <<< "$PA"
@@ -318,51 +405,67 @@ awk -v d="${GZ_DX:-0}" 'BEGIN{exit !(d<-0.35)}' && ok "倒车 Δx=${GZ_DX}m<-0.3
 echo "===== [7/8] 左右转弯(不饱和)/停车/限位 ====="
 echo "-- 左转 v=0.4 ω=0.25 × 10s(内轮理论角 0.247 < 限位 0.55,不饱和) --"
 # ω=0.25 而非 0.3:全程 Δyaw ~2.4rad 必须远离 ±π——yaw_delta 的归一化
-# 在 |Δyaw|>π 时把左转误判为反向(第 6 轮 ω=0.3×11s 转 3.17rad 实测翻车)
+# 在 |Δyaw|>π 时把左转误判为反向(实测 ω=0.3×11s 转 3.17rad 翻车)
+# 度量同直行:① odometry 同消息 twist 瞬时 ω;② 收敛点法全程平均 ω;
+# 转弯中的内外轮角/后轮速由 get_js 串行采样(稳态段内)
 PA=$(gz_pose); read AX AY AZ AYAW <<< "$PA"
-# get_js 串行放窗口前(第 7 轮实测后台重定向方式取不到值,第 5 轮此结构
-# 实证取到 0.2950/0.2377);序列 1.2+1.5+3+1+3=9.7s ≤ drive 10s;
-# wait 一律带 PID:裸 wait 会连 ros2 launch 后台一起等,永久挂死
+odom_stream /tmp/odom_turn.txt & OPID=$!
+sleep 1
 drive 0.4 0.25 10 &
 DPID=$!
-sleep 1.2
+sleep 2.5
+W_INST=$(odom_twist angular.z)
 JSV=$(get_js)
-LS2=$(js_var LEFT_STEER); RS2=$(js_var RIGHT_STEER)
-LRV=$(js_var LEFT_REAR_V); RRV=$(js_var RIGHT_REAR_V)
-PW=$(gz_pose); read WX1 WY1 WZ1 WYAW1 <<< "$PW"; TA=$(simsec)
-sleep 1.0
-PW=$(gz_pose); read WX2 WY2 WZ2 WYAW2 <<< "$PW"; TB=$(simsec)
+IFS=$'\t' read -r _ _ _ _ _ LS2 RS2 LRV RRV <<< "$JSV"
 wait $DPID
 stop_car
+sleep 1.5
+kill $OPID 2>/dev/null; wait $OPID 2>/dev/null
+read _ _ _ _ _ _ _ W_AVG <<< "$(odom_vw /tmp/odom_turn.txt)"
+rm -f /tmp/odom_turn.txt
 PB=$(gz_pose); read BX BY BZ BYAW <<< "$PB"
-echo "转弯中前轮角: left=${LS2} right=${RS2}; 后轮速: left=${LRV} right=${RRV}"
-W_MEAS=$(awk -v y1="$WYAW1" -v y2="$WYAW2" -v t1="${TA:-0}" -v t2="${TB:-0}" \
-  'BEGIN{dt=t2-t1; d=y2-y1; if(d>3.14159)d-=6.28319; if(d<-3.14159)d+=6.28319; printf "%.3f", (dt>0.5)?d/dt:-9}')
-DTW=$(awk -v a="${TA:-0}" -v b="${TB:-0}" 'BEGIN{printf "%.2f", b-a}')
+echo "转弯中前轮角: left=${LS2:-NA} right=${RS2:-NA}; 后轮速: left=${LRV:-NA} right=${RRV:-NA}"
 DY=$(yaw_delta "$AYAW" "$BYAW")
-echo "稳态窗口 Δt_sim=${DTW}s ω实测=${W_MEAS}rad/s(指令 0.25) | 全程Δyaw=${DY}rad"
-awk -v w="$W_MEAS" 'BEGIN{exit !(w>0.15 && w<0.35)}' && ok "左转稳态角速度 ${W_MEAS}rad/s≈0.25(/clock 度量)" || bad "左转稳态角速度 ${W_MEAS}rad/s 偏离 0.25"
+echo "稳态瞬时 ω=${W_INST}rad/s | odom 全程平均 ω=${W_AVG}rad/s(收敛点法) | Gazebo 全程 Δyaw=${DY}rad | 指令 0.25"
+awk -v w="${W_INST:-NA}" 'BEGIN{exit !(w>0.225 && w<0.275)}' && ok "左转稳态瞬时角速度 ${W_INST}rad/s≈0.25(odometry 同消息 twist,±10%)" || bad "左转稳态瞬时角速度 ${W_INST}rad/s 偏离 0.25 超过±10%"
+awk -v w="${W_AVG:-NA}" 'BEGIN{exit !(w>0.18 && w<0.32)}' && ok "左转全程平均角速度 ${W_AVG}rad/s(odom stamp 同源)" || bad "左转全程平均角速度 ${W_AVG}rad/s 异常"
 awk -v d="${DY:-0}" -v t="$THR_TURN" 'BEGIN{exit !(d>t)}' && ok "左转 Δyaw=+${DY}rad>$THR_TURN(与 ω 同号)" || bad "左转 Δyaw=${DY}rad 不足或反向"
-awk -v l="${LS2:-0}" -v r="${RS2:-0}" -v t="$THR_STEER_DIFF" 'BEGIN{exit !(l-r>t)}' && ok "左转为内侧:左前角${LS2}>右前角${RS2}" || bad "内外轮角关系错(左转应左前>右前,轮序反?)"
-awk -v l="${LRV:-0}" -v r="${RRV:-0}" -v t="$THR_WHEEL_DIFF" 'BEGIN{al=l<0?-l:l; ar=r<0?-r:r; exit !(ar-al>t)}' && ok "外侧右后轮速更快(|${RRV}|>|${LRV}|)" || bad "后轮速关系错(左转外侧=右后应更快)"
+if js_ok "$LS2" && js_ok "$RS2"; then
+  awk -v l="$LS2" -v r="$RS2" -v t="$THR_STEER_DIFF" 'BEGIN{exit !(l-r>t)}' && ok "左转为内侧:左前角${LS2}>右前角${RS2}" || bad "内外轮角关系错(左转应左前>右前,轮序反?)"
+else
+  bad "左转取不到前轮角(left=${LS2:-空} right=${RS2:-空})"
+fi
+if js_ok "$LRV" && js_ok "$RRV"; then
+  awk -v l="$LRV" -v r="$RRV" -v t="$THR_WHEEL_DIFF" 'BEGIN{al=l<0?-l:l; ar=r<0?-r:r; exit !(ar-al>t)}' && ok "外侧右后轮速更快(|${RRV}|>|${LRV}|)" || bad "后轮速关系错(左转外侧=右后应更快)"
+else
+  bad "左转取不到后轮速(left=${LRV:-空} right=${RRV:-空})"
+fi
 
 echo "-- 右转 v=0.4 ω=-0.25 × 5s --"
 # drive 时长 5s+sleep 2.2:ros2 topic pub 无 daemon 冷启动 ~1.5s 吃掉指令窗口
-# 前段,3.5s 窗口按 1.2s 采样会采到"指令尚未发出"的状态(第 4 轮实测转向 ~0)
+# 前段,3.5s 窗口按 1.2s 采样会采到"指令尚未发出"的状态(实测转向 ~0)
 PA=$(gz_pose); read AX AY AZ AYAW <<< "$PA"
 drive 0.4 -0.25 5 &
 DPID=$!
 sleep 2.2
 JSV=$(get_js)
-LS2=$(js_var LEFT_STEER); RS2=$(js_var RIGHT_STEER); LRV=$(js_var LEFT_REAR_V); RRV=$(js_var RIGHT_REAR_V)
+IFS=$'\t' read -r _ _ _ _ _ LS2 RS2 LRV RRV <<< "$JSV"
 wait $DPID
 stop_car
 PB=$(gz_pose); read BX BY BZ BYAW <<< "$PB"
 DY=$(yaw_delta "$AYAW" "$BYAW")
-echo "右转真实Δyaw=${DY}rad;前轮角 left=${LS2} right=${RS2}"
+echo "右转真实Δyaw=${DY}rad;前轮角 left=${LS2:-NA} right=${RS2:-NA}"
 awk -v d="${DY:-0}" 'BEGIN{exit !(d<-0.3)}' && ok "右转 Δyaw=${DY}rad<-0.3(与 ω 同号)" || bad "右转 Δyaw=${DY}rad 不足或反向"
-awk -v l="${LS2:-0}" -v r="${RS2:-0}" -v t="$THR_STEER_DIFF" 'BEGIN{al=l<0?-l:l; ar=r<0?-r:r; exit !(ar-al>t)}' && ok "右转为内侧:|右前角${RS2}|>|左前角${LS2}|" || bad "内外轮角关系错(右转应右前绝对值更大)"
-awk -v l="${LRV:-0}" -v r="${RRV:-0}" -v t="$THR_WHEEL_DIFF" 'BEGIN{al=l<0?-l:l; ar=r<0?-r:r; exit !(al-ar>t)}' && ok "外侧左后轮速更快(|${LRV}|>|${RRV}|)" || bad "后轮速关系错(右转外侧=左后应更快)"
+if js_ok "$LS2" && js_ok "$RS2"; then
+  awk -v l="$LS2" -v r="$RS2" -v t="$THR_STEER_DIFF" 'BEGIN{al=l<0?-l:l; ar=r<0?-r:r; exit !(ar-al>t)}' && ok "右转为内侧:|右前角${RS2}|>|左前角${LS2}|" || bad "内外轮角关系错(右转应右前绝对值更大)"
+else
+  bad "右转取不到前轮角(left=${LS2:-空} right=${RS2:-空})"
+fi
+if js_ok "$LRV" && js_ok "$RRV"; then
+  awk -v l="$LRV" -v r="$RRV" -v t="$THR_WHEEL_DIFF" 'BEGIN{al=l<0?-l:l; ar=r<0?-r:r; exit !(al-ar>t)}' && ok "外侧左后轮速更快(|${LRV}|>|${RRV}|)" || bad "后轮速关系错(右转外侧=左后应更快)"
+else
+  bad "右转取不到后轮速(left=${LRV:-空} right=${RRV:-空})"
+fi
 
 echo "-- 超时停车(指令停止后 sim_wiring watchdog 自动发零速) --"
 drive 0.3 0 2
@@ -372,20 +475,32 @@ PA=$(gz_pose); read AX AY AZ AYAW <<< "$PA"
 sleep 1.5
 PB=$(gz_pose); read BX BY BZ BYAW <<< "$PB"
 echo "超时停车采样: PA=($AX,$AY,z=$AZ,yaw=$AYAW) PB=($BX,$BY,z=$BZ,yaw=$BYAW)"
-STILL=$(awk -v a="$AX" -v b="$BX" -v c="$AY" -v d="$BY" 'BEGIN{printf "%.4f", sqrt((b-a)^2+(d-c)^2)}')
-awk -v s="$STILL" -v t="$THR_STILL" 'BEGIN{exit !(s<t)}' && ok "指令超时自动停车(1.5s 位移 ${STILL}m<$THR_STILL)" || bad "超时后仍移动 ${STILL}m(watchdog 未生效?)"
+if pose_ok "$PA" && pose_ok "$PB"; then
+  STILL=$(awk -v a="$AX" -v b="$BX" -v c="$AY" -v d="$BY" 'BEGIN{printf "%.4f", sqrt((b-a)^2+(d-c)^2)}')
+  awk -v s="$STILL" -v t="$THR_STILL" 'BEGIN{exit !(s<t)}' && ok "指令超时自动停车(1.5s 位移 ${STILL}m<$THR_STILL)" || bad "超时后仍移动 ${STILL}m(watchdog 未生效?)"
+else
+  bad "超时停车工况取不到 Gazebo 位姿(PARSE_FAIL=服务无响应)"
+fi
 
 echo "-- 限位饱和 v=0.2 ω=0.8 × 3s(内轮理论角 1.45 > 限位 0.55,应饱和) --"
 drive 0.2 0.8 3 &
 DPID=$!
 sleep 1.2
 JSV=$(get_js)
-LS2=$(js_var LEFT_STEER); RS2=$(js_var RIGHT_STEER)
+IFS=$'\t' read -r _ _ _ _ _ LS2 RS2 _ _ <<< "$JSV"
 wait $DPID
 stop_car
-echo "限位下前轮角: left=${LS2} right=${RS2}"
-awk -v l="${LS2:-0}" -v m="$THR_STEER_LIM" 'BEGIN{exit !(l<m && l>-m)}' && ok "左前角饱和于限位内(|${LS2}|≤$THR_STEER_LIM)" || bad "左前角 ${LS2} 超限位"
-awk -v r="${RS2:-0}" -v m="$THR_STEER_LIM" 'BEGIN{exit !(r<m && r>-m)}' && ok "右前角饱和于限位内(|${RS2}|≤$THR_STEER_LIM)" || bad "右前角 ${RS2} 超限位"
+echo "限位下前轮角: left=${LS2:-NA} right=${RS2:-NA}"
+if js_ok "$LS2"; then
+  awk -v l="$LS2" -v m="$THR_STEER_LIM" 'BEGIN{exit !(l<m && l>-m)}' && ok "左前角饱和于限位内(|${LS2}|≤$THR_STEER_LIM)" || bad "左前角 ${LS2} 超限位"
+else
+  bad "限位工况取不到左前角(${LS2:-空})"
+fi
+if js_ok "$RS2"; then
+  awk -v r="$RS2" -v m="$THR_STEER_LIM" 'BEGIN{exit !(r<m && r>-m)}' && ok "右前角饱和于限位内(|${RS2}|≤$THR_STEER_LIM)" || bad "右前角 ${RS2} 超限位"
+else
+  bad "限位工况取不到右前角(${RS2:-空})"
+fi
 
 echo ""
 echo "===== [8/8] 结果: PASS=$PASS FAIL=$FAIL ====="
