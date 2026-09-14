@@ -17,6 +17,11 @@
 ============================================================================= -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="racecar_sim">
 
+  <!-- 控制器参数文件:launch 经 mappings 传入渲染产物 /tmp/racecar_ros2_control.yaml
+       (由 config/ros2_control.yaml.in + params.yaml 几何值生成,单一来源;
+        手动跑 xacro 不传 mappings 时用 default 路径,需先跑过一次 launch) -->
+  <xacro:arg name="ctrl_params" default="/tmp/racecar_ros2_control.yaml"/>
+
   <!-- ============ 参数加载(单一来源 params.yaml) ============ -->
   <xacro:property name="cfg" value="${xacro.load_yaml('$(find racecar_sim)/config/params.yaml')['racecar_sim']}"/>
   <xacro:property name="L"     value="${cfg['chassis_length']}"/>
@@ -42,27 +47,36 @@
     </inertial>
   </xacro:macro>
 
-  <!-- 前轮:挂在 steering_link 下自由滚动(不进 ros2_control,gazebo 物理自转) -->
+  <!-- 前轮:挂在 steering_link 下自由滚动(不进 ros2_control,gazebo 物理自转)。
+       2026-09-14 返工:圆柱侧躺(rpy=pi/2)必须写在 visual/collision/inertial 的
+       origin 里,link frame 保持与 parent 对齐;原写在 joint origin 会把整个
+       child frame 转 90°,axis 0 1 0 随之指向竖直方向(轮子绕垂直轴空转),
+       Gazebo 真实位移只有里程计的 1/5(独立验收实测) -->
   <xacro:macro name="front_wheel" params="prefix">
     <link name="${prefix}_front_wheel_link">
       <visual>
+        <origin xyz="0 0 0" rpy="${pi/2.0} 0 0"/>
         <geometry><cylinder radius="${WR}" length="${WW}"/></geometry>
         <material name="black"><color rgba="0.1 0.1 0.1 1"/></material>
       </visual>
       <collision>
+        <origin xyz="0 0 0" rpy="${pi/2.0} 0 0"/>
         <geometry><cylinder radius="${WR}" length="${WW}"/></geometry>
       </collision>
+      <!-- 惯性主轴随几何轴一起转:圆柱几何轴(局部 z)侧躺后指向 y,
+           故 iyy 取轴向 mWR^2/2,ixx/izz 取直径轴 -->
       <inertial>
+        <origin xyz="0 0 0" rpy="${pi/2.0} 0 0"/>
         <mass value="${MW}"/>
         <inertia ixx="${MW*(WW*WW)/12.0 + 0.75*MW*WR*WR}" ixy="0" ixz="0"
-                 iyy="${MW*(WW*WW)/12.0 + 0.75*MW*WR*WR}" iyz="0"
-                 izz="${MW*WR*WR/2.0}"/>
+                 iyy="${MW*WR*WR/2.0}" iyz="0"
+                 izz="${MW*(WW*WW)/12.0 + 0.75*MW*WR*WR}"/>
       </inertial>
     </link>
     <joint name="${prefix}_front_wheel_spin_joint" type="continuous">
       <parent link="${prefix}_steering_link"/>
       <child link="${prefix}_front_wheel_link"/>
-      <origin xyz="0 0 0" rpy="${pi/2.0} 0 0"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
       <axis xyz="0 1 0"/>
       <dynamics damping="0.01" friction="0.0"/>
     </joint>
@@ -72,27 +86,33 @@
     </gazebo>
   </xacro:macro>
 
-  <!-- 后轮:独立驱动轮(进 ros2_control,velocity command) -->
+  <!-- 后轮:独立驱动轮(进 ros2_control,velocity command)。
+       同前轮:侧躺写在 visual/collision/inertial 的 origin,link frame 不转;
+       joint z 偏移 WR-CZ(=世界高度 WR − base_link 高度 CZ)使轮心离地恰为
+       轮半径(原 z=0 时轮心悬空 0.06m 打滑空转) -->
   <xacro:macro name="rear_wheel" params="prefix">
     <link name="${prefix}_rear_wheel_link">
       <visual>
+        <origin xyz="0 0 0" rpy="${pi/2.0} 0 0"/>
         <geometry><cylinder radius="${WR}" length="${WW}"/></geometry>
         <material name="black_r"><color rgba="0.1 0.1 0.1 1"/></material>
       </visual>
       <collision>
+        <origin xyz="0 0 0" rpy="${pi/2.0} 0 0"/>
         <geometry><cylinder radius="${WR}" length="${WW}"/></geometry>
       </collision>
       <inertial>
+        <origin xyz="0 0 0" rpy="${pi/2.0} 0 0"/>
         <mass value="${MW}"/>
         <inertia ixx="${MW*(WW*WW)/12.0 + 0.75*MW*WR*WR}" ixy="0" ixz="0"
-                 iyy="${MW*(WW*WW)/12.0 + 0.75*MW*WR*WR}" iyz="0"
-                 izz="${MW*WR*WR/2.0}"/>
+                 iyy="${MW*WR*WR/2.0}" iyz="0"
+                 izz="${MW*(WW*WW)/12.0 + 0.75*MW*WR*WR}"/>
       </inertial>
     </link>
     <joint name="${prefix}_rear_wheel_joint" type="continuous">
       <parent link="base_link"/>
       <child link="${prefix}_rear_wheel_link"/>
-      <origin xyz="${RX} ${prefix == 'left' and WT/2.0 or -WT/2.0} 0" rpy="0 0 0"/>
+      <origin xyz="${RX} ${prefix == 'left' and WT/2.0 or -WT/2.0} ${WR - CZ}" rpy="0 0 0"/>
       <axis xyz="0 1 0"/>
       <dynamics damping="0.01" friction="0.0"/>
     </joint>
@@ -131,7 +151,7 @@
   <joint name="left_steering_joint" type="revolute">
     <parent link="base_link"/>
     <child link="left_steering_link"/>
-    <origin xyz="${FX} ${WT/2.0} 0" rpy="0 0 0"/>
+    <origin xyz="${FX} ${WT/2.0} ${WR - CZ}" rpy="0 0 0"/>
     <axis xyz="0 0 1"/>
     <limit lower="${-cfg['max_steer_angle']}" upper="${cfg['max_steer_angle']}"
            effort="8.0" velocity="4.0"/>
@@ -144,7 +164,7 @@
   <joint name="right_steering_joint" type="revolute">
     <parent link="base_link"/>
     <child link="right_steering_link"/>
-    <origin xyz="${FX} ${-WT/2.0} 0" rpy="0 0 0"/>
+    <origin xyz="${FX} ${-WT/2.0} ${WR - CZ}" rpy="0 0 0"/>
     <axis xyz="0 0 1"/>
     <limit lower="${-cfg['max_steer_angle']}" upper="${cfg['max_steer_angle']}"
            effort="8.0" velocity="4.0"/>
@@ -252,7 +272,7 @@
          原先的 robot_param 与 robot_param_node 会让插件走"远程取 URDF 再整体
          注入参数"分支,URDF 文本按 YAML 规则解析必炸(2026-09-14 实测) -->
     <plugin filename="libgazebo_ros2_control.so" name="gazebo_ros2_control">
-      <parameters>$(find racecar_sim)/config/ros2_control.yaml</parameters>
+      <parameters>$(arg ctrl_params)</parameters>
     </plugin>
   </gazebo>
 

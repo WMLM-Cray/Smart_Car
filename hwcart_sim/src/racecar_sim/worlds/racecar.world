@@ -1,0 +1,14 @@
+<?xml version="1.0" ?>
+<!-- 自定义 world:empty.world + gazebo_ros_state 插件。
+     libgazebo_ros_state.so 是 WorldPlugin,不能用 gzserver -s 加载
+     (-s 只装 SystemPlugin,实测报 "incorrect plugin type" 且干扰
+      factory 服务,spawn_entity 超时死,2026-09-14)。
+     它提供 /gazebo/get_entity_state 服务,验收用世界系真实位姿与
+     里程计对账 -->
+<sdf version="1.5">
+  <world name="default">
+    <include><uri>model://ground_plane</uri></include>
+    <include><uri>model://sun</uri></include>
+    <plugin name="gazebo_ros_state" filename="libgazebo_ros_state.so"/>
+  </world>
+</sdf>
