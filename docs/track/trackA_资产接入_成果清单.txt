@@ -1,0 +1,79 @@
+trackA 资产接入轮 成果目录清单(f1ede59,integration/trackA-sdf)
+====================================================================
+按 CLAUDE.md 硬性规则1,本清单供外部 AI(如 GPT)独立测试验收。
+对应提交:f1ede59《接入队友测试资产包racecar_test_assets(7582feb整套),
+63锥坐标零改动》。验证证据全文见同目录《trackA_资产接入验证日志.txt》。
+
+路径约定:Windows git 主副本在 F 盘,WSL 构建/运行侧为 git 同源副本,
+两者路径前缀如下(下文清单均给出相对路径,两侧拼接各自前缀即可):
+- Windows: F:\影音\BaiduSyncdisk\programss\华为小车\07-仿真系统\
+- WSL    : /home/lzx/hwcart_sim/
+
+一、本轮新增/修改的成果(相对路径,双份同构)
+--------------------------------------------------------------------
+[1] 队友资产包整包检出(新增,70 文件)
+    hwcart_sim/src/racecar_test_assets/
+      ├─ models/            8 类模型(cone_blue/cone_red/lane_line/
+      │                     reference_box/sign_a/sign_b/traffic_light 等,
+      │                     含 STL mesh + 材质脚本 + 贴图)
+      ├─ worlds/            demo_world.world / sensor_test.world(包内保留,
+      │                     不接入 trackA,防演示布局覆盖 A 赛道)
+      ├─ config/            demo_world.csv / sensor_test.csv(同上,不接入)
+      ├─ env-hooks/         自动导出 GAZEBO_MODEL_PATH(实测生效)
+      ├─ tools/             check_models.py / validate_assets.py 等 12 件
+      ├─ test/              6 项包内自测脚本
+      ├─ delivery/          队友交付证据(DELIVERY.md / acceptance.md / 截图)
+      ├─ docs/              assumptions.md(残余 asmp 披露)/ models.md /
+      │                     validation.md / evidence/
+      └─ CMakeLists.txt / package.xml / README.md
+
+[2] 主线接线改造(修改)
+    hwcart_sim/src/racecar_sim/worlds/trackA.world   重新生成:63 锥改
+        model://cone_{blue,red} include,坐标与冻结 CSV 逐位一致
+    hwcart_sim/src/racecar_sim/launch/sim_bringup.launch.py
+        去掉手工 models 路径追加(env-hook 接管)
+    hwcart_sim/src/racecar_sim/setup.py               去 models 数据装载
+    hwcart_sim/src/racecar_sim/package.xml            增 exec_depend
+                                                      racecar_test_assets
+
+[3] 生成器/检查器(修改)
+    tools/trackA/trackA_sdf.py        world-only 转换(CSV→include;
+                                      坑:模板注释 {blue,red} 撞 .format())
+    tools/trackA/check_trackA_sdf.py  16项→26项,按资产契约断言:
+                                      官方0.63/0.28包络+base box+锥台STL
+                                      (96三角)独立解析+visual==collision
+                                      同mesh+蓝红STL字节相同+static=true
+
+[4] 冻结坐标单源(本轮未动,对账基准)
+    docs/track/trackA_cones.csv       63 锥唯一坐标源(37蓝26红)
+
+[5] 验证证据(新增)
+    docs/track/trackA_资产接入验证日志.txt   静态26项FAIL=0+两负例CAUGHT
+                                            +冒烟+车辆四项ALL PASS 全记录
+    docs/track/trackA_SDF生成与检查日志.txt  本轮生成/检查流水(更新)
+
+二、退役(删除,git 历史可查)
+--------------------------------------------------------------------
+    hwcart_sim/src/racecar_sim/models/trackA_cone_blue/   40d0e7b 引入、
+    hwcart_sim/src/racecar_sim/models/trackA_cone_red/    098c3f0 改尺寸,
+                                                           f1ede59 退役
+    动态低速碰撞基线记录保留于 872c87d 日志(静态锥不可复现撞倒/推移)
+
+三、外部 AI 验收入口(WSL 侧,headless 无 GUI)
+--------------------------------------------------------------------
+    # 静态检查(26 项 + 负例,预期 FAIL=0 / EXIT 0)
+    python3 tools/trackA/check_trackA_sdf.py
+
+    # 构建(须在 ~/hwcart_sim/hwcart_sim/ colcon 工作区,禁 /mnt/f)
+    colcon build --packages-select racecar_test_assets racecar_sim
+
+    # 车辆四项(启动/扫描/成像/碰撞,预期 ALL PASS)
+    ros2 launch racecar_sim sim_bringup.launch.py use_gui:=false \
+        world:=trackA.world spawn_x:=11.0 spawn_y:=0.75 spawn_yaw:=0.0
+
+四、遗留边界(非本轮缺陷,验收时知悉)
+--------------------------------------------------------------------
+    - 静态锥撞倒/推移表现不可验证(GPT 回执已确认)
+    - 红绿灯模型三灯常亮无切换接口:包内保留,视觉阶段再议
+    - 发车点 (11.0,0.75) 为 asmp(规则未定发车点)
+    - 手柄包(01a3374)待队友修超时恢复缺陷后另行审查提交
