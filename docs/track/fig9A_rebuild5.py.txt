@@ -87,7 +87,7 @@ LL_OTOP = np.array([LL_C[0], LL_C[1]+R_LL_O])
 LL_IBOT = np.array([LL_C[0], LL_C[1]-R_LL_I]); LL_ILEFT = np.array([LL_C[0]-R_LL_I, LL_C[1]])
 LL_ITOP = np.array([LL_C[0], LL_C[1]+R_LL_I])
 
-OUT = [  # outer ring, clockwise; NO placeholder connector lines anymore
+OUT = [  # outer ring, COUNTER-clockwise (early draft said "clockwise" - wrong); NO placeholder connector lines anymore
     Line("E1 bottom",     LL_OBOT, RE_OBOT, "single segment (frozen)"),
     Arc ("E2 RE-semi",    RE_C, R_RE_O, ang(RE_C,RE_OBOT), ang(RE_C,RE_OTOP), "FULL 180deg semicircle (frozen)"),
     Line("E3 V-arm-Ro",   SH_R_O, VAL_O, "shoulder=RE top; arm %.6f @-22.5deg (nominal 3.06, residual %.6f)" % (ARM_GEN, ARM_NOM-ARM_GEN)),

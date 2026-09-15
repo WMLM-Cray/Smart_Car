@@ -1,0 +1,127 @@
+########## 1. 生成器(冻结几何单源,--spacing 1.0)##########
+$ python3 tools/trackA/trackA_geometry.py --spacing 1.0
+cones: 63 total
+  blue  n= 37  spacing actual min=0.917 max=1.073 mean=0.997 sd=0.056
+         yellow-V break: b21(E2)->b22(E5) 5.643 m
+  red   n= 26  spacing actual min=0.957 max=1.250 mean=1.030 sd=0.077
+         yellow-V break: r16(I2)->r17(I5) 5.643 m
+assumption: cone spacing 1.000 m has NO official value (configurable)
+outputs -> /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/docs/track : trackA_cones.csv / trackA_layout.yaml / trackA_topview.png
+generator_exit=0
+
+########## 2. 检查器(文件级六项+几何环自检+两负例)##########
+$ python3 tools/trackA/check_trackA.py --negtest
+====================================================================================================
+check_trackA v2 
+  csv : /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/docs/track/trackA_cones.csv
+  yaml: /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/docs/track/trackA_layout.yaml
+-- 1) CSV 结构(有限坐标/id正则/color)
+  [OK  ] rows parseable                     
+  [OK  ] finite coordinates                 non-finite: []
+  [OK  ] id format ^[A-Za-z][A-Za-z0-9_]*$  bad: []
+  [OK  ] color in {red,blue}                bad: []
+-- 2) 唯一编号
+  [OK  ] unique ids (63 cones)              duplicated: []
+-- 3) 重复位置(任意两锥距 < 0.05 m)
+  [OK  ] no duplicate positions             
+-- 4) 颜色与边界对应 / 边界偏离(本色<=0.02 m,他色>0.10 m)/segment 诚实
+  [OK  ] cone on its own-color boundary     
+  [OK  ] segment attribute honest           
+-- 5) 禁放区:黄V四段无锥(段标注/臂线上/带内部)
+  [OK  ] yellow-V no-cone zone clean        
+-- 6) 肩点锥归属相邻圆弧段
+  [OK  ] shoulder cones owned by arcs       
+-- 7) YAML-CSV 一致性
+  [OK  ] yaml cones == csv cones            
+-- 8) 几何环自检(YAML 重建;确认=冻结基线)
+  [OK  ] outer ring: 10 joints gap<=0.05    
+  [OK  ] outer ring: no backtrack (>170deg) 
+  [OK  ] inner ring: 10 joints gap<=0.05    
+  [OK  ] inner ring: no backtrack (>170deg) 
+  [OK  ] rings do not cross                 
+  [OK  ] inner ring inside outer            0/163 sampled points outside
+-- 9) 间距统计(仿真假设值无官方定值;黄V断口单列)
+  [OK  ] blue spacing 0.917..1.073 mean 0.997 (n=36) out of sane range 0.3-2.0
+  [OK  ] blue yellow-V break: exactly 1     b21(E2)->b22(E5) 5.643 m
+  [OK  ] red spacing 0.957..1.250 mean 1.030 (n=25) out of sane range 0.3-2.0
+  [OK  ] red yellow-V break: exactly 1      r16(I2)->r17(I5) 5.643 m
+--
+TOTAL FAIL(s): 0
+====================================================================================================
+check_trackA v2 [NEG-1 cone in yellow-V middle]
+  csv : /tmp/trackA_neg_jnhn4jbv/neg1.csv
+  yaml: /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/docs/track/trackA_layout.yaml
+-- 1) CSV 结构(有限坐标/id正则/color)
+  [OK  ] rows parseable                     
+  [OK  ] finite coordinates                 non-finite: []
+  [OK  ] id format ^[A-Za-z][A-Za-z0-9_]*$  bad: []
+  [OK  ] color in {red,blue}                bad: []
+-- 2) 唯一编号
+  [OK  ] unique ids (64 cones)              duplicated: []
+-- 3) 重复位置(任意两锥距 < 0.05 m)
+  [OK  ] no duplicate positions             
+-- 4) 颜色与边界对应 / 边界偏离(本色<=0.02 m,他色>0.10 m)/segment 诚实
+  [FAIL] cone on its own-color boundary     bx01 d_own=0.750
+  [FAIL] segment attribute honest           bx01 not on declared seg E2
+-- 5) 禁放区:黄V四段无锥(段标注/臂线上/带内部)
+  [FAIL] yellow-V no-cone zone clean        bx01 inside V-band (11.228,3.581)
+-- 6) 肩点锥归属相邻圆弧段
+  [OK  ] shoulder cones owned by arcs       
+-- 7) YAML-CSV 一致性
+  [FAIL] yaml cones == csv cones            count yaml=63 csv=64
+-- 8) 几何环自检(YAML 重建;确认=冻结基线)
+  [OK  ] outer ring: 10 joints gap<=0.05    
+  [OK  ] outer ring: no backtrack (>170deg) 
+  [OK  ] inner ring: 10 joints gap<=0.05    
+  [OK  ] inner ring: no backtrack (>170deg) 
+  [OK  ] rings do not cross                 
+  [OK  ] inner ring inside outer            0/163 sampled points outside
+-- 9) 间距统计(仿真假设值无官方定值;黄V断口单列)
+  [FAIL] blue spacing 0.917..9.204 mean 1.223 (n=36) out of sane range 0.3-2.0
+  [FAIL] blue yellow-V break: exactly 1     b21(E2)->b22(E5) 5.643 m; b37(E10)->bx01(E2) 10.110 m
+  [OK  ] red spacing 0.957..1.250 mean 1.030 (n=25) out of sane range 0.3-2.0
+  [OK  ] red yellow-V break: exactly 1      r16(I2)->r17(I5) 5.643 m
+--
+TOTAL FAIL(s): 6
+  NEG-1 CAUGHT (fails=6)
+
+====================================================================================================
+check_trackA v2 [NEG-2 duplicated cone coords]
+  csv : /tmp/trackA_neg_jnhn4jbv/neg2.csv
+  yaml: /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/docs/track/trackA_layout.yaml
+-- 1) CSV 结构(有限坐标/id正则/color)
+  [OK  ] rows parseable                     
+  [OK  ] finite coordinates                 non-finite: []
+  [OK  ] id format ^[A-Za-z][A-Za-z0-9_]*$  bad: []
+  [OK  ] color in {red,blue}                bad: []
+-- 2) 唯一编号
+  [OK  ] unique ids (64 cones)              duplicated: []
+-- 3) 重复位置(任意两锥距 < 0.05 m)
+  [FAIL] no duplicate positions             b01~bx02 d=0.000000
+-- 4) 颜色与边界对应 / 边界偏离(本色<=0.02 m,他色>0.10 m)/segment 诚实
+  [OK  ] cone on its own-color boundary     
+  [OK  ] segment attribute honest           
+-- 5) 禁放区:黄V四段无锥(段标注/臂线上/带内部)
+  [OK  ] yellow-V no-cone zone clean        
+-- 6) 肩点锥归属相邻圆弧段
+  [OK  ] shoulder cones owned by arcs       
+-- 7) YAML-CSV 一致性
+  [FAIL] yaml cones == csv cones            count yaml=63 csv=64
+-- 8) 几何环自检(YAML 重建;确认=冻结基线)
+  [OK  ] outer ring: 10 joints gap<=0.05    
+  [OK  ] outer ring: no backtrack (>170deg) 
+  [OK  ] inner ring: 10 joints gap<=0.05    
+  [OK  ] inner ring: no backtrack (>170deg) 
+  [OK  ] rings do not cross                 
+  [OK  ] inner ring inside outer            0/163 sampled points outside
+-- 9) 间距统计(仿真假设值无官方定值;黄V断口单列)
+  [FAIL] blue spacing 0.000..1.073 mean 0.970 (n=37) out of sane range 0.3-2.0
+  [OK  ] blue yellow-V break: exactly 1     b21(E2)->b22(E5) 5.643 m
+  [OK  ] red spacing 0.957..1.250 mean 1.030 (n=25) out of sane range 0.3-2.0
+  [OK  ] red yellow-V break: exactly 1      r16(I2)->r17(I5) 5.643 m
+--
+TOTAL FAIL(s): 3
+  NEG-2 CAUGHT (fails=3)
+
+EXIT: 0
+checker_exit=0
