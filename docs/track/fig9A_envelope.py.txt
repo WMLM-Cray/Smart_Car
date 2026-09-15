@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Envelope extraction: per 0.25m column, report min/max y of blue & red pixels,
+and all contiguous y-intervals of yellow pixels. Machine-readable, no eyeballing."""
+import numpy as np
+from PIL import Image
+
+im = Image.open("/mnt/d/Claude/tmp_rules/fig11-000.jpg").convert("RGB")
+a = np.asarray(im).astype(int)
+s = 0.0124903
+bxmin, YM0 = 2.0, 522
+
+R, G, B = a[:, :, 0], a[:, :, 1], a[:, :, 2]
+mB = (B > 110) & (B - R > 40) & (B - G > 25)
+mR = (R > 140) & (R - G > 55) & (R - B > 55)
+mY = (R > 170) & (G > 140) & (B < 130) & (R - B > 60)
+
+xs_pix = np.arange(a.shape[1])
+xm_pix = (xs_pix - bxmin) * s
+
+def col_stats(mask, x0, x1, gap=0.3):
+    out = []
+    for jc in np.arange(x0, x1, 0.25):
+        sel = (xm_pix >= jc) & (xm_pix < jc + 0.25)
+        if not sel.any():
+            continue
+        sub = mask[:, sel]
+        rows = np.nonzero(sub.any(axis=1))[0]
+        if len(rows) == 0:
+            continue
+        yms = np.sort((YM0 - rows) * s)  # ascending so diff>gap detects breaks
+        # contiguous intervals in y with gap threshold
+        brk = np.nonzero(np.diff(yms) > gap)[0]
+        starts = np.r_[0, brk + 1]
+        ends = np.r_[brk, len(yms) - 1]
+        segs = ["[%.2f,%.2f]" % (yms[i], yms[j]) for i, j in zip(starts, ends)]
+        out.append("%5.2f: n=%4d %s" % (jc, sub.sum(), " ".join(segs)))
+    return out
+
+print("===== BLUE envelope per 0.25m column =====")
+for line in col_stats(mB, 0.0, 17.0):
+    print(line)
+print()
+print("===== RED envelope per 0.25m column =====")
+for line in col_stats(mR, 0.0, 17.0):
+    print(line)
+print()
+print("===== YELLOW intervals per 0.25m column =====")
+for line in col_stats(mY, 0.0, 17.0, gap=0.25):
+    print(line)
