@@ -1,0 +1,405 @@
+<?xml version="1.0"?>
+<!-- =============================================================================
+ 仿真车模 v0.1(HW-Autocar 阿克曼结构)
+ 参数单一来源:config/params.yaml(经 xacro load_yaml 读取,改那边即可)
+
+ TF 策略(对齐实车契约 contract.json,实测前不改厂家值):
+   保留厂家 TF : laser_link(x=0.07,z=0)、IMU_link(x=0.1653,z=0)、base_link(z=0.15)
+   新增物理 frame: laser_sensor_link / imu_sensor_link = 实际安装高度(假设值,待实测)
+   传感器消息 frame_id 用物理 frame,避免"扫描位置抬高、消息仍标零高度"的错误
+   相机无厂家 TF(仅 frame_id=camera),camera link 本身即物理假设位姿
+
+ 话题对齐实车: /scan /image_raw /IMU_data;阶段1 /cmd_vel 为标准 Twist 速度语义
+   (不宣称兼容厂家 PWM 接口;PWM 映射是实车驱动层的事,见 contract.json)
+
+ 驱动: ros2_control + ackermann_steering_controller 2.53.3(本机已装,已核对接口:
+   front_wheels_names ×2 转向 / rear_wheels_names ×2 驱动 / wheelbase / *_wheel_track)
+============================================================================= -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="racecar_sim">
+
+  <!-- 控制器参数文件:launch 经 mappings 传入渲染产物 /tmp/racecar_ros2_control.yaml
+       (由 config/ros2_control.yaml.in + params.yaml 几何值生成,单一来源;
+        手动跑 xacro 不传 mappings 时用 default 路径,需先跑过一次 launch) -->
+  <xacro:arg name="ctrl_params" default="/tmp/racecar_ros2_control.yaml"/>
+
+  <!-- ============ 参数加载(单一来源 params.yaml) ============ -->
+  <xacro:property name="cfg" value="${xacro.load_yaml('$(find racecar_sim)/config/params.yaml')['racecar_sim']}"/>
+  <xacro:property name="L"     value="${cfg['chassis_length']}"/>
+  <xacro:property name="W"     value="${cfg['chassis_width']}"/>
+  <xacro:property name="H"     value="${cfg['chassis_height']}"/>
+  <xacro:property name="CZ"    value="${cfg['chassis_z']}"/>
+  <xacro:property name="WR"    value="${cfg['wheel_radius']}"/>
+  <xacro:property name="WW"    value="${cfg['wheel_width']}"/>
+  <xacro:property name="WB"    value="${cfg['wheel_base']}"/>
+  <xacro:property name="WT"    value="${cfg['wheel_track']}"/>
+  <xacro:property name="MCH"   value="${cfg['mass_chassis']}"/>
+  <xacro:property name="MW"    value="${cfg['mass_wheel']}"/>
+  <!-- 前轴 x(车体系,base_link 中心为原点,前为 +x) -->
+  <xacro:property name="FX"    value="${WB/2.0}"/>
+  <xacro:property name="RX"    value="${-WB/2.0}"/>
+
+  <!-- ============ 宏:惯性盒 / 从动轮 ============ -->
+  <xacro:macro name="inertia_box" params="m w h d">
+    <inertial>
+      <mass value="${m}"/>
+      <inertia ixx="${m*(h*h+d*d)/12.0}" ixy="0.0" ixz="0.0"
+               iyy="${m*(w*w+d*d)/12.0}" iyz="0.0" izz="${m*(w*w+h*h)/12.0}"/>
+    </inertial>
+  </xacro:macro>
+
+  <!-- 前轮:挂在 steering_link 下自由滚动(不进 ros2_control,gazebo 物理自转)。
+       2026-09-14 返工:圆柱侧躺(rpy=pi/2)必须写在 visual/collision/inertial 的
+       origin 里,link frame 保持与 parent 对齐;原写在 joint origin 会把整个
+       child frame 转 90°,axis 0 1 0 随之指向竖直方向(轮子绕垂直轴空转),
+       Gazebo 真实位移只有里程计的 1/5(独立验收实测) -->
+  <xacro:macro name="front_wheel" params="prefix">
+    <link name="${prefix}_front_wheel_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="${pi/2.0} 0 0"/>
+        <geometry><cylinder radius="${WR}" length="${WW}"/></geometry>
+        <material name="black"><color rgba="0.1 0.1 0.1 1"/></material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="${pi/2.0} 0 0"/>
+        <geometry><cylinder radius="${WR}" length="${WW}"/></geometry>
+      </collision>
+      <!-- 惯量直接按 link frame 分量写,origin rpy=0:几何侧躺(visual rpy)
+           与分量值若同时做就双重转换(2026-09-14 复验指出)。实心圆柱:
+           轴向(此处的 y)= mR²/2;直径轴(x/z)= m(3R²+W²)/12 -->
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <mass value="${MW}"/>
+        <inertia ixx="${MW*(3.0*WR*WR + WW*WW)/12.0}" ixy="0" ixz="0"
+                 iyy="${MW*WR*WR/2.0}" iyz="0"
+                 izz="${MW*(3.0*WR*WR + WW*WW)/12.0}"/>
+      </inertial>
+    </link>
+    <joint name="${prefix}_front_wheel_spin_joint" type="continuous">
+      <parent link="${prefix}_steering_link"/>
+      <child link="${prefix}_front_wheel_link"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <axis xyz="0 1 0"/>
+      <dynamics damping="0.01" friction="0.0"/>
+    </joint>
+    <gazebo reference="${prefix}_front_wheel_link">
+      <mu1>1.2</mu1><mu2>1.2</mu2>
+      <material>Gazebo/Black</material>
+    </gazebo>
+  </xacro:macro>
+
+  <!-- 后轮:独立驱动轮(进 ros2_control,velocity command)。
+       同前轮:侧躺写在 visual/collision/inertial 的 origin,link frame 不转;
+       joint z 偏移 WR-CZ(=世界高度 WR − base_link 高度 CZ)使轮心离地恰为
+       轮半径(原 z=0 时轮心悬空 0.06m 打滑空转) -->
+  <xacro:macro name="rear_wheel" params="prefix">
+    <link name="${prefix}_rear_wheel_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="${pi/2.0} 0 0"/>
+        <geometry><cylinder radius="${WR}" length="${WW}"/></geometry>
+        <material name="black_r"><color rgba="0.1 0.1 0.1 1"/></material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="${pi/2.0} 0 0"/>
+        <geometry><cylinder radius="${WR}" length="${WW}"/></geometry>
+      </collision>
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <mass value="${MW}"/>
+        <inertia ixx="${MW*(3.0*WR*WR + WW*WW)/12.0}" ixy="0" ixz="0"
+                 iyy="${MW*WR*WR/2.0}" iyz="0"
+                 izz="${MW*(3.0*WR*WR + WW*WW)/12.0}"/>
+      </inertial>
+    </link>
+    <joint name="${prefix}_rear_wheel_joint" type="continuous">
+      <parent link="base_link"/>
+      <child link="${prefix}_rear_wheel_link"/>
+      <origin xyz="${RX} ${prefix == 'left' and WT/2.0 or -WT/2.0} ${WR - CZ}" rpy="0 0 0"/>
+      <axis xyz="0 1 0"/>
+      <dynamics damping="0.01" friction="0.0"/>
+    </joint>
+    <gazebo reference="${prefix}_rear_wheel_link">
+      <mu1>1.2</mu1><mu2>1.2</mu2>
+      <material>Gazebo/Black</material>
+    </gazebo>
+  </xacro:macro>
+
+  <!-- ============ base_footprint / base_link ============ -->
+  <link name="base_footprint"/>
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 0"/>
+      <geometry><box size="${L} ${W} ${H}"/></geometry>
+      <material name="body"><color rgba="0.25 0.25 0.25 1"/></material>
+    </visual>
+    <collision>
+      <geometry><box size="${L} ${W} ${H}"/></geometry>
+    </collision>
+    <xacro:inertia_box m="${MCH}" w="${W}" h="${H}" d="${L}"/>
+  </link>
+  <joint name="base_footprint_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 ${CZ}" rpy="0 0 0"/>
+  </joint>
+  <gazebo reference="base_link">
+    <material>Gazebo/Grey</material>
+  </gazebo>
+
+  <!-- ============ 前轮:转向关节(ackermann 两前转向) ============ -->
+  <link name="left_steering_link">
+    <xacro:inertia_box m="0.1" w="0.02" h="0.02" d="0.02"/>
+  </link>
+  <joint name="left_steering_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="left_steering_link"/>
+    <origin xyz="${FX} ${WT/2.0} ${WR - CZ}" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="${-cfg['max_steer_angle']}" upper="${cfg['max_steer_angle']}"
+           effort="8.0" velocity="4.0"/>
+  </joint>
+  <xacro:front_wheel prefix="left"/>
+
+  <link name="right_steering_link">
+    <xacro:inertia_box m="0.1" w="0.02" h="0.02" d="0.02"/>
+  </link>
+  <joint name="right_steering_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="right_steering_link"/>
+    <origin xyz="${FX} ${-WT/2.0} ${WR - CZ}" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="${-cfg['max_steer_angle']}" upper="${cfg['max_steer_angle']}"
+           effort="8.0" velocity="4.0"/>
+  </joint>
+  <xacro:front_wheel prefix="right"/>
+
+  <!-- ============ 后轮:左右独立驱动(ackermann 两后驱动) ============ -->
+  <xacro:rear_wheel prefix="left"/>
+  <xacro:rear_wheel prefix="right"/>
+
+  <!-- ============ TF:厂家 frame 原样保留(实测前不动) ============ -->
+  <!-- laser_link:厂家 TF x=0.07 z=0 [源码契约];不挂传感器,供下游按实车习惯查询 -->
+  <link name="laser_link">
+    <xacro:inertia_box m="0.001" w="0.01" h="0.01" d="0.01"/>
+  </link>
+  <joint name="laser_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="laser_link"/>
+    <origin xyz="${cfg['laser_x']} 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- IMU_link:厂家 TF x=0.1653 z=0 [源码契约];不挂传感器 -->
+  <link name="IMU_link">
+    <xacro:inertia_box m="0.001" w="0.01" h="0.01" d="0.01"/>
+  </link>
+  <joint name="imu_link_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="IMU_link"/>
+    <origin xyz="${cfg['imu_x']} 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ============ 物理 sensor frame(真实安装高度,假设值待实测) ============ -->
+  <!-- 雷达实际扫描高度:镭神 X10 顶置,假设 0.21m -->
+  <link name="laser_sensor_link">
+    <visual>
+      <geometry><cylinder radius="0.035" length="0.04"/></geometry>
+      <material name="laser"><color rgba="0 0 0.8 1"/></material>
+    </visual>
+    <collision><geometry><cylinder radius="0.035" length="0.04"/></geometry></collision>
+    <xacro:inertia_box m="0.1" w="0.07" h="0.04" d="0.07"/>
+  </link>
+  <joint name="laser_sensor_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="laser_sensor_link"/>
+    <origin xyz="${cfg['laser_x']} 0 ${cfg['laser_z']}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- IMU 实际安装高度:超核模块,假设 0.18m -->
+  <link name="imu_sensor_link">
+    <visual>
+      <geometry><box size="0.02 0.02 0.01"/></geometry>
+      <material name="imu"><color rgba="0 0.8 0 1"/></material>
+    </visual>
+    <xacro:inertia_box m="0.02" w="0.02" h="0.01" d="0.02"/>
+  </link>
+  <joint name="imu_sensor_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="imu_sensor_link"/>
+    <origin xyz="${cfg['imu_x']} 0 ${cfg['imu_z']}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- 相机:无厂家 TF,该 link 即物理假设位姿;消息 frame_id=camera 对齐实车 -->
+  <link name="camera">
+    <visual>
+      <geometry><box size="0.03 0.09 0.03"/></geometry>
+      <material name="cam"><color rgba="0.8 0 0 1"/></material>
+    </visual>
+    <xacro:inertia_box m="0.05" w="0.09" h="0.03" d="0.03"/>
+  </link>
+  <joint name="camera_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="camera"/>
+    <origin xyz="${cfg['camera_x']} 0 ${cfg['camera_z'] - CZ}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- 相机光学 frame:ROS 图像消息约定光学轴 z 前 x 右 y 下(REP 103/104)。
+       camera link 是物理安装位姿(与车体同向),camera_optical 仅作旋转,
+       相机插件 frame_name 用它 → 正前方物体的反投影方向在 base 中为 +x
+       (2026-09-14 复验补齐;实车 frame 名对齐留待实车接入阶段) -->
+  <link name="camera_optical"/>
+  <joint name="camera_optical_joint" type="fixed">
+    <parent link="camera"/>
+    <child link="camera_optical"/>
+    <origin xyz="0 0 0" rpy="${-pi/2.0} 0 ${-pi/2.0}"/>
+  </joint>
+
+  <!-- ============ ros2_control(ackermann:2 转向 position + 2 驱动 velocity) ============ -->
+  <ros2_control name="RacecarSimSystem" type="system">
+    <hardware>
+      <plugin>gazebo_ros2_control/GazeboSystem</plugin>
+    </hardware>
+    <joint name="left_steering_joint">
+      <command_interface name="position"/>
+      <state_interface name="position"><param name="initial_position">0.0</param></state_interface>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="right_steering_joint">
+      <command_interface name="position"/>
+      <state_interface name="position"><param name="initial_position">0.0</param></state_interface>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="left_rear_wheel_joint">
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="right_rear_wheel_joint">
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <!-- 前轮自转关节:纯物理被动轮,不进控制回路,只注册 state 接口让
+         joint_states 完整发布(复验要求:前轮滚动可观测,诊断打滑用) -->
+    <joint name="left_front_wheel_spin_joint">
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="right_front_wheel_spin_joint">
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+  </ros2_control>
+
+  <gazebo>
+    <!-- 写法对齐官方 gazebo_ros2_control_demos(0.4.10):只留 parameters 子标签。
+         原先的 robot_param 与 robot_param_node 会让插件走"远程取 URDF 再整体
+         注入参数"分支,URDF 文本按 YAML 规则解析必炸(2026-09-14 实测) -->
+    <plugin filename="libgazebo_ros2_control.so" name="gazebo_ros2_control">
+      <parameters>$(arg ctrl_params)</parameters>
+    </plugin>
+  </gazebo>
+
+  <!-- ============ 传感器 Gazebo 插件(挂在物理 sensor frame 上) ============ -->
+  <!-- 2D 雷达 → /scan,frame_id=laser_sensor_link(真实扫描高度) -->
+  <gazebo reference="laser_sensor_link">
+    <sensor type="ray" name="lidar_sensor">
+      <pose>0 0 0 0 0 0</pose>
+      <visualize>false</visualize>
+      <update_rate>${cfg['lidar_hz']}</update_rate>
+      <ray>
+        <scan>
+          <horizontal>
+            <samples>${cfg['lidar_samples']}</samples>
+            <resolution>1</resolution>
+            <min_angle>-3.14159265</min_angle>
+            <max_angle>3.14159265</max_angle>
+          </horizontal>
+        </scan>
+        <range>
+          <min>${cfg['lidar_min_range']}</min>
+          <max>${cfg['lidar_max_range']}</max>
+          <resolution>0.01</resolution>
+        </range>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.01</stddev>
+        </noise>
+      </ray>
+      <plugin name="lidar_plugin" filename="libgazebo_ros_ray_sensor.so">
+        <ros>
+          <namespace>/</namespace>
+          <!-- remap 一律用绝对名(带前导斜杠):gazebo_plugins 老式插件的
+               命名空间会落在 /sensor_name 层,相对名跟着落层(2026-09-14
+               实测 camera 的 image_raw 落在 /camera_sensor/ 下) -->
+          <remapping>~/out:=/scan</remapping>
+        </ros>
+        <output_type>sensor_msgs/LaserScan</output_type>
+        <frame_name>laser_sensor_link</frame_name>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+  <!-- 相机 → /image_raw,frame_id=camera(对齐实车) -->
+  <gazebo reference="camera">
+    <sensor type="camera" name="camera_sensor">
+      <update_rate>${cfg['cam_hz']}</update_rate>
+      <camera>
+        <horizontal_fov>${cfg['cam_hfov']}</horizontal_fov>
+        <image>
+          <width>${cfg['cam_width']}</width>
+          <height>${cfg['cam_height']}</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip><near>0.05</near><far>30</far></clip>
+        <!-- [出厂标定 2026-09-15] plumb_bob 畸变注入(camera_info.yaml
+             k1/k2/p1/p2,k3=0),center 取标定主点归一化;
+             /camera_info 的 D 由 Gazebo 据此生成 -->
+        <distortion>
+          <k1>${cfg['cam_k1']}</k1>
+          <k2>${cfg['cam_k2']}</k2>
+          <k3>0.0</k3>
+          <p1>${cfg['cam_p1']}</p1>
+          <p2>${cfg['cam_p2']}</p2>
+          <center>${cfg['cam_cx']/cfg['cam_width']} ${cfg['cam_cy']/cfg['cam_height']}</center>
+        </distortion>
+      </camera>
+      <plugin name="camera_plugin" filename="libgazebo_ros_camera.so">
+        <ros>
+          <namespace>/</namespace>
+          <!-- 实测该插件话题原始名 = sensor名/子话题(camera_info_manager
+               风格,ros2 node info /camera_plugin 确认为
+               camera_sensor/image_raw 相对名),remap 按此全名命中 -->
+          <remapping>camera_sensor/image_raw:=/image_raw</remapping>
+          <remapping>camera_sensor/camera_info:=/camera_info</remapping>
+        </ros>
+        <frame_name>camera_optical</frame_name>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+  <!-- IMU → /IMU_data(默认保留实车话题名,需要时重映射),frame_id=imu_sensor_link -->
+  <gazebo reference="imu_sensor_link">
+    <sensor type="imu" name="imu_sensor">
+      <update_rate>${cfg['imu_hz']}</update_rate>
+      <!-- always_on:防 Gazebo 惰性更新导致 ROS 插件不发布(排查项) -->
+      <always_on>true</always_on>
+      <imu>
+        <angular_velocity><x><noise type="gaussian"><mean>0</mean><stddev>0.0002</stddev></noise></x>
+          <y><noise type="gaussian"><mean>0</mean><stddev>0.0002</stddev></noise></y>
+          <z><noise type="gaussian"><mean>0</mean><stddev>0.0002</stddev></noise></z></angular_velocity>
+        <linear_acceleration><x><noise type="gaussian"><mean>0</mean><stddev>0.015</stddev></noise></x>
+          <y><noise type="gaussian"><mean>0</mean><stddev>0.015</stddev></noise></y>
+          <z><noise type="gaussian"><mean>0</mean><stddev>0.015</stddev></noise></z></linear_acceleration>
+      </imu>
+      <plugin name="imu_plugin" filename="libgazebo_ros_imu_sensor.so">
+        <ros>
+          <namespace>/</namespace>
+          <remapping>~/out:=/IMU_data</remapping>
+        </ros>
+        <frame_name>imu_sensor_link</frame_name>
+        <initial_orientation_as_reference>false</initial_orientation_as_reference>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+</robot>

@@ -1,0 +1,58 @@
+# =============================================================================
+# 仿真车集中参数(v0 假设值,实车实测后改这里,全局生效)
+# 标注[实测]的项 = 下次碰车用 docs/测量清单.md 量出真值替换
+# 标注[规则]的项 = 来自比赛规则 4.4 节,可信
+# 标注[源码]的项 = 来自出厂源码 contract.json,可信
+# =============================================================================
+
+racecar_sim:
+  # --- 底盘几何 ---
+  chassis_length: 0.56        # [规则] 底盘长 560mm
+  chassis_width: 0.35         # [规则] 底盘宽 350mm
+  chassis_height: 0.10        # [实测] 底盘主体可视厚度(230mm 是整车含上层结构,box 先给主体)
+  chassis_z: 0.15             # [源码] base_footprint→base_link z=0.15(实车 TF 硬编码)
+  ground_clearance: 0.06      # [实测] 底盘离地间隙(假设)
+  wheel_radius: 0.09          # [实测] 车轮半径(假设,轮径180mm;注:出厂编码器代码 C=0.22745m 带未明 3.57/0.25 系数,非直接轮周长,不采用;标定计划见审查建议10:实车推行 N 圈×编码器计数→米/计数系数,可追溯后再入参)
+  wheel_width: 0.05           # [实测] 轮宽(假设)
+  wheel_base: 0.305           # [出厂代码] 轴距(racecar_05_27 车体控制器 declare_parameter L=0.305;建议实车卷尺复核)
+  wheel_track: 0.30           # [实测] 轮距(左右轮中心距,假设)
+  max_steer_angle: 0.55       # [实测] 舵角极限 rad(~31°,假设)
+  # --- 质量 ---
+  mass_chassis: 8.0           # [实测] 含电池整备质量 kg(假设;电机2400W级别,整车约5-10kg)
+  mass_wheel: 0.4             # [实测] 单轮 kg(假设)
+  # --- 传感器外参(TF 策略:厂家 frame 原样保留,传感器挂新增 *_sensor_link) ---
+  # laser_link / IMU_link 按[源码契约]保留厂家值(z=0),不挂传感器;
+  # laser_sensor_link / imu_sensor_link = 实际安装高度(下面 z 值,假设待实测),
+  # 传感器消息 frame_id 用 *_sensor_link,与真实测量位置一致
+  laser_x: 0.07               # [源码] base_footprint 前向偏移(厂家 TF)
+  laser_z: 0.21               # [实测] laser_sensor_link 离地高度(假设,待量)
+  camera_x: 0.24              # [实测] 相机前向偏移(假设;相机无厂家 TF)
+  camera_z: 0.24              # [实测] 相机离地高度(假设)
+  imu_x: 0.1653               # [源码] base_footprint→IMU_link x(厂家 TF)
+  imu_z: 0.18                 # [实测] imu_sensor_link 离地高度(假设)
+  # --- 雷达参数(对齐镭神 X10/M10P) ---
+  lidar_hz: 10                # [规则] 10-12Hz
+  lidar_min_range: 0.15       # [源码] min_range
+  lidar_max_range: 25.0       # [规则] 量程25-30m(源码软件裁剪50m,取硬件25)
+  lidar_samples: 2000         # [建模选择] 2000点/圈=采样20000/s÷10Hz 的折算;
+                              #   仿真为性能计未必逐点复刻,非严格硬件指标
+  # --- 相机参数 ---
+  cam_width: 640
+  cam_height: 480
+  cam_hz: 30
+  cam_hfov: 1.2602            # [出厂标定] 由 camera_info.yaml fx=438.783367@640 反推 2·atan(320/fx)=72.21°(规则"150°"为镜头标称,以实标为准)
+  # —— 相机双口径(外部AI审查建议9,2026-09-15)——
+  # 设备标称(规则性能表):1920x1080、视角150°——镜头能力,非工作模式,实车重标定后更新
+  # 工作模式(出厂标定,仿真与算法采用):640x480、hfov≈72.21°、内参见下
+  # —— 相机内参[出厂标定 racecar_05_27 config/camera/camera_info.yaml,640x480]——
+  #    仿真:hfov 由 fx 推得,畸变注入 xacro <distortion>;阶段4视觉/阶段6实车直接用这套值
+  cam_fx: 438.783367
+  cam_fy: 437.302876
+  cam_cx: 305.593336
+  cam_cy: 243.738352
+  cam_k1: -0.361976           # plumb_bob(k1,k2,p1,p2;k3=0)
+  cam_k2: 0.110510
+  cam_p1: 0.001014
+  cam_p2: 0.000505
+  # --- IMU ---
+  imu_hz: 200

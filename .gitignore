@@ -25,3 +25,10 @@ work/
 Thumbs.db
 desktop.ini
 .baiduyun.uploading.cfg
+
+# --- 证据归档例外:验证完整日志必须入库(外部AI审查建议:日志归档规则) ---
+!evidence/*.log
+
+# --- 内部工作文件(不入远程) ---
+CLAUDE.md
+docs/IMPLEMENTATION_STATUS.md

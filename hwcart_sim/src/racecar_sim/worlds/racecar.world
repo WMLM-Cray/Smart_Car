@@ -1,0 +1,30 @@
+<?xml version="1.0" ?>
+<!-- 自定义 world:empty.world + gazebo_ros_state 插件。
+     libgazebo_ros_state.so 是 WorldPlugin,不能用 gzserver -s 加载
+     (-s 只装 SystemPlugin,实测报 "incorrect plugin type" 且干扰
+      factory 服务,spawn_entity 超时死,2026-09-14)。
+     它提供 /gazebo/get_entity_state 服务,验收用世界系真实位姿与
+     里程计对账 -->
+<sdf version="1.5">
+  <world name="default">
+    <include><uri>model://ground_plane</uri></include>
+    <include><uri>model://sun</uri></include>
+    <plugin name="gazebo_ros_state" filename="libgazebo_ros_state.so"/>
+    <!-- 已知障碍物:车 spawn 于原点朝 +x,box 中心 (6,0) 0.5³,
+         前表面距原点 5.75m(远置:验收直行工况 8s×0.5m/s=4m+车头,
+         挪近会挡路,2026-09-14 第3轮实测撞墙),雷达高 0.21m 在 box
+         高度内 → 静止时 /scan 正前方(角 0)读数应 ≈5.75m -->
+    <model name="marker_box">
+      <pose>6 0 0.25 0 0 0</pose>
+      <link name="link">
+        <visual name="vis">
+          <geometry><box><size>0.5 0.5 0.5</size></box></geometry>
+          <material><ambient>0.8 0.1 0.1 1</ambient><diffuse>0.8 0.1 0.1 1</diffuse></material>
+        </visual>
+        <collision name="coll">
+          <geometry><box><size>0.5 0.5 0.5</size></box></geometry>
+        </collision>
+      </link>
+    </model>
+  </world>
+</sdf>
