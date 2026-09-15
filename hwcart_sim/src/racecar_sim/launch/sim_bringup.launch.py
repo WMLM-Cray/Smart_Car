@@ -98,7 +98,12 @@ def generate_launch_description():
         executable='spawn_entity.py',
         arguments=['-topic', 'robot_description',
                    '-entity', 'racecar',
-                   '-z', '0.02'],
+                   '-z', '0.02',
+                   # 竞态修复(选择性引入自远端 ed613bd,仅此一项):spawn_entity.py
+                   # 对 /spawn_entity 服务的 wait_for_service 默认只等 30s,WSL 下
+                   # gzserver 加载 world+插件偶发超时导致启动失败;放宽到 60s,
+                   # 服务就绪探测交给上游,超时仍走事件链失败传播并写明原因
+                   '-timeout', '60'],
         output='screen',
     )
 
