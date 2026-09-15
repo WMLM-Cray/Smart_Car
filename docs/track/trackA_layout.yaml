@@ -1,0 +1,146 @@
+# 赛道A 坐标清单(阶段2 交付1)——几何依据见 trackA_尺寸依据.md
+# 坐标系: 原点=外边界左下角, x向右, y向上, 单位m, 行车逆时针
+track: A
+frame:
+  origin: outer_boundary_lower_left
+  axes: {x: right, y: up}
+  unit: m
+params:
+  total_length: {value: 16.80, source: rule}
+  corridor_width: {value: 1.50, source: "rule+fig9"}
+  hairpin_outer_radius: {value: 2.76, source: image}
+  hairpin_inner_radius: {value: 1.26, source: "image+fig9(1.25)"}
+  hairpin_centers: {value: [[2.76, 2.76], [14.04, 2.76]], source: image}
+  v_side_length: {value: 3.06, source: fig9}
+  v_apex_angle_deg: {value: 135, source: fig9}
+  cone_spacing: {value: 1.0, source: asmp}
+boundaries:
+  outer:  # 蓝锥连线,逆时针,自左弧底
+    - line: [2.76, 0.0, 14.04, 0.0]
+    - arc: {center: [14.04, 2.76], radius: 2.76, angles_deg: [-90, 90]}
+    - line: [14.04, 5.52, 11.295, 4.26]
+    - line: [11.295, 4.26, 8.55, 5.52]
+    - line: [8.55, 5.52, 7.47, 5.52]
+    - line: [7.47, 5.52, 5.655, 4.26]
+    - line: [5.655, 4.26, 3.69, 5.52]
+    - line: [3.69, 5.52, 2.76, 5.52]
+    - arc: {center: [2.76, 2.76], radius: 2.76, angles_deg: [90, 270]}
+  inner:  # 红锥连线(岛边界),逆时针,自左弧底
+    - line: [2.76, 1.5, 14.04, 1.5]
+    - arc: {center: [14.04, 2.76], radius: 1.26, angles_deg: [-90, 90]}
+    - line: [14.04, 4.02, 11.295, 2.849]
+    - line: [11.295, 2.849, 8.55, 4.02]
+    - line: [8.55, 4.02, 8.55, 4.02]
+    - line: [8.55, 4.02, 5.655, 2.849]
+    - line: [5.655, 2.849, 2.76, 4.02]
+    - arc: {center: [2.76, 2.76], radius: 1.26, angles_deg: [90, 270]}
+cones:  # 48 blue + 35 red,顺序沿边界逆时针
+  - {id: b01, color: blue, x: 2.76, y: 0.0}
+  - {id: b02, color: blue, x: 3.7, y: 0.0}
+  - {id: b03, color: blue, x: 4.64, y: 0.0}
+  - {id: b04, color: blue, x: 5.58, y: 0.0}
+  - {id: b05, color: blue, x: 6.52, y: 0.0}
+  - {id: b06, color: blue, x: 7.46, y: 0.0}
+  - {id: b07, color: blue, x: 8.4, y: 0.0}
+  - {id: b08, color: blue, x: 9.34, y: 0.0}
+  - {id: b09, color: blue, x: 10.28, y: 0.0}
+  - {id: b10, color: blue, x: 11.22, y: 0.0}
+  - {id: b11, color: blue, x: 12.16, y: 0.0}
+  - {id: b12, color: blue, x: 13.1, y: 0.0}
+  - {id: b13, color: blue, x: 14.04, y: 0.0}
+  - {id: b14, color: blue, x: 14.984, y: 0.1664}
+  - {id: b15, color: blue, x: 15.8141, y: 0.6457}
+  - {id: b16, color: blue, x: 16.4302, y: 1.38}
+  - {id: b17, color: blue, x: 16.7581, y: 2.2807}
+  - {id: b18, color: blue, x: 16.7581, y: 3.2393}
+  - {id: b19, color: blue, x: 16.4302, y: 4.14}
+  - {id: b20, color: blue, x: 15.8141, y: 4.8743}
+  - {id: b21, color: blue, x: 14.984, y: 5.3536}
+  - {id: b22, color: blue, x: 14.04, y: 5.52}
+  - {id: b23, color: blue, x: 13.3537, y: 5.205}
+  - {id: b24, color: blue, x: 12.6675, y: 4.89}
+  - {id: b25, color: blue, x: 11.9812, y: 4.575}
+  - {id: b26, color: blue, x: 11.295, y: 4.26}
+  - {id: b27, color: blue, x: 10.6088, y: 4.575}
+  - {id: b28, color: blue, x: 9.9225, y: 4.89}
+  - {id: b29, color: blue, x: 9.2363, y: 5.205}
+  - {id: b30, color: blue, x: 8.55, y: 5.52}
+  - {id: b31, color: blue, x: 8.01, y: 5.52}
+  - {id: b32, color: blue, x: 7.47, y: 5.52}
+  - {id: b33, color: blue, x: 6.865, y: 5.1}
+  - {id: b34, color: blue, x: 6.26, y: 4.68}
+  - {id: b35, color: blue, x: 5.655, y: 4.26}
+  - {id: b36, color: blue, x: 5.0, y: 4.68}
+  - {id: b37, color: blue, x: 4.345, y: 5.1}
+  - {id: b38, color: blue, x: 3.69, y: 5.52}
+  - {id: b39, color: blue, x: 2.76, y: 5.52}
+  - {id: b40, color: blue, x: 1.816, y: 5.3536}
+  - {id: b41, color: blue, x: 0.9859, y: 4.8743}
+  - {id: b42, color: blue, x: 0.3698, y: 4.14}
+  - {id: b43, color: blue, x: 0.0419, y: 3.2393}
+  - {id: b44, color: blue, x: 0.0419, y: 2.2807}
+  - {id: b45, color: blue, x: 0.3698, y: 1.38}
+  - {id: b46, color: blue, x: 0.9859, y: 0.6457}
+  - {id: b47, color: blue, x: 1.816, y: 0.1664}
+  - {id: b48, color: blue, x: 2.76, y: 0.0}
+  - {id: r01, color: red, x: 2.76, y: 1.5}
+  - {id: r02, color: red, x: 3.7, y: 1.5}
+  - {id: r03, color: red, x: 4.64, y: 1.5}
+  - {id: r04, color: red, x: 5.58, y: 1.5}
+  - {id: r05, color: red, x: 6.52, y: 1.5}
+  - {id: r06, color: red, x: 7.46, y: 1.5}
+  - {id: r07, color: red, x: 8.4, y: 1.5}
+  - {id: r08, color: red, x: 9.34, y: 1.5}
+  - {id: r09, color: red, x: 10.28, y: 1.5}
+  - {id: r10, color: red, x: 11.22, y: 1.5}
+  - {id: r11, color: red, x: 12.16, y: 1.5}
+  - {id: r12, color: red, x: 13.1, y: 1.5}
+  - {id: r13, color: red, x: 14.04, y: 1.5}
+  - {id: r14, color: red, x: 14.931, y: 1.869}
+  - {id: r15, color: red, x: 15.3, y: 2.76}
+  - {id: r16, color: red, x: 14.931, y: 3.651}
+  - {id: r17, color: red, x: 14.04, y: 4.02}
+  - {id: r18, color: red, x: 13.125, y: 3.6297}
+  - {id: r19, color: red, x: 12.21, y: 3.2393}
+  - {id: r20, color: red, x: 11.295, y: 2.849}
+  - {id: r21, color: red, x: 10.38, y: 3.2393}
+  - {id: r22, color: red, x: 9.465, y: 3.6297}
+  - {id: r23, color: red, x: 8.55, y: 4.02}
+  - {id: r24, color: red, x: 7.8263, y: 3.7272}
+  - {id: r25, color: red, x: 7.1025, y: 3.4345}
+  - {id: r26, color: red, x: 6.3788, y: 3.1417}
+  - {id: r27, color: red, x: 5.655, y: 2.849}
+  - {id: r28, color: red, x: 4.9313, y: 3.1417}
+  - {id: r29, color: red, x: 4.2075, y: 3.4345}
+  - {id: r30, color: red, x: 3.4837, y: 3.7272}
+  - {id: r31, color: red, x: 2.76, y: 4.02}
+  - {id: r32, color: red, x: 1.869, y: 3.651}
+  - {id: r33, color: red, x: 1.5, y: 2.76}
+  - {id: r34, color: red, x: 1.869, y: 1.869}
+  - {id: r35, color: red, x: 2.76, y: 1.5}
+yellow_tape:
+  width_m: 0.1  # asmp: 黄线=折线区(V#2)地面标线,锥桶仍沿内外边界布置
+  segments:  # 线段 [x0, y0, x1, y1]
+    - [8.55, 5.52, 11.295, 4.26]
+    - [11.295, 4.26, 14.04, 5.52]
+    - [8.55, 4.02, 11.295, 2.849]
+    - [11.295, 2.849, 14.04, 4.02]
+zones:  # 均在底直道走廊 y∈[0, 1.50] 内;x范围图读
+  traffic_light_zone: {x: [2.52, 5.14], y: [0.0, 1.5], source: image, note: "红绿灯停车区(青虚框);红绿灯当天随机"}
+  zone_a: {x: [6.0, 7.38], y: [0.0, 1.5], source: image, note: "A 检测/停车区黄框"}
+  zone_ab: {x: [8.41, 9.44], y: [0.0, 1.5], source: image, note: "A/B 双格黄框(上下格语义待复核)"}
+  start_zone: {x: [10.49, 11.87], y: [0.0, 1.5], source: image, note: "发车区黄框(图内竖排红字)"}
+start_pose: {x: 11.18, y: 0.75, yaw_deg: 0.0}  # asmp: 发车区中心,朝+x
+centerline:  # 行车参考线,逆时针(弧半径=(2.76+1.26)/2=2.01)
+  - line: [2.76, 0.75, 14.04, 0.75]
+  - arc: {center: [14.04, 2.76], radius: 2.01, angles_deg: [-90, 90]}
+  - line: [14.04, 4.77, 11.295, 3.5545]
+  - line: [11.295, 3.5545, 8.55, 4.77]
+  - line: [8.55, 4.77, 8.01, 4.77]
+  - line: [8.01, 4.77, 5.655, 3.5545]
+  - line: [5.655, 3.5545, 3.225, 4.77]
+  - line: [3.225, 4.77, 2.76, 4.77]
+  - arc: {center: [2.76, 2.76], radius: 2.01, angles_deg: [90, 270]}
+random_day_elements:  # 比赛当天随机,基础场景不摆
+  boards: []  # rule: 挡板3块80x50cm,位置随机
+  traffic_light: null  # rule: 红绿灯位置随机(默认见尺寸依据.md待复核)
