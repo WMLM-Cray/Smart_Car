@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<sdf version="1.6">
+  <model name="trackA_cone_blue">
+    <static>true</static>
+    <link name="cone">
+      <inertial>
+        <mass>0.3</mass>
+        <inertia><ixx>1e-4</ixx><iyy>1e-4</iyy><izz>1e-4</izz>
+                 <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+      </inertial>
+      <!-- visual: 底座 box + 16棱锥 mesh(尺寸 asmp 待官方确认) -->
+      <visual name="base">
+        <pose>0 0 0.0125 0 0 0</pose>
+        <geometry><box><size>0.16 0.16 0.025</size></box></geometry>
+        <material>
+          <ambient>0.15 0.4 0.9 1.0</ambient>
+          <diffuse>0.15 0.4 0.9 1.0</diffuse>
+        </material>
+      </visual>
+      <visual name="cone">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry><mesh><uri>model://trackA_cone_blue/meshes/traffic_cone.dae</uri></mesh></geometry>
+        <material>
+          <ambient>0.15 0.4 0.9 1.0</ambient>
+          <diffuse>0.15 0.4 0.9 1.0</diffuse>
+        </material>
+      </visual>
+      <!-- collision: 单圆柱凸体(物理稳定,雷达可扫);r=底座半宽 asmp -->
+      <collision name="body">
+        <pose>0 0 0.15 0 0 0</pose>
+        <geometry><cylinder><radius>0.08</radius><length>0.3</length></cylinder></geometry>
+      </collision>
+    </link>
+  </model>
+</sdf>
