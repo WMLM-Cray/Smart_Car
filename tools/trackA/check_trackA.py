@@ -15,6 +15,9 @@
      (锥确在其声明段上,≤ 0.02 m)
   5. 禁放区(黄V):segment ∈ {E3,E4,I3,I4} → FAIL;锥落在黄V臂线上
      (非四肩点)→ FAIL;锥位于黄V带内部(两臂之间,离臂 > 0.03 m)→ FAIL
+  5b. 黄V polygon:必须六点(外左肩→外谷→外右肩→内右肩→内谷→内左肩),
+     与 shoulders/valley 字段 1e-6 对账,外/内三点各贴重建的 E3∪E4/I3∪I4
+     臂线(≤0.02 m)——防四点矩形漏谷点(首版 bug)及字段系统性同错
   6. 肩点归属:四肩点各有一锥且 segment 归属相邻圆弧段(YAML shoulders 表)
   7. YAML-CSV 一致性(数量/id/坐标 1e-6/颜色/segment 全对账)
   8. 几何环自检(从 YAML 重建):20 接缝 gap(含环回绕)、有向切角(>170°
@@ -23,10 +26,10 @@
   9. 间距统计:同色相邻锥(文件序=环序,黄V断口对单独列出)实际间距
      min/max/mean;<0.3 或 >2.0 视为异常 FAIL
 
---negtest:两个针对性负例,必须都被抓住:
-  N1 黄V中段插一个锥(谷中点,segment 标 E3)→ 应 FAIL
-  N2 复制一个已有锥的坐标(新 id)→ 应 FAIL
-任何 FAIL 非零退出;负例未被抓住也非零退出。
+--negtest:两个针对性负例,定向断言对应检查项失败(仅总数>0不算抓住):
+  N1 黄V中段插一个锥(谷中点,segment 标 E2)→ "yellow-V no-cone zone clean" 须 FAIL
+  N2 复制一个已有锥的坐标(新 id)→ "no duplicate positions" 须 FAIL
+任何 FAIL 非零退出;负例未被抓住或抓错了检查项也非零退出。
 """
 import argparse
 import csv
@@ -47,10 +50,12 @@ BAND_MARGIN = 0.03 # 带内判定离臂余量
 class Rep:
     def __init__(self):
         self.fails = 0
+        self.failed_names = set()   # 失败检查项名集合(负例定向断言用)
     def add(self, name, ok, detail=""):
         tag = "OK  " if ok else "FAIL"
         if not ok:
             self.fails += 1
+            self.failed_names.add(name)
         print("  [%s] %-34s %s" % (tag, name, detail))
         return ok
 
@@ -252,6 +257,37 @@ def run_checks(csv_path, yaml_path, label=""):
                 zone_bad.append("%s inside V-band (%.3f,%.3f)" % (c["id"], p[0], p[1]))
     rep.add("yellow-V no-cone zone clean", not zone_bad, "; ".join(zone_bad[:4]))
 
+    # 5b 黄V polygon 与四条臂一致(首版四点矩形漏谷点 bug 的回归检查)
+    # 六点序:外左肩→外谷→外右肩→内右肩→内谷→内左肩(闭合)。
+    # 三重判据:点数=6;与 shoulders/valley 字段 1e-6 对账(字段间自洽);
+    # 外/内三点各自贴从 boundaries 独立重建的 E3∪E4 / I3∪I4 臂线(≤TOL_ON,
+    # 抓"polygon 与 shoulders 一起错"的系统性偏移——字段对账抓不住这种情况)
+    print("-- 5b) yellow-V polygon 六点与四条臂/肩谷字段一致")
+    poly_bad = []
+    poly = band.get("polygon") or []
+    if len(poly) != 6:
+        poly_bad.append("polygon has %d pts, expect 6 "
+                        "(外左肩→外谷→外右肩→内右肩→内谷→内左肩)" % len(poly))
+    else:
+        pts6 = [tuple(p) for p in poly]
+        for nm, got, ref in (("外左肩=E5肩", pts6[0], shs.get("E5")),
+                             ("外谷=valley_outer", pts6[1], vo),
+                             ("外右肩=E2肩", pts6[2], shs.get("E2")),
+                             ("内右肩=I2肩", pts6[3], shs.get("I2")),
+                             ("内谷=valley_inner", pts6[4], vi),
+                             ("内左肩=I5肩", pts6[5], shs.get("I5"))):
+            if ref is None or hypot(got[0]-ref[0], got[1]-ref[1]) > 1e-6:
+                poly_bad.append("%s: polygon %s != field %s" % (nm, got, ref))
+        arms_o = [segmap["blue"][s] for s in ("E3", "E4")]
+        arms_i = [segmap["red"][s] for s in ("I3", "I4")]
+        for nm, p, arms in (("外左肩", pts6[0], arms_o), ("外谷", pts6[1], arms_o),
+                            ("外右肩", pts6[2], arms_o), ("内右肩", pts6[3], arms_i),
+                            ("内谷", pts6[4], arms_i), ("内左肩", pts6[5], arms_i)):
+            dmin = min(dist_pt_polyline(p, pl) for pl in arms)
+            if dmin > TOL_ON:
+                poly_bad.append("%s off arm %.6f m" % (nm, dmin))
+    rep.add("yellow-V polygon matches arms", not poly_bad, "; ".join(poly_bad[:4]))
+
     # 6 肩点归属
     print("-- 6) 肩点锥归属相邻圆弧段")
     sho_bad = []
@@ -351,7 +387,7 @@ def run_checks(csv_path, yaml_path, label=""):
                 "; ".join(vbreak) if vbreak else "missing?")
 
     print("--\nTOTAL FAIL(s): %d" % rep.fails)
-    return rep.fails
+    return rep.fails, rep.failed_names
 
 # ---------- 负例 ----------
 def negtest(csv_path, yaml_path):
@@ -362,22 +398,29 @@ def negtest(csv_path, yaml_path):
     tmpdir = tempfile.mkdtemp(prefix="trackA_neg_")
     misses = 0
     # N1: 黄V中段(谷中点,两臂之间)插锥——段标注故意给非黄V段 E2,
-    # 迫使"带内部"纯几何判据(而非仅段标注自曝)参与抓捕
+    # 迫使"带内部"纯几何判据(而非仅段标注自曝)参与抓捕。
+    # 定向断言:必须恰是"禁放区"检查项失败(仅靠别项失败凑数不算抓住)
     p1 = os.path.join(tmpdir, "neg1.csv")
     with open(p1, 'w', encoding='utf-8', newline='') as f:
         f.write("\n".join([hdr]+body+["bx01,blue,11.228427,3.581266,E2"])+"\n")
-    f1 = run_checks(p1, yaml_path, label="NEG-1 cone in yellow-V middle")
-    print("  NEG-1 %s (fails=%d)\n" % ("CAUGHT" if f1 > 0 else "MISSED!!", f1))
-    misses += (1 if f1 == 0 else 0)
-    # N2: 复制已有锥坐标(取第一个蓝锥),新 id
+    f1, n1 = run_checks(p1, yaml_path, label="NEG-1 cone in yellow-V middle")
+    caught1 = f1 > 0 and "yellow-V no-cone zone clean" in n1
+    print("  NEG-1 %s (fails=%d, 'yellow-V no-cone zone clean' failed: %s)\n" %
+          ("CAUGHT" if caught1 else "MISSED!!", f1,
+           "yes" if "yellow-V no-cone zone clean" in n1 else "no"))
+    misses += (1 if not caught1 else 0)
+    # N2: 复制已有锥坐标(取第一个蓝锥),新 id。定向断言:"重复位置"检查项失败
     first = body[0].split(',')
     p2 = os.path.join(tmpdir, "neg2.csv")
     with open(p2, 'w', encoding='utf-8', newline='') as f:
         f.write("\n".join([hdr] + body +
                           ["bx02,%s,%s,%s,%s" % (first[1], first[2], first[3], first[4])]) + "\n")
-    f2 = run_checks(p2, yaml_path, label="NEG-2 duplicated cone coords")
-    print("  NEG-2 %s (fails=%d)\n" % ("CAUGHT" if f2 > 0 else "MISSED!!", f2))
-    misses += (1 if f2 == 0 else 0)
+    f2, n2 = run_checks(p2, yaml_path, label="NEG-2 duplicated cone coords")
+    caught2 = f2 > 0 and "no duplicate positions" in n2
+    print("  NEG-2 %s (fails=%d, 'no duplicate positions' failed: %s)\n" %
+          ("CAUGHT" if caught2 else "MISSED!!", f2,
+           "yes" if "no duplicate positions" in n2 else "no"))
+    misses += (1 if not caught2 else 0)
     return misses
 
 def main():
@@ -391,7 +434,7 @@ def main():
     docs = os.path.normpath(os.path.join(here, '..', '..', 'docs', 'track'))
     csv_path = a.csv or os.path.join(docs, "trackA_cones.csv")
     yaml_path = a.yaml or os.path.join(docs, "trackA_layout.yaml")
-    fails = run_checks(csv_path, yaml_path)
+    fails, _names = run_checks(csv_path, yaml_path)
     extra = 0
     if a.negtest:
         extra = negtest(csv_path, yaml_path)

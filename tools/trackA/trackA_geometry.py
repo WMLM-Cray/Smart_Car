@@ -242,7 +242,10 @@ def write_yaml(path, cones, spacing):
                 y.append("    - {seg: %s, arc: {center: [%.6f, %.6f], radius: %.6f, "
                          "angles_deg: [%g, %g], ccw: %s}}" % (name, c[0], c[1], R, d0, d1, ccw))
     y.append("yellow_v_band:  # 禁放区(黄V中段不放锥桶)")
-    y.append("  polygon: [%s, %s, %s, %s]" % (P(SH_L_O), P(SH_R_O), P(SH_R_I), P(SH_L_I)))
+    # 六点带:外左肩→外谷→外右肩→内右肩→内谷→内左肩(闭合)。
+    # 首版误写四肩点矩形,漏两谷点,下游直接消费 polygon 会得到错误区域(已修)。
+    y.append("  polygon: [%s, %s, %s, %s, %s, %s]" %
+             (P(SH_L_O), P(VAL_O), P(SH_R_O), P(SH_R_I), P(VAL_I), P(SH_L_I)))
     y.append("  no_cone_segments: [E3, E4, I3, I4]")
     y.append("  shoulders: {E2: %s, E5: %s, I2: %s, I5: %s}" %
              (P(SH_R_O), P(SH_L_O), P(SH_R_I), P(SH_L_I)))
@@ -288,8 +291,8 @@ def write_topview(path, cones):
         fs = fb = ImageFont.load_default()
     def P(x, y):
         return (mx + x*S, H - my - y*S)
-    # yellow-V no-cone band
-    band = [P(*SH_L_O), P(*SH_R_O), P(*SH_R_I), P(*SH_L_I)]
+    # yellow-V no-cone band(六点带,与 YAML polygon 同序:外左肩→外谷→外右肩→内右肩→内谷→内左肩)
+    band = [P(*SH_L_O), P(*VAL_O), P(*SH_R_O), P(*SH_R_I), P(*VAL_I), P(*SH_L_I)]
     ov = Image.new("RGBA", im.size, (0, 0, 0, 0))
     od = ImageDraw.Draw(ov)
     od.polygon(band, fill=(255, 220, 60, 60))
