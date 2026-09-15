@@ -4,7 +4,7 @@ cones from CSV: 63 total (37 blue + 26 red)
 model -> /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/hwcart_sim/src/racecar_sim/models/trackA_cone_blue
 model -> /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/hwcart_sim/src/racecar_sim/models/trackA_cone_red
 world -> /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/hwcart_sim/src/racecar_sim/worlds/trackA.world
-assumption: cone size h=0.30 r=0.06 base=0.16 (asmp, no official value)
+cone size: h=0.63 bottom_r=0.14 base=0.28 (official rule 3.4: 630/280/280mm; thickness/mass asmp, dynamic static=false)
 gen_exit=0
 
 ########## 2. SDF 检查器(结构/位置/颜色/资产/mesh+两负例)##########
@@ -29,17 +29,20 @@ check_trackA_sdf
   [OK  ] red diffuse matches color          
   [OK  ] red collision cylinder present     
   [OK  ] red mesh file on disk              
--- 4) 锥 mesh(棱数×2 三角/法线=位置长度)
+-- 4) 锥 mesh(棱数×2 三角/法线配对/包络=官方 630/280)
   [OK  ] dae verts/normals paired           288/288
   [OK  ] dae triangles = sides*2            32 (expect 32)
--- 5) 尺寸假设披露(model.config 写明 asmp,防静默改'官方值')
-  [OK  ] size marked as assumption          
+  [OK  ] dae extent = 630/280 official      max_r=0.140000 (expect 0.14) max_z=0.630000 (expect 0.63)
+-- 5) 官方尺寸断言(cyl r=0.14 h=0.63;base 0.28;static=false;asmp 披露)
+  [OK  ] collision/base = official 630/280  
+  [OK  ] cones dynamic (static=false)       
+  [OK  ] asmp residue disclosed             
 --
 TOTAL FAIL(s): 0
 ====================================================================================================
 check_trackA_sdf [NEG-1 cone shifted +0.1m]
   csv  : /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/docs/track/trackA_cones.csv
-  world: /tmp/trackA_sdf_neg_xg8_cpa8/neg1.world
+  world: /tmp/trackA_sdf_neg_v37pb3is/neg1.world
 -- 1) world include 结构与位置对账
   [OK  ] world xml well-formed              
   [OK  ] include uri in {blue,red}          bad: []
@@ -56,11 +59,14 @@ check_trackA_sdf [NEG-1 cone shifted +0.1m]
   [OK  ] red diffuse matches color          
   [OK  ] red collision cylinder present     
   [OK  ] red mesh file on disk              
--- 4) 锥 mesh(棱数×2 三角/法线=位置长度)
+-- 4) 锥 mesh(棱数×2 三角/法线配对/包络=官方 630/280)
   [OK  ] dae verts/normals paired           288/288
   [OK  ] dae triangles = sides*2            32 (expect 32)
--- 5) 尺寸假设披露(model.config 写明 asmp,防静默改'官方值')
-  [OK  ] size marked as assumption          
+  [OK  ] dae extent = 630/280 official      max_r=0.140000 (expect 0.14) max_z=0.630000 (expect 0.63)
+-- 5) 官方尺寸断言(cyl r=0.14 h=0.63;base 0.28;static=false;asmp 披露)
+  [OK  ] collision/base = official 630/280  
+  [OK  ] cones dynamic (static=false)       
+  [OK  ] asmp residue disclosed             
 --
 TOTAL FAIL(s): 1
   NEG-1 CAUGHT (fails=1, 'world poses match CSV' failed: yes)
@@ -68,7 +74,7 @@ TOTAL FAIL(s): 1
 ====================================================================================================
 check_trackA_sdf [NEG-2 blue include recolored red]
   csv  : /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/docs/track/trackA_cones.csv
-  world: /tmp/trackA_sdf_neg_xg8_cpa8/neg2.world
+  world: /tmp/trackA_sdf_neg_v37pb3is/neg2.world
 -- 1) world include 结构与位置对账
   [OK  ] world xml well-formed              
   [OK  ] include uri in {blue,red}          bad: []
@@ -85,11 +91,14 @@ check_trackA_sdf [NEG-2 blue include recolored red]
   [OK  ] red diffuse matches color          
   [OK  ] red collision cylinder present     
   [OK  ] red mesh file on disk              
--- 4) 锥 mesh(棱数×2 三角/法线=位置长度)
+-- 4) 锥 mesh(棱数×2 三角/法线配对/包络=官方 630/280)
   [OK  ] dae verts/normals paired           288/288
   [OK  ] dae triangles = sides*2            32 (expect 32)
--- 5) 尺寸假设披露(model.config 写明 asmp,防静默改'官方值')
-  [OK  ] size marked as assumption          
+  [OK  ] dae extent = 630/280 official      max_r=0.140000 (expect 0.14) max_z=0.630000 (expect 0.63)
+-- 5) 官方尺寸断言(cyl r=0.14 h=0.63;base 0.28;static=false;asmp 披露)
+  [OK  ] collision/base = official 630/280  
+  [OK  ] cones dynamic (static=false)       
+  [OK  ] asmp residue disclosed             
 --
 TOTAL FAIL(s): 2
   NEG-2 CAUGHT (fails=2, 'color counts match CSV' failed: yes)
@@ -97,16 +106,25 @@ TOTAL FAIL(s): 2
 EXIT: 0
 check_exit=0
 
-########## 3. 构建与 headless 加载冒烟(WSL colcon 工作区)##########
-$ colcon build --packages-select racecar_sim --symlink-install   (clean rebuild)
-=> Finished <<< racecar_sim [0.77s]
+########## 3. 构建与 headless 加载冒烟(官方尺寸轮,2026-09-15)##########
+$ colcon build --packages-select racecar_sim --symlink-install   (整包清空重建)
+=> Finished <<< racecar_sim [0.96s];install models 树 = 两色 model 各
+   model.config/model.sdf/meshes/traffic_cone.dae 共 6 文件,无杂物
+   (注:百度网盘同步曾瞬时产生 *.baiduyun.uploading.cfg 混入 cp,F: 已自清,
+    build_sdf.sh 现带 find -delete 防御 + 整包清空重建防 build/ 悬空条目)
 $ gz sdf --print install/.../worlds/trackA.world  (GAZEBO_MODEL_PATH=install models)
 => 展开 63 个 model name='cone_*',gz_rc=0
-$ gzserver install/.../worlds/trackA.world (headless, ros_state 插件)
-$ ros2 service call /get_entity_state gazebo_msgs/srv/GetEntityState "{name: 'cone_b01'}"
-=> position=(x=2.75, y=0.0, z=0.0)  success=True     [CSV b01: 2.750000,0.000000]
-$ ... cone_b21 => (x=14.05, y=5.5, z=0.0) success=True [CSV b21 蓝右肩: 14.050000,5.500000]
-$ ... cone_r26 => (x=1.866117, y=1.866117, z=0.0) success=True [CSV r26: 1.866117,1.866117]
-$ ... cone_b99 => 服务端 ERROR "entity [cone_b99] does not exist"(负向:服务路径有效,
-   不存在的锥被明确拒绝;gzserver 日志 /tmp/gzsmoke.log)
-静态对账 16 项 FAIL=0 + 负例两例定向 CAUGHT + 构建装载 + 运行时逐点核对 = 闭环。
+$ gzserver headless 加载(ros_state 插件);锥桶现为动态体(static=false,
+  mass=1.0kg asmp,惯量按等参圆柱实算),检验静置稳定性:
+$ ros2 service call /get_entity_state ... "{name: 'cone_b01'}"
+=> x=2.7499999918 y=0.0000000085 z=-0.0000020103  twist=0 success=True
+   [CSV b01: 2.750000,0.000000 → 偏差<1e-8;z 微沉降=动态体贴地解算,非静漂]
+$ ... cone_b21 => x=14.0499999918 y=5.5000000085 [CSV: 14.050000,5.500000] OK
+$ ... cone_r26 => x=1.8661169918 y=1.8661170085 [CSV: 1.866117,1.866117] OK
+=> 63 锥坐标零改动;官方尺寸轮闭环:
+   规则§3.4(PDF第8页"锥桶规格:底径280mm,高630mm")→ 生成器 h=0.63/r=0.14/
+   base=0.28×0.28/collision r=0.14 h=0.63 → 检查器 19 项 FAIL=0(新增:dae 顶点
+   实测包络 max_r=0.140000/max_z=0.630000 独立断言、collision/base 官方值断言、
+   static=false、asmp 残余披露)→ 负例两例定向 CAUGHT → 构建装载 → 运行时
+   三锥逐点核对一致。残余 asmp:底座厚 0.03/质量 1.0kg/碰撞=单圆柱凸近似
+   (方座四角 0.198m 在柱外,偏保守)。

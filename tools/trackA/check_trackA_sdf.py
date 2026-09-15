@@ -12,8 +12,10 @@ world XML 与 CSV 对账。SDF 侧唯一事实来源仍是 docs/track/trackA_con
   3. model 资产:两色 model.sdf 存在且良构;diffuse 区分(blue≈(0.15,0.40,0.90)
      / red≈(0.90,0.15,0.15),容差 0.05);collision=cylinder;visual mesh uri
      指向本 model meshes/ 且文件在盘
-  4. mesh:dae XML 良构;三角形数 = 棱数×2(侧面+底面);法线数组长度=位置数组
-  5. 尺寸假设披露:model.sdf/生成器声明锥尺寸为 asmp(防止静默改成"官方值")
+  4. mesh:dae XML 良构;三角形数 = 棱数×2(侧面+底面);法线数组长度=位置数组;
+     顶点实测包络 max_r=0.14 / max_z=0.63(官方 280/630mm,独立于生成器参数)
+  5. 官方尺寸断言:model.sdf collision 圆柱 r=0.14 h=0.63、底座 box 0.28×0.28;
+     static=false(动态可撞);残余 asmp(底座厚/质量)须在生成器与 model.config 披露
 
 --negtest 定向断言(对 world 副本注入,须恰中对应检查项):
   N1 挪一锥 +0.1 m  → "world poses match CSV" 须 FAIL
@@ -23,6 +25,7 @@ world XML 与 CSV 对账。SDF 侧唯一事实来源仍是 docs/track/trackA_con
 import argparse
 import copy
 import csv
+import math
 import os
 import re
 import sys
@@ -41,6 +44,8 @@ N_SIDES = 16
 EXPECT_DIFFUSE = {"blue": (0.15, 0.40, 0.90), "red": (0.90, 0.15, 0.15)}
 TOL_POS = 1e-6
 TOL_COL = 0.05
+# 官方锥桶尺寸(规则§3.4:高630mm 底径280mm;碰撞圆柱=底径/2×锥高)
+OFF_R, OFF_H, OFF_W = 0.14, 0.63, 0.28
 
 
 class Rep:
@@ -174,8 +179,8 @@ def run_checks(csv_path, world_path, label=""):
                 mesh_ok, mesh_detail = False, "missing %s" % uri
         rep.add("%s mesh file on disk" % color, mesh_ok, mesh_detail)
 
-    # 4 mesh 几何数
-    print("-- 4) 锥 mesh(棱数×2 三角/法线=位置长度)")
+    # 4 mesh 几何数 + 实测包络(独立于生成器参数,直接从顶点算)
+    print("-- 4) 锥 mesh(棱数×2 三角/法线配对/包络=官方 630/280)")
     dae_p = os.path.join(PKG, 'models', 'trackA_cone_blue',
                          'meshes', 'traffic_cone.dae')
     NS = "{http://www.collada.org/2005/11/COLLADASchema}"   # dae 带 ns
@@ -189,11 +194,50 @@ def run_checks(csv_path, world_path, label=""):
                 "%d/%d" % (pos_cnt, nrm_cnt))
         rep.add("dae triangles = sides*2", tris == N_SIDES*2,
                 "%d (expect %d)" % (tris, N_SIDES*2))
+        vals = [float(v) for v in fa["positions-array"].text.split()]
+        pts = [vals[i:i+3] for i in range(0, len(vals), 3)]
+        max_r = max(math.sqrt(p[0]*p[0] + p[1]*p[1]) for p in pts)
+        max_z = max(p[2] for p in pts)
+        rep.add("dae extent = 630/280 official",
+                abs(max_r - OFF_R) < 1e-6 and abs(max_z - OFF_H) < 1e-6,
+                "max_r=%.6f (expect %.2f) max_z=%.6f (expect %.2f)"
+                % (max_r, OFF_R, max_z, OFF_H))
     except Exception as e:
         rep.add("dae parse", False, repr(e))
 
-    # 5 尺寸假设披露
-    print("-- 5) 尺寸假设披露(model.config 写明 asmp,防静默改'官方值')")
+    # 5 官方尺寸断言(collision/base/static)+ 残余 asmp 披露
+    print("-- 5) 官方尺寸断言(cyl r=0.14 h=0.63;base 0.28;static=false;asmp 披露)")
+    off_bad, dyn_bad = [], []
+    for color in ("blue", "red"):
+        sdf_p = os.path.join(PKG, 'models', 'trackA_cone_%s' % color,
+                             'model.sdf')
+        try:
+            root = safe_parse(sdf_p).getroot()
+        except Exception as e:
+            off_bad.append("%s parse %r" % (color, e))
+            continue
+        st = (root.findtext("model/static") or "").strip()
+        if st != "false":
+            dyn_bad.append("%s static=%r" % (color, st))
+        for c in root.iter("collision"):
+            cy = c.find("geometry/cylinder")
+            if cy is None:
+                continue
+            rr = float(cy.findtext("radius"))
+            ll = float(cy.findtext("length"))
+            if abs(rr - OFF_R) > 1e-9 or abs(ll - OFF_H) > 1e-9:
+                off_bad.append("%s cyl r=%.4f l=%.4f" % (color, rr, ll))
+        for v in root.iter("visual"):
+            if v.get("name") != "base":
+                continue
+            sz = (v.findtext("geometry/box/size") or "").split()
+            if len(sz) >= 2 and (abs(float(sz[0]) - OFF_W) > 1e-9 or
+                                 abs(float(sz[1]) - OFF_W) > 1e-9):
+                off_bad.append("%s base box %s" % (color, " ".join(sz)))
+    rep.add("collision/base = official 630/280", not off_bad,
+            "; ".join(off_bad[:4]))
+    rep.add("cones dynamic (static=false)", not dyn_bad,
+            "; ".join(dyn_bad[:4]))
     gen_p = os.path.join(HERE, 'trackA_sdf.py')
     disc = True
     detail = ""
@@ -203,10 +247,10 @@ def run_checks(csv_path, world_path, label=""):
         if "asmp" not in src or "simulation assumptions" not in \
                 open(os.path.join(PKG, 'models', 'trackA_cone_blue',
                                   'model.config'), encoding='utf-8').read():
-            disc, detail = False, "asmp disclosure missing"
+            disc, detail = False, "asmp residue disclosure missing"
     except OSError as e:
         disc, detail = False, str(e)
-    rep.add("size marked as assumption", disc, detail)
+    rep.add("asmp residue disclosed", disc, detail)
 
     print("--\nTOTAL FAIL(s): %d" % rep.fails)
     return rep.fails, rep.failed_names
