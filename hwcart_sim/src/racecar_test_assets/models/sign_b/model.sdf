@@ -1,0 +1,65 @@
+<?xml version="1.0" ?>
+<!-- "B" sign (test fixture). All dimensions are ASSUMPTIONS (docs/assumptions.md):
+     pole r=0.04/h=1.40 m, face 0.50 x 0.03 x 0.70 m centred at z=1.60 m.
+     The letter is a self-generated texture (tools/generate_sign_texture.py,
+     white background + black "B"; no external asset), applied to the face box.
+     Origin: centre of the pole bottom face (pose z=0 -> stands on the ground).
+     Local axes: the large face is X-Z (0.50 wide x 0.70 high), thin along Y,
+     so the face normal is +/-Y; the letter reads correctly from +Y.
+     Face visual uses a material script; collision is the plain box.
+     static=true: test-only. -->
+<sdf version="1.6">
+  <model name="sign_b">
+    <static>true</static>
+    <link name="base_link">
+      <!-- pole: cylinder r=0.04, h=1.40, centre z=0.70 -->
+      <collision name="pole_collision">
+        <pose>0 0 0.70 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.04</radius>
+            <length>1.40</length>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name="pole_visual">
+        <pose>0 0 0.70 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.04</radius>
+            <length>1.40</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.20 0.20 0.20 1</ambient>
+          <diffuse>0.35 0.35 0.35 1</diffuse>
+          <specular>0.10 0.10 0.10 1</specular>
+        </material>
+      </visual>
+
+      <!-- face: box 0.50 x 0.03 x 0.70, centre z=1.60 -->
+      <collision name="face_collision">
+        <pose>0 0 1.60 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.50 0.03 0.70</size>
+          </box>
+        </geometry>
+      </collision>
+      <visual name="face_visual">
+        <pose>0 0 1.60 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.50 0.03 0.70</size>
+          </box>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://sign_b/materials/scripts/sign_b.material</uri>
+            <name>sign_b/face</name>
+          </script>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>

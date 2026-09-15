@@ -1,10 +1,8 @@
 ########## 1. SDF 生成器(冻结 CSV → models/worlds)##########
 $ python3 tools/trackA/trackA_sdf.py
 cones from CSV: 63 total (37 blue + 26 red)
-model -> /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/hwcart_sim/src/racecar_sim/models/trackA_cone_blue
-model -> /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/hwcart_sim/src/racecar_sim/models/trackA_cone_red
 world -> /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/hwcart_sim/src/racecar_sim/worlds/trackA.world
-cone size: h=0.63 bottom_r=0.14 base=0.28 (official rule 3.4: 630/280/280mm; thickness/mass asmp, dynamic static=false)
+cone assets -> /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/hwcart_sim/src/racecar_test_assets/models/cone_{{blue,red}} (racecar_test_assets, official 630/280 envelope, static)
 gen_exit=0
 
 ########## 2. SDF 检查器(结构/位置/颜色/资产/mesh+两负例)##########
@@ -13,60 +11,72 @@ $ python3 tools/trackA/check_trackA_sdf.py --negtest
 check_trackA_sdf 
   csv  : /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/docs/track/trackA_cones.csv
   world: /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/hwcart_sim/src/racecar_sim/worlds/trackA.world
+  assets: /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/hwcart_sim/src/racecar_test_assets/models
 -- 1) world include 结构与位置对账
   [OK  ] world xml well-formed              
-  [OK  ] include uri in {blue,red}          bad: []
+  [OK  ] include uri in cone_{blue,red}     bad: []
   [OK  ] include count == csv count         world=63 csv=63
   [OK  ] world poses match CSV              
--- 2) 颜色计数对账
+-- 2) 颜色对账
   [OK  ] color counts match CSV             world 37 blue/26 red vs csv 37/26
--- 3) model 资产(两色 model.sdf/颜色区分/collision/mesh 在盘)
-  [OK  ] blue model files exist             /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/hwcart_sim/src/racecar_sim/models/trackA_cone_blue
+-- 3) 资产契约(文件/static/base碰撞/mesh碰撞=visual/diffuse/同构)
+  [OK  ] blue model files exist             /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/hwcart_sim/src/racecar_test_assets/models/cone_blue
+  [OK  ] blue static=true (test-only)       static='true'
+  [OK  ] blue base box collision 0.28x0.28x0.05 
+  [OK  ] blue mesh collision present        ['model://cone_blue/meshes/cone_frustum.stl']
+  [OK  ] blue visual==collision mesh        col=['model://cone_blue/meshes/cone_frustum.stl'] vis=['model://cone_blue/meshes/cone_frustum.stl']
   [OK  ] blue diffuse matches color         
-  [OK  ] blue collision cylinder present    
-  [OK  ] blue mesh file on disk             
-  [OK  ] red model files exist              /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/hwcart_sim/src/racecar_sim/models/trackA_cone_red
+  [OK  ] red model files exist              /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/hwcart_sim/src/racecar_test_assets/models/cone_red
+  [OK  ] red static=true (test-only)        static='true'
+  [OK  ] red base box collision 0.28x0.28x0.05 
+  [OK  ] red mesh collision present         ['model://cone_red/meshes/cone_frustum.stl']
+  [OK  ] red visual==collision mesh         col=['model://cone_red/meshes/cone_frustum.stl'] vis=['model://cone_red/meshes/cone_frustum.stl']
   [OK  ] red diffuse matches color          
-  [OK  ] red collision cylinder present     
-  [OK  ] red mesh file on disk              
--- 4) 锥 mesh(棱数×2 三角/法线配对/包络=官方 630/280)
-  [OK  ] dae verts/normals paired           288/288
-  [OK  ] dae triangles = sides*2            32 (expect 32)
-  [OK  ] dae extent = 630/280 official      max_r=0.140000 (expect 0.14) max_z=0.630000 (expect 0.63)
--- 5) 官方尺寸断言(cyl r=0.14 h=0.63;base 0.28;static=false;asmp 披露)
-  [OK  ] collision/base = official 630/280  
-  [OK  ] cones dynamic (static=false)       
-  [OK  ] asmp residue disclosed             
+  [OK  ] blue/red STL byte-identical        
+-- 4) 锥台 STL 实测(三角数/z包络/底半径)
+  [OK  ] stl triangles == 96                n=96
+  [OK  ] stl zmax == 0.58                   zmax=0.580000
+  [OK  ] stl rmax == 0.12 (<=base/2)        rmax=0.120000
+-- 5) 官方包络(base 0.28+0.05+0.58=0.63;装配z=底座厚;config披露)
+  [OK  ] frustum mounted at base top        
+  [OK  ] config declares 0.63/0.28 rule dims 
+  [OK  ] asmp residue disclosed             (base thickness/frustum diameters)
 --
 TOTAL FAIL(s): 0
 ====================================================================================================
 check_trackA_sdf [NEG-1 cone shifted +0.1m]
   csv  : /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/docs/track/trackA_cones.csv
-  world: /tmp/trackA_sdf_neg_v37pb3is/neg1.world
+  world: /tmp/trackA_sdf_neg_jiaamigj/neg1.world
+  assets: /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/hwcart_sim/src/racecar_test_assets/models
 -- 1) world include 结构与位置对账
   [OK  ] world xml well-formed              
-  [OK  ] include uri in {blue,red}          bad: []
+  [OK  ] include uri in cone_{blue,red}     bad: []
   [OK  ] include count == csv count         world=63 csv=63
   [FAIL] world poses match CSV              csv b01 ((2.75, 0.0)) missing in world; world cone @(2.85, 0.0) not in csv (cone_b01)
--- 2) 颜色计数对账
+-- 2) 颜色对账
   [OK  ] color counts match CSV             world 37 blue/26 red vs csv 37/26
--- 3) model 资产(两色 model.sdf/颜色区分/collision/mesh 在盘)
-  [OK  ] blue model files exist             /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/hwcart_sim/src/racecar_sim/models/trackA_cone_blue
+-- 3) 资产契约(文件/static/base碰撞/mesh碰撞=visual/diffuse/同构)
+  [OK  ] blue model files exist             /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/hwcart_sim/src/racecar_test_assets/models/cone_blue
+  [OK  ] blue static=true (test-only)       static='true'
+  [OK  ] blue base box collision 0.28x0.28x0.05 
+  [OK  ] blue mesh collision present        ['model://cone_blue/meshes/cone_frustum.stl']
+  [OK  ] blue visual==collision mesh        col=['model://cone_blue/meshes/cone_frustum.stl'] vis=['model://cone_blue/meshes/cone_frustum.stl']
   [OK  ] blue diffuse matches color         
-  [OK  ] blue collision cylinder present    
-  [OK  ] blue mesh file on disk             
-  [OK  ] red model files exist              /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/hwcart_sim/src/racecar_sim/models/trackA_cone_red
+  [OK  ] red model files exist              /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/hwcart_sim/src/racecar_test_assets/models/cone_red
+  [OK  ] red static=true (test-only)        static='true'
+  [OK  ] red base box collision 0.28x0.28x0.05 
+  [OK  ] red mesh collision present         ['model://cone_red/meshes/cone_frustum.stl']
+  [OK  ] red visual==collision mesh         col=['model://cone_red/meshes/cone_frustum.stl'] vis=['model://cone_red/meshes/cone_frustum.stl']
   [OK  ] red diffuse matches color          
-  [OK  ] red collision cylinder present     
-  [OK  ] red mesh file on disk              
--- 4) 锥 mesh(棱数×2 三角/法线配对/包络=官方 630/280)
-  [OK  ] dae verts/normals paired           288/288
-  [OK  ] dae triangles = sides*2            32 (expect 32)
-  [OK  ] dae extent = 630/280 official      max_r=0.140000 (expect 0.14) max_z=0.630000 (expect 0.63)
--- 5) 官方尺寸断言(cyl r=0.14 h=0.63;base 0.28;static=false;asmp 披露)
-  [OK  ] collision/base = official 630/280  
-  [OK  ] cones dynamic (static=false)       
-  [OK  ] asmp residue disclosed             
+  [OK  ] blue/red STL byte-identical        
+-- 4) 锥台 STL 实测(三角数/z包络/底半径)
+  [OK  ] stl triangles == 96                n=96
+  [OK  ] stl zmax == 0.58                   zmax=0.580000
+  [OK  ] stl rmax == 0.12 (<=base/2)        rmax=0.120000
+-- 5) 官方包络(base 0.28+0.05+0.58=0.63;装配z=底座厚;config披露)
+  [OK  ] frustum mounted at base top        
+  [OK  ] config declares 0.63/0.28 rule dims 
+  [OK  ] asmp residue disclosed             (base thickness/frustum diameters)
 --
 TOTAL FAIL(s): 1
   NEG-1 CAUGHT (fails=1, 'world poses match CSV' failed: yes)
@@ -74,57 +84,40 @@ TOTAL FAIL(s): 1
 ====================================================================================================
 check_trackA_sdf [NEG-2 blue include recolored red]
   csv  : /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/docs/track/trackA_cones.csv
-  world: /tmp/trackA_sdf_neg_v37pb3is/neg2.world
+  world: /tmp/trackA_sdf_neg_jiaamigj/neg2.world
+  assets: /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/hwcart_sim/src/racecar_test_assets/models
 -- 1) world include 结构与位置对账
   [OK  ] world xml well-formed              
-  [OK  ] include uri in {blue,red}          bad: []
+  [OK  ] include uri in cone_{blue,red}     bad: []
   [OK  ] include count == csv count         world=63 csv=63
   [FAIL] world poses match CSV              cone_b01 color red != csv blue
--- 2) 颜色计数对账
+-- 2) 颜色对账
   [FAIL] color counts match CSV             world 36 blue/27 red vs csv 37/26
--- 3) model 资产(两色 model.sdf/颜色区分/collision/mesh 在盘)
-  [OK  ] blue model files exist             /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/hwcart_sim/src/racecar_sim/models/trackA_cone_blue
+-- 3) 资产契约(文件/static/base碰撞/mesh碰撞=visual/diffuse/同构)
+  [OK  ] blue model files exist             /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/hwcart_sim/src/racecar_test_assets/models/cone_blue
+  [OK  ] blue static=true (test-only)       static='true'
+  [OK  ] blue base box collision 0.28x0.28x0.05 
+  [OK  ] blue mesh collision present        ['model://cone_blue/meshes/cone_frustum.stl']
+  [OK  ] blue visual==collision mesh        col=['model://cone_blue/meshes/cone_frustum.stl'] vis=['model://cone_blue/meshes/cone_frustum.stl']
   [OK  ] blue diffuse matches color         
-  [OK  ] blue collision cylinder present    
-  [OK  ] blue mesh file on disk             
-  [OK  ] red model files exist              /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/hwcart_sim/src/racecar_sim/models/trackA_cone_red
+  [OK  ] red model files exist              /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/hwcart_sim/src/racecar_test_assets/models/cone_red
+  [OK  ] red static=true (test-only)        static='true'
+  [OK  ] red base box collision 0.28x0.28x0.05 
+  [OK  ] red mesh collision present         ['model://cone_red/meshes/cone_frustum.stl']
+  [OK  ] red visual==collision mesh         col=['model://cone_red/meshes/cone_frustum.stl'] vis=['model://cone_red/meshes/cone_frustum.stl']
   [OK  ] red diffuse matches color          
-  [OK  ] red collision cylinder present     
-  [OK  ] red mesh file on disk              
--- 4) 锥 mesh(棱数×2 三角/法线配对/包络=官方 630/280)
-  [OK  ] dae verts/normals paired           288/288
-  [OK  ] dae triangles = sides*2            32 (expect 32)
-  [OK  ] dae extent = 630/280 official      max_r=0.140000 (expect 0.14) max_z=0.630000 (expect 0.63)
--- 5) 官方尺寸断言(cyl r=0.14 h=0.63;base 0.28;static=false;asmp 披露)
-  [OK  ] collision/base = official 630/280  
-  [OK  ] cones dynamic (static=false)       
-  [OK  ] asmp residue disclosed             
+  [OK  ] blue/red STL byte-identical        
+-- 4) 锥台 STL 实测(三角数/z包络/底半径)
+  [OK  ] stl triangles == 96                n=96
+  [OK  ] stl zmax == 0.58                   zmax=0.580000
+  [OK  ] stl rmax == 0.12 (<=base/2)        rmax=0.120000
+-- 5) 官方包络(base 0.28+0.05+0.58=0.63;装配z=底座厚;config披露)
+  [OK  ] frustum mounted at base top        
+  [OK  ] config declares 0.63/0.28 rule dims 
+  [OK  ] asmp residue disclosed             (base thickness/frustum diameters)
 --
 TOTAL FAIL(s): 2
   NEG-2 CAUGHT (fails=2, 'color counts match CSV' failed: yes)
 
 EXIT: 0
 check_exit=0
-
-########## 3. 构建与 headless 加载冒烟(官方尺寸轮,2026-09-15)##########
-$ colcon build --packages-select racecar_sim --symlink-install   (整包清空重建)
-=> Finished <<< racecar_sim [0.96s];install models 树 = 两色 model 各
-   model.config/model.sdf/meshes/traffic_cone.dae 共 6 文件,无杂物
-   (注:百度网盘同步曾瞬时产生 *.baiduyun.uploading.cfg 混入 cp,F: 已自清,
-    build_sdf.sh 现带 find -delete 防御 + 整包清空重建防 build/ 悬空条目)
-$ gz sdf --print install/.../worlds/trackA.world  (GAZEBO_MODEL_PATH=install models)
-=> 展开 63 个 model name='cone_*',gz_rc=0
-$ gzserver headless 加载(ros_state 插件);锥桶现为动态体(static=false,
-  mass=1.0kg asmp,惯量按等参圆柱实算),检验静置稳定性:
-$ ros2 service call /get_entity_state ... "{name: 'cone_b01'}"
-=> x=2.7499999918 y=0.0000000085 z=-0.0000020103  twist=0 success=True
-   [CSV b01: 2.750000,0.000000 → 偏差<1e-8;z 微沉降=动态体贴地解算,非静漂]
-$ ... cone_b21 => x=14.0499999918 y=5.5000000085 [CSV: 14.050000,5.500000] OK
-$ ... cone_r26 => x=1.8661169918 y=1.8661170085 [CSV: 1.866117,1.866117] OK
-=> 63 锥坐标零改动;官方尺寸轮闭环:
-   规则§3.4(PDF第8页"锥桶规格:底径280mm,高630mm")→ 生成器 h=0.63/r=0.14/
-   base=0.28×0.28/collision r=0.14 h=0.63 → 检查器 19 项 FAIL=0(新增:dae 顶点
-   实测包络 max_r=0.140000/max_z=0.630000 独立断言、collision/base 官方值断言、
-   static=false、asmp 残余披露)→ 负例两例定向 CAUGHT → 构建装载 → 运行时
-   三锥逐点核对一致。残余 asmp:底座厚 0.03/质量 1.0kg/碰撞=单圆柱凸近似
-   (方座四角 0.198m 在柱外,偏保守)。

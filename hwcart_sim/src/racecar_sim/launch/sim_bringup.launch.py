@@ -10,8 +10,8 @@ import yaml
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import (AppendEnvironmentVariable, DeclareLaunchArgument,
-                            EmitEvent, ExecuteProcess, RegisterEventHandler)
+from launch.actions import (DeclareLaunchArgument, EmitEvent,
+                            ExecuteProcess, RegisterEventHandler)
 from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
 from launch.events import Shutdown
@@ -76,17 +76,15 @@ def generate_launch_description():
     #    /cmd_vel 接线与 odom TF 桥由 launch 末尾的 sim_wiring 节点完成。
     #    world 参数:默认 racecar.world(=empty.world + gazebo_ros_state 插件,
     #    阶段1车辆验收空场,行为与旧版完全一致);传 trackA.world 即 63 锥
-    #    赛道(锥桶坐标唯一来源=冻结 CSV,include pose 即坐标)。
+    #    赛道(锥桶坐标唯一来源=冻结 CSV,include pose 即坐标;锥桶资产=
+    #    racecar_test_assets cone_{blue,red},GAZEBO_MODEL_PATH 由该包
+    #    env-hook 在 source 工作区时导出,launch 不再手工追加)。
     #    libgazebo_ros_state.so 是 WorldPlugin,-s 只装 SystemPlugin,强装
     #    报 "incorrect plugin type" 且 factory 服务起不来(实测)。它提供
     #    /gazebo/get_entity_state,验收用世界系真实位姿与里程计对账——
     #    只看账面会被错误运动学骗过(2026-09-14 独立验收教训)
     world_file = PathJoinSubstitution(
         [pkg_share, 'worlds', LaunchConfiguration('world')])
-    # trackA_cone_* model 解析:models 目录挂进 GAZEBO_MODEL_PATH(须在
-    # gzserver 动作之前生效;空场时目录里没有会被用到的 model,无副作用)
-    models_env = AppendEnvironmentVariable(
-        'GAZEBO_MODEL_PATH', os.path.join(pkg_share, 'models'))
     gzserver = ExecuteProcess(
         cmd=['gzserver', '--verbose',
              '-s', 'libgazebo_ros_init.so',
@@ -172,7 +170,6 @@ def generate_launch_description():
                               description='车模 spawn 世界系 y(trackA 底道起点 0.75)'),
         DeclareLaunchArgument('spawn_yaw', default_value='0.0',
                               description='车模 spawn 朝向 yaw/rad(trackA 发车朝 +x 为 0)'),
-        models_env,
         robot_state_publisher,
         gzserver,
         gzclient,

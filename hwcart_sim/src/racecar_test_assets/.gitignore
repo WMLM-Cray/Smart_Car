@@ -1,0 +1,3 @@
+# the repo root ignores *.log; delivery/ evidence logs are intentionally
+# tracked, so re-include them (git gives deeper .gitignore files precedence)
+!delivery/*.log
