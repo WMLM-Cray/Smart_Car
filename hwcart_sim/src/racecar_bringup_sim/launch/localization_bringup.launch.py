@@ -20,7 +20,7 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
@@ -61,13 +61,18 @@ def generate_launch_description():
         parameters=[os.path.join(bringup_share, 'config', 'amcl.yaml')],
     )
 
-    lifecycle = Node(
-        package='nav2_lifecycle_manager',
-        executable='lifecycle_manager',
-        name='lifecycle_manager_localization',
-        output='screen',
-        parameters=[os.path.join(bringup_share, 'config', 'amcl.yaml')],
-    )
+    # 延迟 10s 启动管理器:WSL 负载下节点 configure 慢,管理器过早发起转移会被
+    # 节点拒绝且 Humble lifecycle_manager 不重试(直接 Aborting bringup,
+    # 2026-09-16 两次实测);给各节点 10s 起服务的时间再开始生命周期编排
+    lifecycle = TimerAction(
+        period=10.0,
+        actions=[Node(
+            package='nav2_lifecycle_manager',
+            executable='lifecycle_manager',
+            name='lifecycle_manager_localization',
+            output='screen',
+            parameters=[os.path.join(bringup_share, 'config', 'amcl.yaml')],
+        )])
 
     rviz = Node(
         package='rviz2',

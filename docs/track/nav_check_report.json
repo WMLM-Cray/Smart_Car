@@ -1,0 +1,138 @@
+{
+ "tag": "Nav2导航验收器",
+ "result": "FAIL",
+ "reason": "目标11/11成功 AMCL-真值最大0.125m 最小间隙0.041m 车辆ω违规0 指令曲率超限28(信息项) | 判据 全SUCCEEDED 到达≤0.3 AMCL≤0.25 间隙≥0.05 车辆ω违规=0",
+ "goals": [
+  {
+   "name": "单目标_短直道",
+   "result": "SUCCEEDED",
+   "duration_s": 12.5,
+   "arrival_gt_m": 0.148
+  },
+  {
+   "name": "单目标_右U中段",
+   "result": "SUCCEEDED",
+   "duration_s": 15.4,
+   "arrival_gt_m": 0.12
+  },
+  {
+   "name": "单目标_右U上口",
+   "result": "SUCCEEDED",
+   "duration_s": 13.1,
+   "arrival_gt_m": 0.125
+  },
+  {
+   "name": "单目标_弯道右U出口",
+   "result": "SUCCEEDED",
+   "duration_s": 6.1,
+   "arrival_gt_m": 0.12
+  },
+  {
+   "name": "连续目标1_顶道左行",
+   "result": "SUCCEEDED",
+   "duration_s": 18.0,
+   "arrival_gt_m": 0.185
+  },
+  {
+   "name": "连续目标2_S弯东口",
+   "result": "SUCCEEDED",
+   "duration_s": 9.4,
+   "arrival_gt_m": 0.165
+  },
+  {
+   "name": "连续目标3_S弯中点",
+   "result": "SUCCEEDED",
+   "duration_s": 10.1,
+   "arrival_gt_m": 0.154
+  },
+  {
+   "name": "连续目标4_顶道西段",
+   "result": "SUCCEEDED",
+   "duration_s": 14.4,
+   "arrival_gt_m": 0.117
+  },
+  {
+   "name": "连续目标5_发卡拐角",
+   "result": "SUCCEEDED",
+   "duration_s": 9.3,
+   "arrival_gt_m": 0.143
+  },
+  {
+   "name": "连续目标6_远左发卡",
+   "result": "SUCCEEDED",
+   "duration_s": 4.9,
+   "arrival_gt_m": 0.181
+  },
+  {
+   "name": "连续目标7_回出生点",
+   "result": "SUCCEEDED",
+   "duration_s": 50.8,
+   "arrival_gt_m": 0.148
+  }
+ ],
+ "path": "短直道→右U→顶道左行→S弯→远左发卡→回出生点(整圈)",
+ "amcl_gt_max_m": 0.125,
+ "min_clear_m": 0.041,
+ "worst_clear_event": {
+  "phase": "连续目标7_回出生点",
+  "pose_map": [
+   -9.33,
+   0.81,
+   -45
+  ],
+  "cone_map": [
+   -9.133883,
+   1.116117
+  ],
+  "clear_m": 0.041
+ },
+ "phase_min_clear_m": {
+  "单目标_短直道": 0.423,
+  "单目标_右U中段": 0.082,
+  "单目标_右U上口": 0.111,
+  "单目标_弯道右U出口": 0.337,
+  "连续目标1_顶道左行": 0.585,
+  "连续目标2_S弯东口": 0.329,
+  "连续目标3_S弯中点": 0.341,
+  "连续目标4_顶道西段": 0.25,
+  "连续目标5_发卡拐角": 0.265,
+  "连续目标6_远左发卡": 0.242,
+  "连续目标7_回出生点": 0.041
+ },
+ "omega_bound_violations": 0,
+ "w_violation_samples": [],
+ "cmd_vel_curvature_overshoots": 28,
+ "cmd_overshoot_samples": [
+  [
+   "单目标_右U中段",
+   0.06,
+   0.163,
+   2.72
+  ],
+  [
+   "单目标_右U上口",
+   0.06,
+   0.14,
+   2.33
+  ],
+  [
+   "单目标_右U上口",
+   0.222,
+   0.417,
+   1.87
+  ],
+  [
+   "单目标_右U上口",
+   0.222,
+   0.417,
+   1.88
+  ],
+  [
+   "单目标_右U上口",
+   0.164,
+   0.311,
+   1.9
+  ]
+ ],
+ "gt_usage": "真值仅误差/间隙统计,不进导航栈;车速全部来自Nav2"
+}

@@ -160,3 +160,53 @@ trackA 资产接入轮 成果目录清单(f1ede59,integration/trackA-sdf)
     ros2 launch racecar_bringup_sim localization_bringup.launch.py \
         use_gui:=false   # 交互(RViz 2D Pose Estimate 可重给初值)
     bash tools/trackA/amcl_demo_run.sh    # 无人值守全流程
+
+八、阶段3 第四步:Nav2 单点导航(详见同目录
+    《trackA_阶段3_4_Nav2导航.md》)
+--------------------------------------------------------------------
+[16] 导航启动与参数(新增)
+    hwcart_sim/src/racecar_bringup_sim/launch/navigation_bringup.launch.py
+                                          一键:localization_bringup(仿真+
+                                          map_server+AMCL)+Nav2 五节点
+                                          (controller/velocity_smoother/
+                                          planner/behavior/bt_navigator)
+    hwcart_sim/src/racecar_bringup_sim/config/nav2.yaml
+                                          Nav2 参数(阿克曼"不原地转向"三重
+                                          落实:RPP 禁 rotate_to_heading+
+                                          行为器只装 Wait+行为树无 Spin;
+                                          Smac DUBIN R0.60;v0.25/L0.45-0.5;
+                                          pad0.08;xy 0.15/yaw 0.50)
+    hwcart_sim/src/racecar_bringup_sim/behavior/trackA_minimal.xml
+                                          极简行为树(恢复=清代价地图+等待)
+    hwcart_sim/src/racecar_bringup_sim/rviz/navigation.rviz
+                                          导航视图(话题全部实际存在)
+
+[17] 证据(新增)
+    tools/trackA/nav_check.py            11 目标验收器(短直道→右U→顶道
+                                          →S弯→发卡→回出生点整圈;五判据:
+                                          全SUCCEEDED/到达≤0.30/AMCL≤0.25/
+                                          间隙≥0.05/车辆ω违规=0;真值仅统计
+                                          不进导航栈)
+    tools/trackA/goal_footprint_audit.py 离线代价地图合成+足印审计(修复
+                                          行向量乘法=−yaw 旋转的镜像 bug)
+    tools/trackA/nav_demo_run.sh         无头一键编排(预检→Xvfb→导航→
+                                          验收→清理,每轮冷启动)
+    docs/track/nav_check_report.json     R12 终验:11/11 SUCCEEDED/到达
+                                          0.185/AMCL 0.125/ω违规0 全过;
+                                          最小间隙 0.041<0.05 未达 → 按原
+                                          判据 FAIL 归档(用户终审原文:
+                                          "阶段3仿真导航功能通过;最小间隙
+                                          0.041m,未达到0.05m验收要求,间隙
+                                          鲁棒性待改进。仅作为仿真开发检查
+                                          点,不作为真车自主驾驶放行依据")
+    docs/track/nav_r12_全程日志.txt      R12 完整运行日志(预检→启动→
+                                          逐阶段 5s 状态行→终报)
+    docs/track/nav_rviz_0_initial.png    初始:地图+代价地图+足迹
+    docs/track/nav_rviz_1_after.png      终态:整圈闭合轨迹+膨胀层着色
+                                          (AI 视觉复核通过)
+
+[18] 复验入口(WSL;注意 R12 同类结果=rc=1,间隙判据 0.041<0.05 属
+    预期 FAIL,功能判据全过;斜缝处方差带 0.033~0.076,4 采样全无接触)
+    ros2 launch racecar_bringup_sim navigation_bringup.launch.py \
+        use_gui:=false   # 交互(RViz 2D Goal Pose 单发目标)
+    bash tools/trackA/nav_demo_run.sh    # 无人值守全流程(~6 分钟)
