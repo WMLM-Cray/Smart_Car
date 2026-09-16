@@ -77,3 +77,26 @@ trackA 资产接入轮 成果目录清单(f1ede59,integration/trackA-sdf)
     - 红绿灯模型三灯常亮无切换接口:包内保留,视觉阶段再议
     - 发车点 (11.0,0.75) 为 asmp(规则未定发车点)
     - 手柄包(01a3374)待队友修超时恢复缺陷后另行审查提交
+
+==================== 阶段3 追加(2026-09-16 起)====================
+
+五、阶段3 第一步:可见二维建图演示(详见同目录
+    《trackA_阶段3_1_二维建图演示.md》)
+--------------------------------------------------------------------
+[6] 演示层新包(新增)
+    hwcart_sim/src/racecar_bringup_sim/
+      ├─ launch/slam_bringup.launch.py  一键:仿真+slam_toolbox+RViz
+      ├─ rviz/slam.rviz                 同屏 Map/Laser/Robot/TF/Odom轨迹
+      └─ setup.py / package.xml 等      share 安装 launch+rviz
+
+[7] 演示编排(新增)
+    tools/trackA/slam_demo_run.sh       Xvfb 截图+驱动+map_saver 一键演示
+
+[8] 证据(新增)
+    docs/track/slam_demo_rviz_0_start.png   行驶前 RViz 截图
+    docs/track/slam_demo_rviz_1_after.png   行驶后截图(同屏四要素齐)
+    docs/track/trackA_map.pgm/.yaml         map_saver 正式地图
+                                            (335×113@0.05m)
+
+[9] 复验入口(WSL,预期三 PASS + map_saved)
+    bash tools/trackA/slam_demo_run.sh
