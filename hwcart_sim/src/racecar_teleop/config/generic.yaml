@@ -1,0 +1,23 @@
+# racecar_teleop 默认参数（通用双摇杆手柄示例）。
+# 单位与正负方向约定：
+#   speed_axis 正值  -> 前进 (linear.x > 0)，单位 m/s
+#   steering_axis 正值 -> 左转 (delta > 0 -> angular.z > 0)，单位 rad/s
+#   wheelbase 单位 m；deadzone 无量纲 [0,1)；时间单位 s。
+# 说明：本文件是开发配置，不是实车标定结果；等效转向角上限用保守值 0.35 rad，
+#       不要把单轮舵角限位(0.55 rad)当成等效自行车转向角上限。
+racecar_teleop:
+  ros__parameters:
+    speed_axis: 1              # Joy.axes 中控制速度的轴索引
+    steering_axis: 3           # Joy.axes 中控制转向的轴索引
+    speed_axis_inverted: false # true 则速度轴反向
+    steering_axis_inverted: false # true 则转向轴反向
+    enable_button: 5           # 按住才允许运动（保持按住，非一次性解锁）
+    low_speed_button: 4        # 按住进入低速模式；-1 表示禁用
+    deadzone: 0.08             # 摇杆死区，回中小幅抖动不产生运动
+    max_speed_forward: 0.5     # 前进速度上限 m/s
+    max_speed_reverse: 0.3     # 倒车速度上限 m/s
+    max_steering_angle: 0.35   # 等效自行车转向角上限 rad，范围 (0, pi/2)
+    wheelbase: 0.36            # 轴距 m
+    low_speed_scale: 0.4       # 低速模式速度比例
+    publish_rate: 20.0         # 输出频率 Hz
+    input_timeout: 0.3         # 输入超时 s（超过则停车）
