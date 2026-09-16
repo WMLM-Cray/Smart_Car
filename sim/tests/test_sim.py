@@ -156,7 +156,9 @@ def test_rule_track_uses_only_legal_elements():
     legal = (*p.turn_angles, 180.0)                 # 180° 是两端掉头的大弯
     assert all(min(abs(abs(c) - a) for a in legal) < 2.0 for c in corners), corners
     assert sum(1 for c in corners if abs(abs(c) - 180) < 2) == 2      # 长条形:两端各一个掉头
-    assert len(corners) >= 4                                          # 回程侧还有 S 弯
+    assert len(corners) >= 10                                         # 回程侧的 S 弯要够多
+    span = sorted((np.ptp(a.centerline[:, 0]), np.ptp(a.centerline[:, 1])))
+    assert span[1] > 1.5 * span[0] and span[0] <= p.max_short_side    # 是长条形不是团
     # 主直道:最长的直段应当明显长于其它直段(规则图 1 的大直道)
     straights = [len(list(grp)) * 0.05
                  for straight, grp in itertools.groupby(turn, key=lambda v: abs(v) < 0.05) if straight]

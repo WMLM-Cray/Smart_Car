@@ -54,8 +54,8 @@ class CarParams:
 
 @dataclass
 class TrackParams:
-    width: float = 1.5              # [假设] 队友示例的赛道宽(锥桶中心距)
-    cone_spacing: float = 1.2       # [假设] 队友示例的锥桶间距
+    width: float = 1.5              # [规则] 赛道宽 1.5m(规则第2-6页;圆形赛道内径1.25/外径2.75 也是这个宽)
+    cone_spacing: float = 1.15      # [图1量得] 锥桶间距 ≈ 赛道宽/1.32,约 1.1-1.15m
     cone_base_radius: float = 0.14  # [假设] 队友用 0.28m 方块代替锥桶
     cone_top_radius: float = 0.025  # [假设]
     cone_height: float = 0.63       # [假设]
@@ -69,21 +69,25 @@ class RuleTrackParams(TrackParams):
     """按比赛规则的元素拼赛道(track_rules.py)。[规则] 项见该文件头部出处。"""
     turn_radius: float = 2.0            # [规则] 内径 1.25 / 外径 2.75 -> 中心线 2.0
     turn_angles: tuple = (45.0, 90.0, 135.0)   # [规则] 只有这三种转角
-    # --- 布局:一条大直道 + 两端 180° 大弯 + 回程侧几个 S 弯(规则图 1 的长条形)---
-    main_straight_min: float = 7.0      # [规则图1] 主直道明显比其它直段长
-    main_straight_max: float = 11.0     # [假设]
-    bend_radius_min: float = 1.2        # [假设] 小 S 弯可以比 2.0 更紧,下限按车的最小转弯半径留裕量
-    end_radius_min: float = 1.6         # [假设] 端部大弯半径,图上比普通弯大
+    # --- 布局:一条大直道 + 两端 180° 大弯 + 回程侧连续 S 弯(规则图 1 的长条形)---
+    main_straight_min: float = 5.5      # [规则图1] 主直道明显比其它直段长
+    main_straight_max: float = 8.5      # [假设]
+    bend_radius_min: float = 1.0        # [图1] S 弯比圆弯紧得多;下限对车(最小转弯半径0.53m)仍有裕量
+    bend_radius_max: float = 1.8        # [图1]
+    end_radius_min: float = 1.6         # [假设] 端部掉头大弯,图上比普通弯大
     end_radius_max: float = 2.6         # [假设]
-    s_bends_min: int = 1                # [规则图1] 回程侧是连续小 S 弯(每组 2 个镜像对)
-    s_bends_max: int = 2                # [假设]
+    s_bends_min: int = 2                # [规则图1] 回程侧是连续小 S 弯(每组 2 个镜像对 = 4 个弯)
+    s_bends_max: int = 4                # [规则图1] 图上回程侧弯挺多,连两端掉头一共 10-14 个弯
     right_angle_chance: float = 0.5     # [规则] 赛道含"直角区",不是每条都有
-    straight_min: float = 0.6           # [假设] 弯与弯之间的短直段下限
+    straight_min: float = 0.4           # [假设] 弯与弯之间的短直段下限
     straight_max: float = 4.0           # [规则] 图 9 有 4m 直段标注
     max_extent: float = 16.8            # [规则] 图 9 总横向 16.8m
-    narrow_width: float = 1.25          # [规则] 局部收窄段宽度
+    max_short_side: float = 8.0         # [图1] 赛道是长条形,短边明显小于长边
+    # 队友读规则图 9 记的"局部 1.25m"存疑:1.25 也正好是圆形赛道的内径,可能是看串了。
+    # 拿到规则原文前默认不收窄(narrow_fraction=0),要开就把它调成 0.08。
+    narrow_width: float = 1.25          # [存疑] 见上
     narrow_start: float = 0.35          # [假设] 收窄段起点(占一圈的比例)
-    narrow_fraction: float = 0.08       # [假设] 收窄段长度占比
+    narrow_fraction: float = 0.0        # [存疑] 收窄段长度占比,默认关
     n_boards: int = 5                   # [规则] 5 块随机蓝挡板
     board_length: float = 0.8           # [假设] 挡板长度 m
     board_height: float = 0.5           # [假设] 挡板高度 m
