@@ -12,9 +12,9 @@ racecar_sim:
   chassis_height: 0.10        # [实测] 底盘主体可视厚度(230mm 是整车含上层结构,box 先给主体)
   chassis_z: 0.15             # [源码] base_footprint→base_link z=0.15(实车 TF 硬编码)
   ground_clearance: 0.06      # [实测] 底盘离地间隙(假设)
-  wheel_radius: 0.09          # [实测] 车轮半径(假设,轮径180mm)
+  wheel_radius: 0.09          # [实测 2026-09-16] 车轮半径(轮径180mm,用户卷尺核实与本值一致)
   wheel_width: 0.05           # [实测] 轮宽(假设)
-  wheel_base: 0.36            # [实测] 轴距(前轴到后轴,假设)
+  wheel_base: 0.36            # [实测 2026-09-16] 轴距(用户卷尺核实与本值一致;出厂源码 0.305 与本车不符,已关闭)
   wheel_track: 0.30           # [实测] 轮距(左右轮中心距,假设)
   max_steer_angle: 0.55       # [实测] 舵角极限 rad(~31°,假设)
   # --- 质量 ---
