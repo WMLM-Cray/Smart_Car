@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "status": "review_draft_not_vehicle_authorization",
+  "facts": {
+    "wheelbase": {"value": 0.36, "unit": "m", "basis": "user_reported_measurement", "evidence": "3fad10b; user report 2026-09-17; not independently remeasured"},
+    "lidar_points": {"value": 1667, "basis": "user_reported_realcar_capture", "evidence": "b47af14 and user report"},
+    "realcar_rates": {"lidar": 11.997, "imu": 99.94, "encoder": 49.76, "unit": "Hz", "basis": "reported_capture_not_replayed"},
+    "driver_motor_offset": {"value": 1540, "unit": "PWM_us", "basis": "reported_deployed_formula", "evidence": "REALCAR_CONTROL_AUDIT / 6bb97d8; no live vehicle verification"}
+  },
+  "parameters": [
+    {"id":"wheelbase", "unit":"m", "expected":0.36, "bindings":{"sim":"wheelbase","gazebo":"wheel_base","teleop":"wheelbase"}},
+    {"id":"body_length", "unit":"m", "expected":0.56, "basis":"frozen_model_not_new_measurement", "bindings":{"sim":"length","gazebo":"chassis_length"}},
+    {"id":"body_width", "unit":"m", "expected":0.35, "basis":"frozen_model_not_new_measurement", "bindings":{"sim":"width","gazebo":"chassis_width"}},
+    {"id":"lidar_rate_target", "unit":"Hz", "expected":12, "bindings":{"sim":"lidar_hz","gazebo":"lidar_hz"}},
+    {"id":"lidar_points", "expected":1667, "bindings":{"sim":"lidar_points","gazebo":"lidar_samples"}},
+    {"id":"lidar_range_model", "unit":"m", "expected":25, "bindings":{"sim":"lidar_max","gazebo":"lidar_max_range"}},
+    {"id":"imu_rate_target", "unit":"Hz", "expected":100, "bindings":{"sim":"imu_hz","gazebo":"imu_hz"}},
+    {"id":"encoder_rate_target", "unit":"Hz", "expected":50, "bindings":{"sim":"encoder_hz"}}
+  ],
+  "known_differences": [
+    {"id":"scan_angles", "sim":"2*pi/1667, right endpoint excluded", "gazebo":"2*pi/1666, both endpoints included", "realcar":"reported +/-pi and increment 0.0037692; not strictly consistent", "impact":"unquantified; do not claim exact angular equivalence"},
+    {"id":"range_metadata", "sim_and_gazebo":25, "realcar_range_max_field":50, "impact":"metadata cap does not prove physical detection range"},
+    {"id":"laser_frame", "gazebo":"laser_sensor_link", "realcar":"laser_link", "impact":"requires verified TF extrinsics; never rename blindly"},
+    {"id":"pwm_model", "sim_default":1550, "reported_driver_offset":1540, "impact":"different profiles; sim PWM is not approved for vehicle output"},
+    {"id":"camera", "gazebo_hfov_rad":2.618, "impact":"working calibration unresolved; no exact camera equivalence claim"}
+  ],
+  "interfaces": [
+    {"topic":"/joy", "type":"sensor_msgs/msg/Joy", "meaning":"device-dependent axes/buttons", "evidence":"source_declared; physical mapping pending"},
+    {"topic":"/teleop/cmd_vel", "type":"geometry_msgs/msg/Twist", "meaning":"linear.x m/s; angular.z rad/s", "route":"manual launcher remaps to /cmd_vel"},
+    {"topic":"/cmd_vel", "type":"geometry_msgs/msg/Twist", "meaning":"physical velocity input to safety node on realcar", "constraint":"one selected command authority; runtime graph not checked here"},
+    {"topic":"/car_cmd_vel", "type":"geometry_msgs/msg/Twist", "meaning":"bounded physical velocity to driver", "conversion":"reported motor=v*100+1540; steering mapping needs separate evidence"},
+    {"topic":"/teleop_cmd_vel", "type":"geometry_msgs/msg/Twist", "meaning":"vendor raw control channel, not SI velocity", "constraint":"never connect team Twist velocity output; bypasses team safety node"}
+  ],
+  "unverified": ["real receiver unplug behavior", "physical enable/button mapping", "lower-controller watchdog behavior", "vehicle motor neutral under current hardware conditions", "live publishers and effective parameter overrides", "new sensor profile full navigation clearance"]
+}
