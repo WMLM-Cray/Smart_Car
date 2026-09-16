@@ -31,15 +31,19 @@ racecar_sim:
   imu_x: 0.1653               # [源码] base_footprint→IMU_link x(厂家 TF)
   imu_z: 0.18                 # [实测] imu_sensor_link 离地高度(假设)
   # --- 雷达参数(对齐镭神 X10/M10P) ---
-  lidar_hz: 10                # [规则] 10-12Hz
+  # [实车确认 2026-09-16] 实测发布频率 11.99Hz、每帧 1667 点;
+  # 仿真目标取整 12Hz(不为复现测量小数设 11.99),文档区分两种模式
+  lidar_hz: 12                # [实车实测 11.99 → 仿真目标 12]
   lidar_min_range: 0.15       # [源码] min_range
   lidar_max_range: 25.0       # [规则] 量程25-30m(源码软件裁剪50m,取硬件25)
-  lidar_samples: 2000         # [建模选择] 2000点/圈=采样20000/s÷10Hz 的折算;
-                              #   仿真为性能计未必逐点复刻,非严格硬件指标
+  lidar_samples: 1667         # [实车确认] 每帧 1667 点(旧值 2000=建模折算已废);
+                              #   角度端点仍为 ±π 含两端 → 步进 2π/1666≈0.21608°,
+                              #   实车 angle_min/max/increment/scan_time/
+                              #   time_increment 尚未逐项对齐(缺实车字段值)
   # --- 相机参数 ---
   cam_width: 640
   cam_height: 480
   cam_hz: 30
   cam_hfov: 2.618             # [建模选择] 150°(规则未说明水平/对角,先按水平)
   # --- IMU ---
-  imu_hz: 200
+  imu_hz: 100                 # [实车确认 2026-09-16] 实测 100Hz(旧值 200 为假设已废)

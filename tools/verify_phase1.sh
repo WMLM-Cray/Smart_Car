@@ -261,7 +261,7 @@ wait_topic_alive() {
   return 1
 }
 # 容差:±10% 标称(实测抖动 <2%)。grep -m1 流内直配 average rate:
-# 高频话题 stdout 前几行可能混入 QoS 警告,head -1 会抓错行;低频(10Hz)
+# 高频话题 stdout 前几行可能混入 QoS 警告,head -1 会抓错行;低频(12Hz)
 # 首个 average 出得慢,timeout 给 15s
 check_hz() {  # 话题 标称Hz 容差
   local r
@@ -273,9 +273,9 @@ check_hz() {  # 话题 标称Hz 容差
 for t in /scan /image_raw /IMU_data; do
   if wait_topic_alive "$t"; then
     case $t in
-      /scan)      check_hz $t 10 1 ;;
+      /scan)      check_hz $t 12 1.2 ;;    # 实车实测11.99Hz→仿真目标12(2026-09-16)
       /image_raw) check_hz $t 30 3 ;;
-      /IMU_data)  check_hz $t 200 20 ;;
+      /IMU_data)  check_hz $t 100 10 ;;    # 实车确认100Hz(旧值200为假设)
     esac
   else
     echo "$t: 等待超时"; bad "$t 无数据"

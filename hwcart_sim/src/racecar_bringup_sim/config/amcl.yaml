@@ -11,7 +11,8 @@
 #   与地图 origin [-11.1,-0.863,0] 自洽(赛道 Gazebo x∈[0,16.8],y∈[0,5.5])。
 #
 # 激光依据(urdf racecar.xacro + params.yaml 冻结值):
-#   360°/10Hz/2000 采样/量程 0.15~25.0m/高斯噪声 σ=0.01 → likelihood_field
+#   360°/12Hz(仿真目标,实车实测 11.99)/1667 采样(实车确认)/量程 0.15~25.0m/
+#   高斯噪声 σ=0.01 → likelihood_field
 # 手动初始位姿:RViz 2D Pose Estimate 工具发 /initialpose(人工交互路径);
 #   无人值守时用 set_initial_pose+initial_pose(即"人工初始位姿"的先给值)。
 # =============================================================================
@@ -46,7 +47,7 @@ amcl:
     laser_model_type: likelihood_field
     laser_min_range: -1.0    # -1 = 用传感器最小值(0.15)
     laser_max_range: 25.0    # 冻结量程
-    max_beams: 180           # 2000 束抽稀到 180(humble 参数名是 max_beams,
+    max_beams: 180           # 1667 束抽稀到 180(humble 参数名是 max_beams,
                              # 写 laser_max_beams 会被静默忽略)
     z_hit: 0.9
     z_rand: 0.1
