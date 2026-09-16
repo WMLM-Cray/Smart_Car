@@ -55,6 +55,11 @@ enable_button/low_speed_button 与两个 inverted 开关。
 
 ## 3. 默认按键/参数表(通用双摇杆示例,实体待标定)
 
+**用户手柄(2026-09-17 确认):Xbox 布局(XInput),车机 USB 直插。**
+Linux xpad 驱动下 Xbox 布局的典型映射(axes: 左摇杆纵=1/右摇杆横=3;
+buttons: LB=4/RB=5)与下表默认**恰好一致**,标定大概率只需逐项确认,
+不同品牌仍可能有偏移——以 echo /joy 实测为准,不得跳过。
+
 | 项 | 默认 | 说明 |
 |---|---|---|
 | speed_axis / steering_axis | 1 / 3 | 左摇杆纵轴 / 右摇杆横轴(待标定) |
