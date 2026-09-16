@@ -16,7 +16,8 @@
   ②/scan 连续帧 ranges 长度全为 1667;
   ③/scan header.stamp 严格递增;
   ④角度字段自洽:|increment−(max−min)/(N−1)|≤1e-9(当前端点 ±π 含两端
-    → 步进 2π/1666≈0.21608°;实车字段值未取得,不自洽才是错误);
+    → 步进 2π/1666≈0.21608°,且首尾两条射线同方向、重复方向未消除——
+    本判据只验证字段与数组长度自洽,不声称与实车角度约定一致);
   ⑤/scan frame_id 恒为 laser_sensor_link(话题名不变由本订阅本身保证);
   ⑥/IMU_data 时间戳频率 ∈ 100±10Hz;
   ⑦/IMU_data header.stamp 严格递增;
@@ -24,8 +25,9 @@
   ⑨采样窗口 ≥30s 仿真时间(按 scan 首末 stamp 计)。
 
 尚未逐项对齐(记录不判 FAIL):实车 angle_min/angle_max/angle_increment/
-scan_time/time_increment 数值未取得;Gazebo classic 不支持逐点时间戳与
-运动畸变(扫描期间载具运动引起的点云畸变),仿真为瞬时整帧扫描。
+scan_time/time_increment 数值未取得;当前采用的雷达插件/配置未模拟逐点
+时间戳与运动畸变(扫描期间载具运动引起的点云畸变),仿真为瞬时整帧
+扫描、时间字段输出 0——此为插件/配置现状,不扩大为平台整体无法实现。
 """
 import argparse
 import json
@@ -154,9 +156,10 @@ def main():
         fails.append(f"采样窗 {s_sim:.1f}s < {WINDOW_SIM_S:.0f}s(仿真时间)")
 
     notes.append("实车 angle_min/max/increment/scan_time/time_increment "
-                 "数值未取得,本轮仅对齐频率与点数,角度/时间字段尚未逐项对齐")
-    notes.append("Gazebo classic 无逐点时间戳与运动畸变(瞬时整帧扫描),"
-                 "time_increment 语义为插件近似值")
+                 "数值未取得,本轮仅对齐频率与点数,角度/时间字段尚未逐项对齐;"
+                 "仿真端点±π含两端=首尾同方向射线,重复方向未消除")
+    notes.append("当前雷达插件/配置未模拟逐点时间与运动畸变(瞬时整帧扫描),"
+                 "时间字段输出为0,不代表平台整体无法实现")
     if rtf is not None and rtf < 0.8:
         notes.append(f"实时因子 {rtf:.3f} 偏低:接收端频率将低于时间戳频率,"
                      "以时间戳频率为准")
