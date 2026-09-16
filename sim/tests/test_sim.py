@@ -1,17 +1,22 @@
+import importlib.util
+import json
 import math
 from dataclasses import replace
+from pathlib import Path
 
 import numpy as np
 import pytest
 from gymnasium.utils.env_checker import check_env
 
 from sim.curriculum import STAGES, evaluate, passed
-from sim.env import SECTOR_EDGES, ConeTrackEnv
+from sim.env import SECTOR_EDGES, SECTORS, ConeTrackEnv, sector_index, sectorize
+from sim.interop import export_track, from_cmd_vel, to_cmd_vel
 from sim.mapping import FREE, OCCUPIED
 from sim.params import CarParams, TrackParams
 from sim.preview import pure_pursuit
 from sim.pwm import pwm_to_speed, speed_to_pwm, steer_to_turn, turn_to_steer
 from sim.raycast import cast_cones
+from sim.sensors import Lidar
 from sim.track import make_track
 from sim.vehicle import Car
 
@@ -203,6 +208,63 @@ def test_idle_times_out_without_progress():
             break
     assert info["termination_reason"] == "timeout"
     assert abs(info["progress"]) < 1e-6 and total < 0
+
+
+# ---- 与队友 Gazebo 框架(hwcart_sim)的互通 ----
+def test_cmd_vel_matches_vehicle_model_and_round_trips():
+    p = CarParams()
+    car = Car(p)
+    for _ in range(3000):
+        car.step(1.0, 0.3, 0.01)
+    linear, angular = to_cmd_vel(car.v, car.steer, p)
+    assert (linear, angular) == pytest.approx((car.v, car.yaw_rate))   # 与本仿真同一个模型
+    assert from_cmd_vel(linear, angular, p) == pytest.approx((car.v, car.steer))
+    assert from_cmd_vel(0.0, 1.0, p) == (0.0, 0.0)                    # 阿克曼车不能原地转
+    assert from_cmd_vel(1.0, 99.0, p)[1] == pytest.approx(p.max_steer)
+
+
+def _their_generator():
+    path = Path(__file__).resolve().parents[2] / "hwcart_sim/src/track_generator/track_generator/generate.py"
+    spec = importlib.util.spec_from_file_location("their_generate", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_exported_track_builds_in_their_track_generator(tmp_path):
+    gen = _their_generator()
+    env = ConeTrackEnv()
+    env.reset(seed=0)
+    cones_csv, gaps_json = tmp_path / "cones.csv", tmp_path / "gaps.json"
+    n_cones, n_gaps = export_track(env.track, cones_csv, gaps_json)
+    assert n_cones == len(env.track.cones) and n_gaps >= 3
+    # 用他们自己的加载器和 SDF 生成器验收,格式不对这里就会抛
+    cones = gen.load_cones(cones_csv)
+    sdf, manifest = gen.build(cones, json.loads(gaps_json.read_text()), seed=0, board_thickness=0.1)
+    assert sdf.count("<model") == n_cones + 1 + 3        # 锥桶 + 地面 + 3 块挡板
+    assert manifest["selected_gaps"]
+    # 起点搬到原点朝 +x(他们 launch 里车在原点出生)
+    start = np.array([[float(c["x"]), float(c["y"])] for c in cones])
+    assert np.hypot(*start.T).min() < TP.width
+
+
+def test_sectorize_is_independent_of_scan_resolution():
+    env = ConeTrackEnv(noise=False)
+    env.reset(seed=0)
+    ours = sectorize(env.ranges, env.sector_index, env.obs_range)
+    # 队友 Gazebo 是 2000 点/圈:同一场景同一位姿,压成扇区后应当基本一致
+    theirs_lidar = Lidar(replace(env.cp, lidar_points=2000))
+    theirs_ranges = theirs_lidar.scan(env.car, env.track.cones, env.tp, None)
+    theirs = sectorize(theirs_ranges, sector_index(theirs_lidar.angles), env.obs_range)
+    assert theirs.shape == ours.shape
+    diff = np.abs(theirs - ours)
+    assert np.percentile(diff, 90) < 0.01
+    # 擦着锥桶边缘的射线会因点数不同落进相邻扇区:允许个别扇区不一致,但障碍不能丢
+    bad = np.flatnonzero(diff > 0.05)
+    assert len(bad) <= 2
+    for i in bad:
+        assert min(theirs[(i - 1) % SECTORS], theirs[(i + 1) % SECTORS]) <= ours[i] + 0.02
+    assert np.isfinite(sectorize([np.inf, np.nan], sector_index([0.0, 0.1]), 10.0)).all()
 
 
 def test_driving_hard_left_ends_on_cone_or_off_track():

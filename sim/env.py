@@ -38,6 +38,23 @@ SECTOR_EDGES = np.concatenate([
 SECTORS = len(SECTOR_EDGES) - 1        # 48
 
 
+def sector_index(angles) -> np.ndarray:
+    """每条射线落在哪个扇区。角度是车体系,0=正前,左正。"""
+    return np.clip(np.searchsorted(SECTOR_EDGES, angles, side="right") - 1, 0, SECTORS - 1)
+
+
+def sectorize(ranges, index, obs_range: float) -> np.ndarray:
+    """一圈测距 -> 48 扇区最近距离 / obs_range。
+
+    对点数不敏感:实车与本仿真 1667 点、队友 Gazebo 2000 点,过这一层都是同样的 48 维,
+    所以同一个策略两边都能用(index 由 sector_index(angles) 预先算好)。
+    """
+    r = np.minimum(np.nan_to_num(ranges, nan=obs_range, posinf=obs_range), obs_range)
+    out = np.full(SECTORS, obs_range)
+    np.minimum.at(out, index, r)
+    return out / obs_range
+
+
 class ConeTrackEnv(gym.Env):
     metadata = {"render_modes": []}
 
@@ -56,9 +73,7 @@ class ConeTrackEnv(gym.Env):
         self.observation_space = spaces.Box(-1.0, 1.0, (SECTORS + 5,), dtype=np.float32)
         self.car = Car(car_params)
         self.lidar = Lidar(car_params)
-        # 每条射线落在哪个扇区,只算一次
-        self.sector_index = np.clip(
-            np.searchsorted(SECTOR_EDGES, self.lidar.angles, side="right") - 1, 0, SECTORS - 1)
+        self.sector_index = sector_index(self.lidar.angles)     # 只算一次
 
     # ---- 动作 -> 物理指令 ----
     def action_to_command(self, action) -> tuple[float, float]:
@@ -103,11 +118,8 @@ class ConeTrackEnv(gym.Env):
                                self.ranges[::step], self.obs_range)
 
     def _observation(self):
-        r = np.minimum(self.ranges, self.obs_range)
-        sectors = np.full(SECTORS, self.obs_range)
-        np.minimum.at(sectors, self.sector_index, r)
         obs = np.concatenate([
-            sectors / self.obs_range,
+            sectorize(self.ranges, self.sector_index, self.obs_range),
             [self.encoder_speed / self.v_cmd_fwd,
              self.imu["angular_velocity_z"] / 3.0],
             self.last_action,
