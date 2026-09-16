@@ -35,3 +35,7 @@ docs/IMPLEMENTATION_STATUS.md
 
 # --- Python 测试缓存 ---
 .pytest_cache/
+
+# --- 训练产物(模型/曲线/日志,不入库) ---
+runs/
+*.log

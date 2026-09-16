@@ -23,10 +23,11 @@ import numpy as np
 from gymnasium import spaces
 
 from .mapping import OccupancyMap
-from .params import CarParams, TrackParams
+from .params import CarParams, RuleTrackParams, TrackParams
 from .pwm import speed_to_pwm, steer_to_turn
 from .sensors import Lidar, encoder, imu
 from .track import make_track
+from .track_rules import make_rule_track
 from .vehicle import Car
 
 # 扇区边界:后左 6×15° | 前 36×5° | 后右 6×15°
@@ -83,7 +84,10 @@ class ConeTrackEnv(gym.Env):
 
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed)
-        self.track = make_track(self.np_random, self.tp)
+        self.track = (make_rule_track(self.np_random, self.tp)
+                      if isinstance(self.tp, RuleTrackParams) else make_track(self.np_random, self.tp))
+        # 锥桶 + 挡板采样点:碰撞和建图覆盖率都按这一组算(挡板不是点目标,按 10cm 采样)
+        self.obstacles = np.vstack([self.track.cones, self.track.board_points])
         start = self.track.centerline[0]
         _, _, heading = self.track.project(start)
         # 后轴放在中心线起点,车头朝切向
@@ -106,7 +110,7 @@ class ConeTrackEnv(gym.Env):
         return self.np_random if self.noise else None
 
     def _sense(self):
-        self.ranges = self.lidar.scan(self.car, self.track.cones, self.tp, self._rng())
+        self.ranges = self.lidar.scan(self.car, self.track, self._rng())
         self.imu = imu(self.car, self.cp, self._rng())
         self.encoder_speed = encoder(self.car, self.cp, self._rng())
         if self.map is not None and self.time >= self.next_map - 1e-9:
@@ -135,7 +139,7 @@ class ConeTrackEnv(gym.Env):
         for _ in range(steps):
             self.car.step(self.v_cmd, self.steer_cmd, self.physics_dt)
             self.time += self.physics_dt
-            hits = np.flatnonzero(self.car.footprint_hits_circles(self.track.cones, self.tp.cone_base_radius))
+            hits = np.flatnonzero(self.car.footprint_hits_circles(self.obstacles, self.tp.cone_base_radius))
             fresh = set(hits.tolist()) - self.hit_ids
             new_hits += len(fresh)
             self.hit_ids |= fresh
@@ -168,7 +172,7 @@ class ConeTrackEnv(gym.Env):
         if truncated:
             reason = "timeout"
         if (terminated or truncated) and self.map is not None:
-            self.cone_coverage = self.map.cone_coverage(self.track.cones, self.tp.cone_base_radius)
+            self.cone_coverage = self.map.cone_coverage(self.obstacles, self.tp.cone_base_radius)
         return self._observation(), float(reward), terminated, truncated, self._info(reason, lateral)
 
     def _info(self, reason, lateral=0.0):

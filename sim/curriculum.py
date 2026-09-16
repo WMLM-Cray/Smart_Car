@@ -1,14 +1,15 @@
-"""训练课程:两个阶段 + 过关判据。
+"""训练课程:分阶段 + 过关判据。
 
 目标(2026-09-16 定):车能自己跑完一圈,并且跑的过程中把赛道建出图。
-S3(高速窄道)/S4(域随机化迁移实车)暂不做。
+S3 是按比赛规则元素拼出来的赛道(见 track_rules.py),最接近比赛当天抽到的 A-D。
+S4(域随机化迁移实车)暂不做。
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 
 from .env import ConeTrackEnv
-from .params import CarParams, TrackParams
+from .params import CarParams, RuleTrackParams, TrackParams
 
 
 @dataclass
@@ -23,8 +24,9 @@ class Stage:
     max_cone_hits: int
 
     def make_env(self, car: CarParams = CarParams(), **kw) -> ConeTrackEnv:
+        kw.setdefault("mapping", True)      # 训练时可关掉换速度,评估必须开(要看建图覆盖率)
         return ConeTrackEnv(car_params=car, track_params=self.track, v_cmd_fwd=self.v_cmd_fwd,
-                            noise=self.noise, budget=self.budget, mapping=True, **kw)
+                            noise=self.noise, budget=self.budget, **kw)
 
 
 STAGES: dict[str, Stage] = {
@@ -34,6 +36,9 @@ STAGES: dict[str, Stage] = {
                 min_laps=18, min_coverage=0.9, max_cone_hits=0),
     # S2:标准随机赛道 + 传感器噪声,按目标验收
     "s2": Stage(name="s2", track=TrackParams(), v_cmd_fwd=1.5, noise=True, budget=120.0,
+                min_laps=18, min_coverage=0.9, max_cone_hits=1),
+    # S3:按比赛规则元素拼的赛道(45/90/135°弯、1.5m 宽、局部 1.25m、5 块蓝挡板)
+    "s3": Stage(name="s3", track=RuleTrackParams(), v_cmd_fwd=1.5, noise=True, budget=120.0,
                 min_laps=18, min_coverage=0.9, max_cone_hits=1),
 }
 
@@ -54,11 +59,16 @@ class StageResult:
 
 
 def evaluate(policy, stage: Stage, seeds=EVAL_SEEDS, car: CarParams = CarParams()) -> StageResult:
-    """policy(obs, env) -> action。返回每个种子的结果与汇总。"""
+    """policy(obs, env) -> action。返回每个种子的结果与汇总。
+
+    policy 有 reset() 的话每局开始前会被调用(叠帧策略要清空历史帧)。
+    """
     env = stage.make_env(car)
     result = StageResult(stage=stage.name)
     for seed in seeds:
         obs, info = env.reset(seed=seed)
+        if hasattr(policy, "reset"):
+            policy.reset()
         while True:
             obs, _, terminated, truncated, info = env.step(policy(obs, env))
             if terminated or truncated:

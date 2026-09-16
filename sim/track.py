@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -32,10 +32,19 @@ class Track:
     left: np.ndarray            # (m,2) 左侧锥桶(红)
     right: np.ndarray           # (k,2) 右侧锥桶(蓝)
     params: TrackParams
+    boards: np.ndarray = field(default_factory=lambda: np.zeros((0, 2, 2)))   # (b,2,2) 挡板俯视端点
 
     @property
     def cones(self) -> np.ndarray:
         return np.vstack([self.left, self.right])
+
+    @property
+    def board_points(self) -> np.ndarray:
+        """挡板沿线的采样点,用于碰撞与建图覆盖率(挡板不是点目标)。"""
+        if not len(self.boards):
+            return np.zeros((0, 2))
+        t = np.linspace(0, 1, 9)[:, None]
+        return np.concatenate([a + t * (b - a) for a, b in self.boards])
 
     @property
     def length(self) -> float:

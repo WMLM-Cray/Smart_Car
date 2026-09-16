@@ -10,8 +10,8 @@ import math
 
 import numpy as np
 
-from .params import CarParams, TrackParams
-from .raycast import cast_cones
+from .params import CarParams
+from .raycast import cast_cones, cast_walls
 from .vehicle import Car
 
 
@@ -22,15 +22,18 @@ class Lidar:
         self.angles = -math.pi + np.arange(n) * (2 * math.pi / n)
         self.angle_increment = 2 * math.pi / n
 
-    def scan(self, car: Car, cones_xy: np.ndarray, track: TrackParams,
-             rng: np.random.Generator | None) -> np.ndarray:
-        p = self.p
+    def scan(self, car: Car, track, rng: np.random.Generator | None) -> np.ndarray:
+        """track 是 Track:锥桶 + 挡板(规则赛道才有)都要打。"""
+        p, tp = self.p, track.params
         c, s = math.cos(car.yaw), math.sin(car.yaw)
         origin = np.array([car.x + p.lidar_x * c, car.y + p.lidar_x * s, p.lidar_z])
         world = self.angles + car.yaw
         dirs = np.stack([np.cos(world), np.sin(world), np.zeros_like(world)], axis=1)
-        r = cast_cones(origin, dirs, cones_xy, track.cone_base_radius,
-                       track.cone_top_radius, track.cone_height, p.lidar_max)
+        r = cast_cones(origin, dirs, track.cones, tp.cone_base_radius,
+                       tp.cone_top_radius, tp.cone_height, p.lidar_max)
+        if len(track.boards):
+            r = np.minimum(r, cast_walls(origin, dirs, track.boards,
+                                         tp.board_height, p.lidar_max))
         if rng is not None:
             r = r + rng.normal(0, p.lidar_sigma, r.shape)
         return np.where((r >= p.lidar_min) & (r <= p.lidar_max), r, np.inf)

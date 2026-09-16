@@ -1,10 +1,37 @@
-"""3D 解析射线求交:竖直圆台(锥桶)。
+"""3D 解析射线求交:竖直圆台(锥桶)与竖直挡板(矩形面)。
 
-赛道上只有锥桶,所以只实现圆台。需要长方体/球体(挡板、红绿灯杆)时再加。
+赛道上只有这两种东西。需要球体/红绿灯杆时再加。
 """
 from __future__ import annotations
 
 import numpy as np
+
+
+def cast_walls(origin, directions, segments, height, max_range=40.0):
+    """射线与竖直挡板(俯视是线段,竖直方向 0..height)的最近交点距离;不命中为 inf。
+
+    segments: (m,2,2) = 每块挡板俯视的两个端点。先在 XY 平面解射线与线段的交点
+    (二元一次方程组),再检查交点高度落在 0..height 内。挡板数量只有几块,直接全算。
+    """
+    origin = np.asarray(origin, dtype=np.float64).reshape(3)
+    d = np.asarray(directions, dtype=np.float64).reshape((-1, 3))
+    seg = np.asarray(segments, dtype=np.float64).reshape((-1, 2, 2))
+    best = np.full(len(d), np.inf)
+    if not len(seg):
+        return best
+
+    a = seg[:, 0, :]                                  # 起点
+    e = seg[:, 1, :] - a                              # 方向向量
+    ox, oy = origin[0] - a[:, 0], origin[1] - a[:, 1]   # (m,)
+    dx, dy = d[:, 0][:, None], d[:, 1][:, None]         # (n,1)
+    denom = dx * e[None, :, 1] - dy * e[None, :, 0]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        t = (ox[None, :] * e[None, :, 1] - oy[None, :] * e[None, :, 0]) / -denom   # 沿射线
+        u = (oy[None, :] * dx - ox[None, :] * dy) / denom                          # 沿线段 0..1
+        z = origin[2] + t * d[:, 2][:, None]
+        ok = (np.abs(denom) > 1e-12) & (t > 1e-9) & (u >= 0) & (u <= 1) & (z >= 0) & (z <= height)
+        hit = np.where(ok, t, np.inf).min(axis=1)
+    return np.where(hit <= float(max_range), hit, np.inf)
 
 
 def cast_cones(origin, directions, centres_xy, base_radius, top_radius, height,

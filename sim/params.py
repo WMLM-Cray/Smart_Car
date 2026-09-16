@@ -62,3 +62,22 @@ class TrackParams:
     mean_radius: float = 6.0        # 随机环形赛道平均半径 m
     shape_noise: float = 0.25       # 半径扰动幅度(相对)
     min_curvature_radius: float = 1.6  # 中心线最小曲率半径;需 > 半宽 + 车最小转弯半径裕量
+
+
+@dataclass
+class RuleTrackParams(TrackParams):
+    """按比赛规则的元素拼赛道(track_rules.py)。[规则] 项见该文件头部出处。"""
+    turn_radius: float = 2.0            # [规则] 内径 1.25 / 外径 2.75 -> 中心线 2.0
+    turn_angles: tuple = (45.0, 90.0, 135.0)   # [规则] 只有这三种转角
+    right_turn_ratio: float = 0.25      # [假设] 反向弯的比例,用来出 S 弯
+    min_turns: int = 6                  # [假设]
+    max_turns: int = 10                 # [假设] 再多圈就超出 16.8m 场地
+    straight_min: float = 1.0           # [假设]
+    straight_max: float = 4.0           # [规则] 图 9 有 4m 直段标注
+    max_extent: float = 16.8            # [规则] 图 9 总横向 16.8m
+    narrow_width: float = 1.25          # [规则] 局部收窄段宽度
+    narrow_start: float = 0.35          # [假设] 收窄段起点(占一圈的比例)
+    narrow_fraction: float = 0.08       # [假设] 收窄段长度占比
+    n_boards: int = 5                   # [规则] 5 块随机蓝挡板
+    board_length: float = 0.8           # [假设] 挡板长度 m
+    board_height: float = 0.5           # [假设] 挡板高度 m

@@ -1,4 +1,5 @@
 import importlib.util
+import itertools
 import json
 import math
 from dataclasses import replace
@@ -12,12 +13,13 @@ from sim.curriculum import STAGES, evaluate, passed
 from sim.env import SECTOR_EDGES, SECTORS, ConeTrackEnv, sector_index, sectorize
 from sim.interop import export_track, from_cmd_vel, to_cmd_vel
 from sim.mapping import FREE, OCCUPIED
-from sim.params import CarParams, TrackParams
+from sim.params import CarParams, RuleTrackParams, TrackParams
 from sim.preview import pure_pursuit
 from sim.pwm import pwm_to_speed, speed_to_pwm, steer_to_turn, turn_to_steer
-from sim.raycast import cast_cones
+from sim.raycast import cast_cones, cast_walls
 from sim.sensors import Lidar
 from sim.track import make_track
+from sim.track_rules import make_rule_track
 from sim.vehicle import Car
 
 TP = TrackParams()
@@ -123,6 +125,72 @@ def test_track_reproducible_and_cone_geometry():
     assert d.min() > TP.width / 2 - 0.05
 
 
+# ---- 规则赛道(直道 + 45/90/135° 弯 + 挡板)----
+def test_wall_ray_geometry():
+    seg = [[[2.0, -1.0], [2.0, 1.0]]]                            # x=2 处一块横着的挡板
+    assert cast_walls([0, 0, 0.21], [[1, 0, 0]], seg, 0.5)[0] == pytest.approx(2.0)
+    assert np.isinf(cast_walls([0, 0, 0.8], [[1, 0, 0]], seg, 0.5)[0])     # 从挡板上方掠过
+    assert np.isinf(cast_walls([0, 0, 0.21], [[0, 1, 0]], seg, 0.5)[0])    # 打不到
+    assert np.isinf(cast_walls([0, 0, 0.21], [[-1, 0, 0]], seg, 0.5)[0])   # 背对着
+    assert cast_walls([0, 0, 0.21], [[1, 0, 0]], seg, 0.5, max_range=1.0)[0] == np.inf
+
+
+def test_rule_track_uses_only_legal_elements():
+    p = RuleTrackParams()
+    a = make_rule_track(np.random.default_rng(4))
+    b = make_rule_track(np.random.default_rng(4))
+    assert np.array_equal(a.centerline, b.centerline) and np.array_equal(a.boards, b.boards)
+    # 闭环、尺寸在场地内、挡板数量按规则
+    assert math.dist(a.centerline[0], a.centerline[-1]) < 0.1
+    assert max(np.ptp(a.centerline[:, 0]), np.ptp(a.centerline[:, 1])) <= p.max_extent
+    assert len(a.boards) == p.n_boards
+    assert all(math.dist(*board) == pytest.approx(p.board_length) for board in a.boards)
+    # 闭环转一整圈,且每个弯的转角只能是规则里的 45/90/135°
+    closed = np.vstack([a.centerline, a.centerline[:1]])
+    h = np.arctan2(*np.diff(closed, axis=0).T[::-1])
+    turn = np.degrees((np.diff(np.concatenate([h, h[:1]])) + np.pi) % (2 * np.pi) - np.pi)
+    assert turn.sum() == pytest.approx(360.0, abs=0.1)
+    corners = [sum(v for _, v in grp)
+               for straight, grp in itertools.groupby(enumerate(turn), key=lambda kv: abs(kv[1]) < 0.05)
+               if not straight]
+    assert len(corners) >= p.min_turns
+    assert all(min(abs(abs(c) - legal) for legal in p.turn_angles) < 2.0 for c in corners), corners
+    # 赛道宽:每个锥桶到中心线的距离在 1.25/2 与 1.5/2 之间
+    d = np.hypot(*(a.cones[:, None, :] - a.centerline[None]).transpose(2, 0, 1)).min(axis=1)
+    assert d.min() > p.narrow_width / 2 - 0.05 and d.max() < p.width / 2 + 0.05
+
+
+def test_rule_track_boards_are_visible_and_block_the_car():
+    env = ConeTrackEnv(track_params=RuleTrackParams(), noise=False)
+    env.reset(seed=0)
+    assert len(env.obstacles) == len(env.track.cones) + len(env.track.board_points)
+    # 把车挪到某块挡板正前方 1m,雷达应当看到约 1m 处有东西
+    board = env.track.boards[0]
+    mid = board.mean(axis=0)
+    normal = np.array([-(board[1] - board[0])[1], (board[1] - board[0])[0]])
+    normal /= np.hypot(*normal)
+    env.car.reset(*(mid + normal), math.atan2(*(-normal)[::-1]))
+    ranges = env.lidar.scan(env.car, env.track, None)
+    front = ranges[sector_index(env.lidar.angles) == SECTORS // 2]
+    assert front.min() == pytest.approx(1.0 - env.cp.lidar_x, abs=0.05)
+    assert not env.car.footprint_hits_circles(env.track.board_points, 0.14).any()   # 1m 外不算撞
+    env.car.reset(*mid, 0.0)                                     # 车压在挡板上
+    assert env.car.footprint_hits_circles(env.track.board_points, 0.14).any()
+
+
+@pytest.mark.parametrize("seed", [90000, 90003])
+def test_pure_pursuit_laps_rule_track_and_maps_it(seed):
+    env = STAGES["s3"].make_env()
+    env.reset(seed=seed)
+    while True:
+        _, _, term, trunc, info = env.step(pure_pursuit(env, throttle=0.5))
+        if term or trunc:
+            break
+    assert info["termination_reason"] == "lap", info
+    assert info["cone_hits"] == 0
+    assert info["cone_coverage"] >= 0.9, info                     # 锥桶 + 挡板都要扫到
+
+
 # ---- 环境 ----
 def test_gymnasium_api():
     check_env(ConeTrackEnv(), skip_render_check=True)
@@ -210,6 +278,40 @@ def test_idle_times_out_without_progress():
     assert abs(info["progress"]) < 1e-6 and total < 0
 
 
+# ---- PPO 训练 ----
+def test_stacked_policy_frame_order_matches_vecframestack():
+    pytest.importorskip("stable_baselines3")
+    from stable_baselines3.common.vec_env import DummyVecEnv, VecFrameStack
+
+    from sim.train import FRAMES, StackedPolicy
+    vec = VecFrameStack(DummyVecEnv([lambda: ConeTrackEnv(noise=False)]), FRAMES)
+    env = ConeTrackEnv(noise=False)
+    dim = env.observation_space.shape[0]
+    recorder = StackedPolicy(model=None, obs_dim=dim)
+    vec.seed(0)                                             # 两边同一条赛道
+    stacked = vec.reset()
+    obs, _ = env.reset(seed=0)
+    for i in range(5):
+        recorder.buf = np.roll(recorder.buf, -dim)          # 与 __call__ 里同一套写法
+        recorder.buf[-dim:] = obs
+        assert np.allclose(recorder.buf, stacked[0], atol=1e-6), f"第 {i} 帧顺序不一致"
+        action = np.array([[0.5, 0.1]], np.float32)
+        stacked, _, _, _ = vec.step(action)
+        obs, _, _, _, _ = env.step(action[0])
+
+
+def test_train_stage_produces_model_and_plots(tmp_path):
+    pytest.importorskip("stable_baselines3")
+    from sim.train import train_stage
+    stage = replace(STAGES["s1"], budget=4.0)               # 只跑通流程,不指望学出东西
+    result = train_stage(stage, steps=1024, n_envs=1, seed=0, out_dir=tmp_path,
+                         init_model=None, seeds=[90000, 90001])
+    assert result.stage == "s1" and len(result.episodes) == 2
+    assert (tmp_path / "model.zip").exists() and (tmp_path / "curve.png").exists()
+    saved = json.loads((tmp_path / "eval.json").read_text(encoding="utf-8"))
+    assert saved["episodes_total"] == 2 and saved["passed"] is False
+
+
 # ---- 与队友 Gazebo 框架(hwcart_sim)的互通 ----
 def test_cmd_vel_matches_vehicle_model_and_round_trips():
     p = CarParams()
@@ -254,7 +356,7 @@ def test_sectorize_is_independent_of_scan_resolution():
     ours = sectorize(env.ranges, env.sector_index, env.obs_range)
     # 队友 Gazebo 是 2000 点/圈:同一场景同一位姿,压成扇区后应当基本一致
     theirs_lidar = Lidar(replace(env.cp, lidar_points=2000))
-    theirs_ranges = theirs_lidar.scan(env.car, env.track.cones, env.tp, None)
+    theirs_ranges = theirs_lidar.scan(env.car, env.track, None)
     theirs = sectorize(theirs_ranges, sector_index(theirs_lidar.angles), env.obs_range)
     assert theirs.shape == ours.shape
     diff = np.abs(theirs - ours)
