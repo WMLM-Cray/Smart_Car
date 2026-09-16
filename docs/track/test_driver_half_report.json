@@ -1,0 +1,14 @@
+{
+ "tag": "仿真测试驾驶器",
+ "route": "half",
+ "result": "PASS",
+ "reason": "到达路线终点并停车",
+ "s_total_m": 27.823,
+ "driven_m": 27.216,
+ "duration_s": 96.9,
+ "min_cone_clear_m": 0.359,
+ "max_dev_m": 0.1,
+ "max_omega": 0.358,
+ "v_nom": 0.3,
+ "s_end_m": 27.823
+}

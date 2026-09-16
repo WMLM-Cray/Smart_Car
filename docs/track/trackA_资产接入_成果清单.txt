@@ -100,3 +100,29 @@ trackA 资产接入轮 成果目录清单(f1ede59,integration/trackA-sdf)
 
 [9] 复验入口(WSL,预期三 PASS + map_saved)
     bash tools/trackA/slam_demo_run.sh
+
+六、阶段3 第二步:仿真测试驾驶器(详见同目录
+    《trackA_阶段3_2_测试驾驶器.md》)
+--------------------------------------------------------------------
+[10] 驾驶器与编排(新增)
+    tools/trackA/test_driver.py           仿真测试驾驶器节点(纯追踪
+                                          +整车矩形余量预检+三监控即停
+                                          +/cmd_vel 独占检查;真值仅用于
+                                          跟踪/验收,SLAM 无真值注入)
+    tools/trackA/test_driver_run.sh       无头分段验证编排
+    tools/trackA/test_driver_map_run.sh   整圈+SLAM+RViz 截图+map_saver
+
+[11] 证据(新增)
+    docs/track/test_driver_{short,u_right,half,full}_report.json
+                                          四段报告(short→full 全 PASS,
+                                          整圈实驶 35.46m/偏差≤0.10m/
+                                          最小间隙 0.359m/|ω|≤0.364)
+    docs/track/test_driver_rviz_full.png 整圈 RViz 截图(AI 复核:闭合环
+                                          +顶部V凹+激光+轨迹)
+    docs/track/trackA_map_full.pgm/.yaml 整圈地图 338×114@0.05m
+                                          (第三步 AMCL 载入用)
+
+[12] 复验入口(WSL,预期各段 PASS,rc=0)
+    bash tools/trackA/test_driver_run.sh short   # 先短段
+    bash tools/trackA/test_driver_run.sh full    # 整圈(无头)
+    bash tools/trackA/test_driver_map_run.sh full # 整圈+建图+截图
