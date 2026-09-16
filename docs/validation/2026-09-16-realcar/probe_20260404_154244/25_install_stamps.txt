@@ -1,0 +1,28 @@
+$ ls -la --time-style=long-iso /home/orange-pi/racecar/install/
+total 128
+drwxrwxr-x 13 orange-pi orange-pi  4096 2026-04-04 11:40 .
+drwxrwxr-x  8 orange-pi orange-pi  4096 2026-04-04 11:26 ..
+-rw-rw-r--  1 orange-pi orange-pi     9 2026-04-04 11:26 .colcon_install_layout
+-rw-rw-r--  1 orange-pi orange-pi     0 2026-04-04 11:26 COLCON_IGNORE
+-rw-rw-r--  1 orange-pi orange-pi 14856 2026-04-04 12:27 _local_setup_util_ps1.py
+-rw-rw-r--  1 orange-pi orange-pi 15024 2026-04-04 12:27 _local_setup_util_sh.py
+drwxrwxr-x  4 orange-pi orange-pi  4096 2026-04-04 11:26 encoder
+drwxrwxr-x  4 orange-pi orange-pi  4096 2026-04-04 11:27 hipnuc_imu
+drwxrwxr-x  4 orange-pi orange-pi  4096 2026-04-04 11:27 lidar_tracking
+-rw-rw-r--  1 orange-pi orange-pi  3760 2026-04-04 12:27 local_setup.bash
+-rw-rw-r--  1 orange-pi orange-pi  2045 2026-04-04 12:27 local_setup.ps1
+-rw-rw-r--  1 orange-pi orange-pi  4335 2026-04-04 12:27 local_setup.sh
+-rw-rw-r--  1 orange-pi orange-pi  4155 2026-04-04 12:27 local_setup.zsh
+drwxrwxr-x  5 orange-pi orange-pi  4096 2026-04-04 11:39 lslidar_driver
+drwxrwxr-x  6 orange-pi orange-pi  4096 2026-04-04 11:28 lslidar_msgs
+drwxrwxr-x  4 orange-pi orange-pi  4096 2026-04-04 11:27 nav2_waypoint_cycle
+drwxrwxr-x  5 orange-pi orange-pi  4096 2026-04-04 11:27 openslam_gmapping
+drwxrwxr-x  5 orange-pi orange-pi  4096 2026-04-04 11:29 racecar
+drwxrwxr-x  4 orange-pi orange-pi  4096 2026-04-04 11:28 racecar_driver
+drwxrwxr-x  5 orange-pi orange-pi  4096 2026-04-04 11:28 serial
+-rw-rw-r--  1 orange-pi orange-pi  1140 2026-04-04 12:27 setup.bash
+-rw-rw-r--  1 orange-pi orange-pi  1165 2026-04-04 12:27 setup.ps1
+-rw-rw-r--  1 orange-pi orange-pi  1908 2026-04-04 12:27 setup.sh
+-rw-rw-r--  1 orange-pi orange-pi  1128 2026-04-04 12:27 setup.zsh
+drwxrwxr-x  4 orange-pi orange-pi  4096 2026-04-04 11:29 slam_gmapping
+[rc=0]

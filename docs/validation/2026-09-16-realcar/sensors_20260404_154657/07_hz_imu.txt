@@ -1,0 +1,7 @@
+WARNING: topic [/IMU_data] does not appear to be published yet
+average rate: 99.960
+	min: 0.000s max: 0.033s std dev: 0.00327s window: 101
+average rate: 99.954
+	min: 0.000s max: 0.033s std dev: 0.00297s window: 201
+average rate: 99.941
+	min: 0.000s max: 0.038s std dev: 0.00360s window: 301

@@ -1,0 +1,8 @@
+$ ls -la /etc/cron.d/
+total 28
+drwxr-xr-x   2 root root  4096 Feb 27  2024 .
+drwxr-xr-x 146 root root 12288 Apr  4 15:17 ..
+-rw-r--r--   1 root root   102 May 11  2022 .placeholder
+-rw-r--r--   1 root root   202 Jan  9  2022 e2scrub_all
+-rw-r--r--   1 root root   396 Dec 23  2017 sysstat
+[rc=0]

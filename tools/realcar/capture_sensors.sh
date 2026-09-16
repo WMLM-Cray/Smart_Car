@@ -41,8 +41,8 @@ timeout 6  ros2 topic hz /encoder > "$OUT/08_hz_encoder.txt" 2>&1
 
 # ---- 5. TF 结构(静止;view_frames 生成 frames.pdf)+ 静态 TF 原文 ----
 cd "$OUT" && timeout 30 ros2 run tf2_tools view_frames > /dev/null 2>&1; cd - > /dev/null
-timeout 15 ros2 topic echo /tf_static > "$OUT/09_tf_static.txt" 2>&1 & TFPID=$!
-sleep 8; kill $TFID 2>/dev/null
+timeout 15 ros2 topic echo /tf_static > "$OUT/09_tf_static.txt" 2>&1 & TF_PID=$!
+sleep 8; kill $TF_PID 2>/dev/null
 
 # ---- 6. 汇总关键数(便于直接回填对账表) ----
 {
