@@ -52,6 +52,17 @@ class TeleopStateMachine:
 
     def on_joy(self, now, axes, buttons):
         """Handle a received Joy message (valid or not)."""
+        if self._last_input_time is not None and \
+                (now - self._last_input_time) > self.params.input_timeout:
+            # Gap between consecutive Joy messages exceeded the input
+            # timeout.  A tick may not have run inside that gap (blocked
+            # executor etc.), so treat the gap itself as an observed
+            # timeout: lock now, before this message refreshes the
+            # timestamp.  Recovery still requires an enable release+press.
+            # (2026-09-17 主线复验判据3b补丁:原版仅靠 on_tick 观察超时,
+            #  断流窗口内无tick时恢复消息刷新时间戳可漏撤销使能。)
+            self._timeout_occurred = True
+            self._armed = False
         self._last_input_time = now
         if not validate_joy(axes, buttons, self.params):
             # Garbage / truncated / non-finite input: revoke permission.
