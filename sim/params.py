@@ -11,8 +11,9 @@ from dataclasses import dataclass
 @dataclass
 class CarParams:
     # --- 几何 ---
-    # [对齐 2026-09-16] 与 Gazebo 主线 params.yaml wheel_base=0.36 一致(SIM_INTEROP 要求
-    #   两边同一个值);0.305 是厂家另一版源码的候选值,卷尺实测前不改已验证车辆基线
+    # [实测 2026-09-16,commit 3fad10b] 用户卷尺实测轴距 0.36(轮径 180mm),与 Gazebo
+    #   主线 params.yaml wheel_base=0.36 一致;厂家另一版源码候选 0.305(car_controller_
+    #   new.cpp:118)已关闭,不再作为待测项
     wheelbase: float = 0.36
     length: float = 0.56            # [假设] 外形 560mm(规则外形尺寸)
     width: float = 0.35             # [假设] 外形 350mm
@@ -21,7 +22,14 @@ class CarParams:
     steer_rate: float = 4.0         # [假设] 舵机转角速率 rad/s
 
     # --- PWM 接口(与 racecar_teleop.py / web_teleop 一致) ---
-    pwm_mid: int = 1550             # [代码] 电调中位
+    # ⚠️ 本段是【二维仿真专用 PWM 模型】(sim/pwm.py 里的 speed↔PWM 转换层),
+    #   与实车现役驱动公式 motor=v×100+1540(2026-09-16 实测标定电调中位 1540,
+    #   REALCAR_CONTROL_AUDIT §3 / commit 6bb97d8)是两套不同配置(KNOWN_DIFFERENCE,
+    #   见 tools/contract_audit/contract.json):禁止为"检查全绿"互相替换,
+    #   禁止把本二维模型直接接到实车执行器。
+    #   下列 [代码] 值的来源=车上 ~/racecar/src 版 racecar_teleop.py 的注释/常量
+    #   (该 src 版未编译不生效,仅作二维建模参数来源);单位均为 µs。
+    pwm_mid: int = 1550             # [代码] src 版 teleop 电调中位(≠现役公式偏置 1540)
     pwm_fwd_start: int = 1600       # [代码] teleop 注释"can roll";真实起转点未测准
     pwm_rev_start: int = 1360       # [代码] teleop 倒车起步
     pwm_fwd_full: int = 2000        # [代码] teleop 上限

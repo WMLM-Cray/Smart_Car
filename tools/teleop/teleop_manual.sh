@@ -47,22 +47,49 @@ done
 echo "手柄设备: $JSDEV(若多个 js 设备,joy_node 自动取第一个;轴/按键务必先标定)"
 
 # 收链 -----------------------------------------------------------------
+# 原则(2026-09-17 契约审查轮修正):
+#   1. 只清理本脚本登记 PID 的进程树(递归收集后代),不用全局 pkill 按名扫
+#      ——字符类写法只能防自匹配,不能限定进程归属,会误杀其他 ROS 任务;
+#   2. 停止顺序:指令源(teleop/joy)先停 → 等安全层超时零速把停车帧送到串口
+#      → 退出底盘链(driver)→ 安全层最后退(保证停车消息始终有人接收)。
 SAFETY_PID=""; CAR_PID=""; JOY_PID=""; TELEOP_PID=""
-terminate() {
-  echo "收链..."
-  for p in "$TELEOP_PID" "$JOY_PID" "$SAFETY_PID" "$CAR_PID"; do
-    [ -n "$p" ] && kill "$p" 2>/dev/null
+
+collect_tree() {  # $1=根pid:递归输出自身+全部后代(只处理自己创建的进程)
+  local pid="$1" children c
+  kill -0 "$pid" 2>/dev/null || return 0
+  echo "$pid"
+  children=$(ps -o pid= --ppid "$pid" 2>/dev/null)
+  for c in $children; do collect_tree "$c"; done
+}
+
+chain_pids() {  # 输出本链全部登记进程树的并集
+  local root
+  for root in "$TELEOP_PID" "$JOY_PID" "$SAFETY_PID" "$CAR_PID"; do
+    [ -n "$root" ] && collect_tree "$root"
   done
-  sleep 3
-  # 兜底按名清理(字符类防 pkill 自匹配;[t]eleop_node 同时防误杀本脚本)
-  pkill -f "[t]eleop_node" 2>/dev/null
-  pkill -f "[j]oy_node" 2>/dev/null
-  pkill -f "[R]un_car.launch" 2>/dev/null
-  pkill -f "[r]acecar_driver_node" 2>/dev/null
-  pkill -f "[c]md_vel_safety" 2>/dev/null
-  pkill -f "ros2 launch" 2>/dev/null
+}
+
+terminate() {
+  echo "收链: 1)停指令源 → 2)等安全层零速帧落地 → 3)退底盘driver → 4)安全层最后退"
+  # 1) 指令源先停:/cmd_vel 断流,安全层 0.5s 超时并周期发零到 /car_cmd_vel
+  [ -n "$TELEOP_PID" ] && kill "$TELEOP_PID" 2>/dev/null
+  [ -n "$JOY_PID" ] && kill "$JOY_PID" 2>/dev/null
+  # 2) 等停车帧到达串口:超时0.5s+重发周期0.5s,1.5s 裕量(driver 此期间保持在线)
+  sleep 1.5
+  # 3) 退出底盘链 Run_car(driver 在其进程树内;driver SIGINT 可能耗时数秒)
+  if [ -n "$CAR_PID" ]; then
+    kill "$CAR_PID" 2>/dev/null
+    kill -- "-$CAR_PID" 2>/dev/null   # Run_car 是 setsid 独立会话,组杀覆盖直接子进程
+  fi
+  sleep 2.0
+  # 4) 安全层最后退(此时停车消息已被 driver 接收,车已零速≥3.5s)
+  [ -n "$SAFETY_PID" ] && kill "$SAFETY_PID" 2>/dev/null
+  sleep 0.5
+  # 5) 兜底:仅对登记树内仍存活的残余 SIGKILL(ros2 launch 孙进程可能脱离进程组)
+  local p
+  for p in $(chain_pids); do kill -9 "$p" 2>/dev/null; done
   wait 2>/dev/null
-  echo "已收链。确认车静止后再断电调开关。"
+  echo "已收链(全程未用全局按名清理,只清理本链登记进程树)。确认车静止后再断电调开关。"
 }
 trap terminate SIGINT SIGTERM
 

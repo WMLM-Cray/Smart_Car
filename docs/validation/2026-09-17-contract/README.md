@@ -22,7 +22,7 @@ Codex 独立交付目录:
 | 项 | 状态 | 处置 |
 |---|---|---|
 | `pwm.profile_separation`(sim 1550 vs 驱动 1540) | KNOWN_DIFFERENCE | 保留为不同配置;文档说明来源/单位/转换层;禁止训练 PWM 模型接实车(本轮后续提交处理文档) |
-| `launcher.global_cleanup`(teleop_manual.sh 58-63 行全局 pkill) | REVIEW | **本轮必改**:改为仅管理本次登记的进程(本轮后续提交修复) |
+| `launcher.global_cleanup`(teleop_manual.sh 58-63 行全局 pkill) | REVIEW | 已修复:改为 collect_tree 递归登记进程树+setsid 组杀,复跑报告 REVIEW 消除(见下第三份报告;判据与工具零改动,残留命中仅 echo 文案字样,一并改写) |
 | `scope.runtime` | UNVERIFIED | 如实保留;运行时参数/图/串口/停车行为不在静态检查范围 |
 
 ## 证据文件
@@ -31,6 +31,7 @@ Codex 独立交付目录:
 |---|---|
 | `contract-report-20260917.json` | Codex 原始报告(未动) |
 | `contract-report-20260917-mainline-rerun.json` | 主线独立复跑报告(绑定同 HEAD 与源文件 SHA256) |
+| `contract-report-20260917-manualchain.json` | 手动链清理修复后复跑:global_cleanup REVIEW 消除,仍 21 PASS / exit 0 |
 
 两报告均绑定:读取源文件 SHA256、契约 SHA256、HEAD、UTC 时间。
 **退出码 0 = 静态数值约束未发现失败,不是停车保护/运行时接口/运动轨迹的验证,

@@ -21,7 +21,7 @@ for f in tools/teleop/teleop_manual.sh:racecar_team/teleop_manual.sh \
   if [ "$lmd5" = "$rmd5" ]; then
     echo "  一致: ~/$dst"
   elif [ -z "$rmd5" ]; then
-    scp -q "$REPO/$src" "hwcar:~/$dst" && echo "  新部署: ~/$dst"
+    scp -q "$REPO/$src" "hwcar:~/$dst" && echo "  新部署: ~/$dst" || { echo "!! scp 失败: $dst"; exit 3; }
   else
     echo "  !! 车上已有且不同(~/$dst),本次不覆盖;确要用仓库版: scp '$REPO/$src' hwcar:~/$dst"
   fi
@@ -34,8 +34,11 @@ elif [ -z "$rmd5" ]; then scp -q "$REPO/tools/realcar/cmd_vel_safety.py" hwcar:~
 else echo "  !! 车上 cmd_vel_safety.py 与仓库 HEAD 不同,不覆盖(人工裁决)"; fi
 
 echo "== 2. 打包手柄包(含 e2113b0 判据3b补丁)并上传 =="
-git -C "$REPO" archive HEAD:hwcart_sim/src/racecar_teleop -o "$TMP_TAR"
-scp -q "$TMP_TAR" hwcar:'/tmp/racecar_teleop_deploy.tar'
+git -C "$REPO" archive HEAD:hwcart_sim/src/racecar_teleop -o "$TMP_TAR" || {
+  echo "!! git archive 失败"; exit 3; }
+scp -q "$TMP_TAR" hwcar:'/tmp/racecar_teleop_deploy.tar' || {
+  echo "!! 上传失败"; exit 3; }
+# 远端 set -e:解包/构建/单测任一失败 → ssh 非零 → 本地中止(不打印"部署完成")
 ssh hwcar '
   set -e
   rm -rf ~/racecar_team/teleop_ws/src/racecar_teleop
@@ -48,7 +51,7 @@ ssh hwcar '
   colcon build --packages-select racecar_teleop 2>&1 | tail -3
   source install/setup.bash
   cd src/racecar_teleop && python3 -m pytest test/ -q 2>&1 | tail -1
-'
+' || { echo "!! 车端解包/构建/单测失败(见上方输出),中止部署"; exit 4; }
 
 echo "== 3. joy 包与手柄设备检查 =="
 ssh hwcar '
