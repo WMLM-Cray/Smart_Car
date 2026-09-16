@@ -25,3 +25,6 @@ work/
 Thumbs.db
 desktop.ini
 *.baiduyun.*
+
+# --- Python 测试缓存(sim/ 引入,来源 9971895) ---
+.pytest_cache/
