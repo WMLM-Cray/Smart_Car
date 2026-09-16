@@ -8,5 +8,9 @@ setup(name='racecar_bringup_sim', version='0.1.0', packages=['racecar_bringup_si
                   (os.path.join('share/racecar_bringup_sim', 'launch'),
                    glob('launch/*.launch.py')),
                   (os.path.join('share/racecar_bringup_sim', 'rviz'),
-                   glob('rviz/*.rviz'))],
+                   glob('rviz/*.rviz')),
+                  (os.path.join('share/racecar_bringup_sim', 'config'),
+                   glob('config/*.yaml')),
+                  (os.path.join('share/racecar_bringup_sim', 'maps'),
+                   glob('maps/*'))],
       install_requires=['setuptools'], zip_safe=True)

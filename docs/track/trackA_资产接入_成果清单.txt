@@ -126,3 +126,37 @@ trackA 资产接入轮 成果目录清单(f1ede59,integration/trackA-sdf)
     bash tools/trackA/test_driver_run.sh short   # 先短段
     bash tools/trackA/test_driver_run.sh full    # 整圈(无头)
     bash tools/trackA/test_driver_map_run.sh full # 整圈+建图+截图
+
+七、阶段3 第三步:载入已存地图+AMCL 定位(详见同目录
+    《trackA_阶段3_3_AMCL定位.md》)
+--------------------------------------------------------------------
+[13] 定位启动与参数(新增)
+    hwcart_sim/src/racecar_bringup_sim/launch/localization_bringup.launch.py
+                                          一键:重启场景(无SLAM/无测试
+                                          驾驶器)+map_server+amcl+
+                                          lifecycle+RViz
+    hwcart_sim/src/racecar_bringup_sim/config/amcl.yaml
+                                          AMCL 参数(关键:Humble 的
+                                          robot_model_type 须写插件类名
+                                          nav2_amcl::DifferentialMotionModel;
+                                          max_beams 非 laser_max_beams)
+    hwcart_sim/src/racecar_bringup_sim/rviz/localization.rviz
+                                          定位视图(粒子云显示须用
+                                          nav2_rviz_plugins/ParticleCloud)
+    hwcart_sim/src/racecar_bringup_sim/maps/trackA_map_full.pgm/.yaml
+                                          包内地图副本(launch 默认载入)
+
+[14] 证据(新增)
+    tools/trackA/amcl_check.py            定位验收器(开环轻推 5m 往返,
+                                          真值仅误差统计不进 AMCL)
+    tools/trackA/amcl_demo_run.sh         无头编排(Xvfb+截图+验收)
+    docs/track/amcl_check_report.json     PASS:初始0.013/最大0.066/
+                                          RMS0.036/末段0.041 m(判据
+                                          0.25/0.25/0.15),43 样本
+    docs/track/amcl_rviz_0_initial.png    初始:地图+激光+粒子云收敛
+    docs/track/amcl_rviz_1_after.png      运动后:AMCL 箭头贴合车体
+
+[15] 复验入口(WSL,预期 rc=0 / PASS)
+    ros2 launch racecar_bringup_sim localization_bringup.launch.py \
+        use_gui:=false   # 交互(RViz 2D Pose Estimate 可重给初值)
+    bash tools/trackA/amcl_demo_run.sh    # 无人值守全流程
