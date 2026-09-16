@@ -32,3 +32,6 @@ desktop.ini
 # --- 内部工作文件(不入远程) ---
 CLAUDE.md
 docs/IMPLEMENTATION_STATUS.md
+
+# --- Python 测试缓存 ---
+.pytest_cache/
