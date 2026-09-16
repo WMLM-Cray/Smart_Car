@@ -69,10 +69,16 @@ class RuleTrackParams(TrackParams):
     """按比赛规则的元素拼赛道(track_rules.py)。[规则] 项见该文件头部出处。"""
     turn_radius: float = 2.0            # [规则] 内径 1.25 / 外径 2.75 -> 中心线 2.0
     turn_angles: tuple = (45.0, 90.0, 135.0)   # [规则] 只有这三种转角
-    right_turn_ratio: float = 0.25      # [假设] 反向弯的比例,用来出 S 弯
-    min_turns: int = 6                  # [假设]
-    max_turns: int = 10                 # [假设] 再多圈就超出 16.8m 场地
-    straight_min: float = 1.0           # [假设]
+    # --- 布局:一条大直道 + 两端 180° 大弯 + 回程侧几个 S 弯(规则图 1 的长条形)---
+    main_straight_min: float = 7.0      # [规则图1] 主直道明显比其它直段长
+    main_straight_max: float = 11.0     # [假设]
+    bend_radius_min: float = 1.2        # [假设] 小 S 弯可以比 2.0 更紧,下限按车的最小转弯半径留裕量
+    end_radius_min: float = 1.6         # [假设] 端部大弯半径,图上比普通弯大
+    end_radius_max: float = 2.6         # [假设]
+    s_bends_min: int = 1                # [规则图1] 回程侧是连续小 S 弯(每组 2 个镜像对)
+    s_bends_max: int = 2                # [假设]
+    right_angle_chance: float = 0.5     # [规则] 赛道含"直角区",不是每条都有
+    straight_min: float = 0.6           # [假设] 弯与弯之间的短直段下限
     straight_max: float = 4.0           # [规则] 图 9 有 4m 直段标注
     max_extent: float = 16.8            # [规则] 图 9 总横向 16.8m
     narrow_width: float = 1.25          # [规则] 局部收窄段宽度

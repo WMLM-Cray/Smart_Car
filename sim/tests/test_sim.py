@@ -153,8 +153,15 @@ def test_rule_track_uses_only_legal_elements():
     corners = [sum(v for _, v in grp)
                for straight, grp in itertools.groupby(enumerate(turn), key=lambda kv: abs(kv[1]) < 0.05)
                if not straight]
-    assert len(corners) >= p.min_turns
-    assert all(min(abs(abs(c) - legal) for legal in p.turn_angles) < 2.0 for c in corners), corners
+    legal = (*p.turn_angles, 180.0)                 # 180° 是两端掉头的大弯
+    assert all(min(abs(abs(c) - a) for a in legal) < 2.0 for c in corners), corners
+    assert sum(1 for c in corners if abs(abs(c) - 180) < 2) == 2      # 长条形:两端各一个掉头
+    assert len(corners) >= 4                                          # 回程侧还有 S 弯
+    # 主直道:最长的直段应当明显长于其它直段(规则图 1 的大直道)
+    straights = [len(list(grp)) * 0.05
+                 for straight, grp in itertools.groupby(turn, key=lambda v: abs(v) < 0.05) if straight]
+    straights.sort()
+    assert straights[-1] >= p.main_straight_min - 0.2 and straights[-1] > 2 * straights[-2]
     # 赛道宽:每个锥桶到中心线的距离在 1.25/2 与 1.5/2 之间
     d = np.hypot(*(a.cones[:, None, :] - a.centerline[None]).transpose(2, 0, 1)).min(axis=1)
     assert d.min() > p.narrow_width / 2 - 0.05 and d.max() < p.width / 2 + 0.05
