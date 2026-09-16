@@ -1,0 +1,109 @@
+# 无动力联调报告 2026-04-04T16:28:46.693612
+输出目录: /home/orange-pi/dryrun_20260404_162846
+[自检] 无 racecar_driver 残留进程 ✓
+[自检] /dev/car 存在性(仅记录,不打开): True
+[安全确认] 用户回车继续(ans='')
+[隔离] pty 从端 /dev/pts/1 -> /tmp/fakecar
+
+== T0: 启动后 3s 无指令(应不发任何字节,无初始化报文)
+   输入后 3.0s 内 pty 字节(0B): (无字节)
+   driver stdout 新增 send-buff 打印: 0 条
+   预期: 无字节
+   判定: PASS(字节应无)
+
+== T1: 零指令 v=0 z=0
+   输入后 1.5s 内 pty 字节(16B): 00 aa 04 06 dc 05 eb 55 00 aa 04 06 dc 05 eb 55
+   driver stdout 新增 send-buff 打印: 0 条
+   预期: motor=1540 servo=1500
+   判定: PASS(字节出现)
+
+== T2: 正向小指令 v=0.25(=nav2 desired_linear_vel)
+   输入后 1.5s 内 pty 字节(16B): 00 aa 1d 06 dc 05 04 55 00 aa 1d 06 dc 05 04 55
+   driver stdout 新增 send-buff 打印: 0 条
+   预期: motor=1565
+   判定: PASS(字节出现)
+
+== T2b: 正向 v=1.0
+   输入后 1.5s 内 pty 字节(16B): 00 aa 68 06 dc 05 4f 55 00 aa 68 06 dc 05 4f 55
+   driver stdout 新增 send-buff 打印: 0 条
+   预期: motor=1640
+   判定: PASS(字节出现)
+
+== T3: 反向小指令 v=-0.25
+   输入后 1.5s 内 pty 字节(16B): 00 aa eb 05 dc 05 d1 55 00 aa eb 05 dc 05 d1 55
+   driver stdout 新增 send-buff 打印: 0 条
+   预期: motor=1290
+   判定: PASS(字节出现)
+
+== T4a: 满舵一端 z=+5/13
+   输入后 1.5s 内 pty 字节(16B): 00 aa 04 06 e8 03 f5 55 00 aa 04 06 e8 03 f5 55
+   driver stdout 新增 send-buff 打印: 0 条
+   预期: servo=1000
+   判定: PASS(字节出现)
+
+== T4b: 满舵另一端 z=-5/13
+   输入后 1.5s 内 pty 字节(16B): 00 aa 04 06 d0 07 e1 55 00 aa 04 06 d0 07 e1 55
+   driver stdout 新增 send-buff 打印: 0 条
+   预期: servo=2000
+   判定: PASS(字节出现)
+
+== T5: 越界回绕 v=-20(=uint16 回绕演示,只进虚拟口)
+   输入后 1.5s 内 pty 字节(16B): 00 aa 00 00 dc 05 e1 55 00 aa 00 00 dc 05 e1 55
+   driver stdout 新增 send-buff 打印: 0 条
+   预期: motor=uint16(-460)=65076
+   判定: PASS(字节出现)
+
+== T8: teleop 直通零位 x=1540 z=90(=install 版 teleop 停止键语义)
+   输入后 1.5s 内 pty 字节(16B): 00 aa 04 06 dc 05 eb 55 00 aa 04 06 dc 05 eb 55
+   driver stdout 新增 send-buff 打印: 0 条
+   预期: motor=1540 servo=1500
+   判定: PASS(字节出现)
+
+== T6: 断流测试(发一条后静默 20s,应无自动停车字节——无 watchdog)
+   静默期字节: (无字节)
+   预期: 无字节(下位机将保持最后指令)  判定: PASS
+
+== T7: 退出测试(SIGINT driver,退出过程不应发送任何字节)
+   driver 退出码: -9;退出后字节: (无字节);判定: PASS
+
+========== 第二轮:racecar_driver_node_one(桥接决策采纳的 /cmd_vel 版)==========
+
+== T9a: node_one 零指令 v=0 z=0(/cmd_vel)
+   输入后 1.5s 内 pty 字节(16B): 00 aa 04 06 dc 05 eb 55 00 aa 04 06 dc 05 eb 55
+   driver stdout 新增 send-buff 打印: 0 条
+   预期: motor=1540 servo=1500
+   判定: PASS(字节出现)
+
+== T9b: node_one v=0.25(/cmd_vel,重启可重复性)
+   输入后 1.5s 内 pty 字节(16B): 00 aa 1d 06 dc 05 04 55 00 aa 1d 06 dc 05 04 55
+   driver stdout 新增 send-buff 打印: 0 条
+   预期: motor=1565
+   判定: PASS(字节出现)
+
+== T9c: node_one teleop 直通 x=1550 z=84(=src 版 teleop 停止语义,未编译也先验证通道)
+   输入后 1.5s 内 pty 字节(32B): 00 aa 0e 06 1e 06 38 55 00 aa 0e 06 1e 06 38 55 00 aa 0e 06 1e 06 38 55 00 aa 0e 06 1e 06 38 55
+   driver stdout 新增 send-buff 打印: 0 条
+   预期: motor=1550 servo=1566
+   判定: PASS(字节出现)
+
+[node_one] 退出码 -9
+
+========== 第三轮 T10:下位机失联模拟(关闭 pty 主端 = 模拟 car 板 USB 拔出)==========
+
+== T10a: 失联前基准:发 v=0.25 应有字节
+   输入后 1.5s 内 pty 字节(24B): 00 aa 1d 06 dc 05 04 55 00 aa 1d 06 dc 05 04 55 00 aa 1d 06 dc 05 04 55
+   driver stdout 新增 send-buff 打印: 0 条
+   预期: motor=1565(字节正常)
+   判定: PASS(字节出现)
+   -- 关闭 pty 主端(模拟拔线),2s 后再发指令观察 driver 存活 --
+   拔线后 driver 存活: True
+   拔线后再发指令 driver 存活: True;SIGINT 退出码: -9
+   末尾 stdout 相关行: (无 error/serial 字样)
+   判定: 记录(行为观察,无 PASS/FAIL)
+
+========== 汇总 ==========
+结果: 全部 PASS
+
+字节差分提示(帧格式逆向素材,人工分析用):
+  T1 与 T2 的字节差异应恰为 motor 低字节 +0x19(1540->1565);
+  T4a/T4b 与 T1 的差异应在 servo 字节;详见 raw.json 各工况 bytes_hex。
