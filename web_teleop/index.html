@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>HW-Autocar</title><style>
+/* 界面样式沿用 Astra-Rover 的 preview.html。车上不接外网,字体只能用系统栈。 */
+:root{--fg:#111;--dim:#999;--line:#e8e8e8;--ok:#1a7f4b;--warn:#a86a00;--bad:#b3261e;--act:#2f6fb0}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;border-radius:0}
+html,body{background:#fff;margin:0}
+body{color:var(--fg);
+  font:500 16px/1.6 "MiSans","HarmonyOS Sans SC","PingFang SC","Yuanti SC",
+       "Avenir Next","Microsoft YaHei","Source Han Sans SC",sans-serif;
+  padding-bottom:24px;overscroll-behavior:none}
+header{display:flex;align-items:center;gap:8px;padding:12px 14px}
+#dot{width:8px;height:8px;border-radius:50%;background:var(--bad);flex:none}
+#hint{color:var(--dim);font-size:13px}
+main{max-width:760px;margin:0 auto}
+section{padding:14px}
+
+#stick{position:relative;width:220px;height:220px;margin:0 auto;touch-action:none;cursor:grab}
+/* ⚠️ 底色走 --kg 变量,由 place() 实时写(中心浅灰 -> 边缘纯黑)。 */
+#knob{position:absolute;width:68px;height:68px;border-radius:50%;left:76px;top:76px;
+  --kg:236;background:rgb(var(--kg),var(--kg),var(--kg))}
+#stick.on{cursor:grabbing}
+
+#hud{display:flex;align-items:baseline;justify-content:space-between;
+  margin-top:16px;padding:2px 4px}
+#hud span{display:flex;align-items:baseline;gap:4px;white-space:nowrap}
+#hud b{font-size:30px;font-weight:600;line-height:1.1;
+  font-variant-numeric:tabular-nums;
+  transition:transform .12s,color .12s}
+#hud i{font-style:normal;font-size:12px;font-weight:600;color:var(--dim)}
+#hud em{width:1px;align-self:stretch;background:var(--line);margin:7px 0}
+#gear.shift b{transform:scale(1.3)}
+.cap{margin:14px 0 0;font-size:11px;font-weight:600;letter-spacing:.12em;
+  color:var(--dim);text-transform:uppercase}
+
+.seg{position:relative;display:flex;margin-top:8px;padding:3px;
+  border:1px solid var(--line);border-radius:10px;
+  touch-action:none;user-select:none;-webkit-user-select:none}
+.seg .thumb{position:absolute;top:3px;left:3px;bottom:3px;
+  width:calc((100% - 6px)/3);border-radius:7px;
+  transform:translateX(100%);
+  transition:transform .28s cubic-bezier(.3,.7,.3,1);
+  will-change:transform;pointer-events:none}
+.seg button{position:relative;z-index:1;flex:1;padding:10px 0;border:0;
+  background:none;font:inherit;font-size:15px;font-weight:600;
+  color:var(--dim);cursor:pointer;touch-action:manipulation;
+  transition:color .2s ease}
+#rngsel .thumb{background:var(--fg)}
+#rngsel button.on{color:#fff}
+#modesel{background:linear-gradient(90deg,
+  rgba(111,159,199,.16),rgba(47,111,176,.13),rgba(229,72,77,.16))}
+#modesel .thumb{background:rgba(255,255,255,.55);
+  backdrop-filter:blur(10px) saturate(1.6);
+  -webkit-backdrop-filter:blur(10px) saturate(1.6);
+  border:1px solid rgba(255,255,255,.75);
+  box-shadow:0 2px 12px rgba(0,0,0,.10)}
+#modesel button.on{color:var(--fg)}
+#pad{color:var(--dim);margin-top:12px;font-size:12px;text-align:center}
+
+#estop{display:block;width:100%;margin-top:20px;padding:18px;border:0;background:none;
+  font:inherit;font-size:18px;font-weight:600;color:var(--fg);cursor:pointer;letter-spacing:.1em}
+#estop:active{color:var(--dim)}
+#estop.armed{color:var(--bad)}
+
+#tel{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:0}
+#tel div{padding:7px 10px 7px 0;border-bottom:1px solid var(--line)}
+#tel b{display:block;font-size:11px;color:var(--dim);font-weight:600}
+#tel span{font-size:17px}
+#log{height:132px;overflow:auto;margin-top:8px;padding:8px 0;font-size:13px;
+  white-space:pre-wrap;color:var(--dim)}
+.bad{color:var(--bad)}.warn{color:var(--warn)}.ok{color:var(--ok)}
+
+/* ---- 驾驶模式皮肤,和原页面一致:m-roam 故意是空类 ---- */
+html,body{transition:background-color .5s ease,color .5s ease}
+html:has(body.m-max){background:#0d0a0b}
+html:has(body.m-sloth){background:#fafcfd}
+
+body.m-sloth{--fg:#4a5a68;--dim:#9dabbb;--line:#e6ecf1;--act:#6f9fc7;--card:#f7fbfd;
+  background:#fafcfd;transition:background-color 1.2s ease,color 1.2s ease}
+body.m-sloth #hud b{transition:transform 1.1s cubic-bezier(.25,.1,.25,1),color 1.1s ease}
+body.m-sloth #gear.shift b{transform:scale(1.05)}
+body.m-sloth .seg .thumb{transition:transform 1.1s cubic-bezier(.25,.1,.25,1)}
+body.m-sloth .seg button{transition:color .9s ease}
+body.m-sloth #knob{transition:left .4s cubic-bezier(.25,.1,.25,1),
+  top .4s cubic-bezier(.25,.1,.25,1),background .9s linear}
+body.m-sloth #stick::before{content:'';position:absolute;inset:-6px;border-radius:50%;
+  pointer-events:none;
+  background:radial-gradient(circle,rgba(111,159,199,.20),rgba(111,159,199,0) 70%);
+  animation:slothBreath 8s ease-in-out infinite}
+@keyframes slothBreath{0%,100%{transform:scale(.92);opacity:.35}
+                       50%{transform:scale(1.04);opacity:.8}}
+
+body.m-max{--fg:#f3ece6;--dim:#978c84;--line:#38302c;--act:#ff6a4d;--card:#1a1416;
+  --bad:#ff5a52;--warn:#ffb020;--ok:#3ddc84;
+  background:
+    radial-gradient(130% 70% at 50% -10%,rgba(229,72,77,.14),rgba(229,72,77,0) 60%),
+    #0d0a0b;
+  transition:background .45s ease,color .45s ease}
+body.m-max #stick::before{content:'';position:absolute;inset:-26px;border-radius:50%;
+  pointer-events:none;
+  background:radial-gradient(circle,rgba(229,72,77,.16),rgba(229,72,77,0) 65%);
+  animation:mmEmber 4s ease-in-out infinite}
+@keyframes mmEmber{0%,100%{opacity:.55;transform:scale(.96)}
+                   50%{opacity:1;transform:scale(1.03)}}
+body.m-max #knob{border:1px solid rgba(255,120,90,.45);
+  background:linear-gradient(155deg,rgba(255,110,80,.30),rgba(255,110,80,0) 55%),
+             rgb(var(--kg),var(--kg),var(--kg));
+  box-shadow:0 0 20px rgba(229,72,77,.30),inset 0 1px 0 rgba(255,255,255,.14)}
+body.m-max #hud b{transition:transform .08s ease,color .08s ease}
+body.m-max #gear.shift b{transform:scale(1.35)}
+body.m-max #hud i{color:#7d7468}
+body.m-max.fast #spdnum,body.m-max.fast #pwmnum{
+  background:linear-gradient(180deg,#ffc0a6,#ff5a3c);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 0 10px rgba(255,90,60,.45))}
+body.m-max.fast #stick::before{animation-duration:2s}
+body.m-max .seg{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09)}
+body.m-max #rngsel .thumb{
+  background:linear-gradient(160deg,rgba(255,255,255,.18),rgba(255,255,255,.05));
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,.14);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
+body.m-max #rngsel button.on{color:var(--fg)}
+body.m-max #modesel{background:linear-gradient(90deg,
+  rgba(255,255,255,.04) 50%,rgba(229,72,77,.10))}
+body.m-max #modesel .thumb{
+  background:linear-gradient(160deg,rgba(255,120,90,.55),rgba(229,72,77,.22));
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  border:1px solid rgba(255,150,120,.40);
+  animation:mmGlow 3s ease-in-out infinite}
+@keyframes mmGlow{0%,100%{box-shadow:0 0 10px rgba(229,72,77,.25),
+                           inset 0 1px 0 rgba(255,255,255,.18)}
+                  50%{box-shadow:0 0 22px rgba(229,72,77,.45),
+                           inset 0 1px 0 rgba(255,255,255,.18)}}
+body.m-max #modesel button.on{color:#fff}
+
+@media (prefers-reduced-motion:reduce){
+  body.m-sloth #stick::before,body.m-max #stick::before,
+  body.m-max #modesel .thumb{animation:none}
+}
+</style></head><body>
+<header><div id="dot"></div><span id="hint">连接中…</span></header>
+<main>
+
+<section>
+<div id="stick"><div id="knob"></div></div>
+<div id="hud">
+  <span><b id="spdnum">0</b><i>mm/s</i></span>
+  <em></em>
+  <span id="gear"><b id="rangen">D</b><i>档</i></span>
+  <em></em>
+  <span><b id="pwmnum">1550</b><i>PWM</i></span>
+</div>
+<div class="cap">排挡</div>
+<div class="seg" id="rngsel">
+  <i class="thumb"></i>
+  <button data-r="0">P</button><button data-r="1" class="on">D</button><button data-r="2">R</button>
+</div>
+<div class="cap">模式</div>
+<div class="seg" id="modesel">
+  <i class="thumb"></i>
+  <button data-m="0">Sloth</button><button data-m="1" class="on">Roaming</button><button data-m="2">MAD MAX</button>
+</div>
+<button id="estop">急停</button>
+<div id="pad">未检测到手柄 —— 插上或配对后按任意键唤醒</div>
+</section>
+
+<section><div id="tel"></div></section>
+
+<!-- 地址栏加 #debug 展开日志 -->
+<div id="adv" hidden=""><section><div id="log"></div></section></div>
+
+</main><script>
+const $=s=>document.querySelector(s), dot=$('#dot'), log=$('#log');
+let ws, estop=0, nx=0, ny=0, active=false, dragging=false;
+
+/* 发给服务端的都是"比例":油门/方向盘/刹车 -1000..1000。
+   PWM 换算和顶速上限都在 server.py 里做 —— 限速不能交给浏览器。
+   方向盘 >0 = 左,摇杆左(nx<0)对应正值。 */
+const EXPO_STR = 2.0, EXPO_THR = 2.0;
+const expo = (t, k) => Math.sign(t) * Math.pow(Math.abs(t), k);
+/* ny>0 = 给油,方向由排挡决定(R 档取负);P 档恒为 0。ny<0 是刹车。 */
+const thr   = () => { const t = Math.max(0, ny);
+  return (t <= 0 || isP()) ? 0 : Math.round(expo(t, EXPO_THR) * 1000 * (isR()?-1:1)); };
+const steer = () => Math.round(-expo(nx, EXPO_STR) * 1000);
+
+function say(t){log.textContent+=t.replace(/\n+$/,'')+'\n';log.scrollTop=log.scrollHeight;}
+function send(s){ if(ws&&ws.readyState==1) ws.send(s); }
+
+let lastRx=0;
+function connect(){
+  /* 已经在连或已连上就别再开一个,否则重连定时器和看门狗会叠出好几个 socket */
+  if(ws && (ws.readyState===0 || ws.readyState===1)) return;
+  ws=new WebSocket('ws://'+location.host+'/ws');
+  ws.onopen =()=>{lastRx=Date.now();dot.style.background='var(--ok)';
+                  $('#hint').textContent='已连接';send('h');
+                  send('l '+range); send('y '+mode);};   /* 服务端重启后把页面上的排挡/模式同步过去 */
+  ws.onclose=()=>{dot.style.background='var(--bad)';
+                  $('#hint').textContent='断开，重连中…';setTimeout(connect,1000);};
+  ws.onerror=()=>{ try{ws.close();}catch(e){} };
+  ws.onmessage=e=>{ lastRx=Date.now();
+                    if(e.data[0]=='{') tel(JSON.parse(e.data)); else say(e.data); };
+}
+/* 收包看门狗:遥测 10Hz,3 秒没包就主动关掉重连(TCP 半开时 onclose 不会触发)。
+   页面不可见时跳过,免得手机息屏回来误杀连接。服务端另有 300ms 死人开关。 */
+const RX_DEAD = 3000;
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) lastRx = Date.now(); });
+setInterval(()=>{
+  if(!ws || ws.readyState===3){ connect(); return; }
+  if(document.hidden) return;
+  if(ws.readyState===1 && Date.now()-lastRx > RX_DEAD){
+    $('#hint').textContent='无响应，重连中…';
+    try{ws.close();}catch(e){}
+  }
+},1000);
+const F=[['速度','mm/s',x=>x.spd],['电调','PWM',x=>x.pwm],['舵机','',x=>x.turn],
+         ['x','mm',x=>x.x],['y','mm',x=>x.y],['θ','°',x=>x.th],
+         ['角速度','°/s',x=>x.wz],['加速度 x','m/s²',x=>x.ax],['加速度 y','m/s²',x=>x.ay],
+         ['编码器','s 前',x=>x.enc<0?'无数据':x.enc]];
+function tel(d){
+  const el=$('#tel');
+  if(!el.children.length) el.innerHTML=F.map(f=>`<div><b>${f[0]} ${f[1]}</b><span></span></div>`).join('');
+  F.forEach((f,i)=>el.children[i].lastChild.textContent=f[2](d));
+  curSpd = d.spd;                     /* 双击刹车换向要判速度,见 padPoll */
+  $('#spdnum').textContent = d.spd;
+  $('#pwmnum').textContent = d.pwm;
+  document.body.classList.toggle('fast', Math.abs(d.spd) > 1500);
+  estop=d.es; $('#estop').classList.toggle('armed',!!d.es);
+  $('#estop').textContent=d.es?'已急停 — 点此解除':'急停';
+  /* 编码器 1 秒以上没数据 = car.sh 没开,底盘驱动多半也没在跑 */
+  $('#hint').innerHTML=d.es?'<span class=bad>急停锁定</span>':
+      (d.enc<0||d.enc>1)?'<span class=warn>没有传感器数据 —— car.sh 开了吗?</span>':'';
+}
+
+/* ---- 屏幕摇杆 ---- */
+const stick=$('#stick'), knob=$('#knob');
+const R=110, KR=34, MAX=R-KR;
+function place(){
+  knob.style.left=(R-KR+nx*MAX)+'px'; knob.style.top=(R-KR-ny*MAX)+'px';
+  const g=Math.round(236*(1-Math.min(1,Math.hypot(nx,ny))));
+  knob.style.setProperty('--kg', g);
+}
+/* 松手 = 油门回零,服务端给电调中位 */
+function release(){ nx=0; ny=0; brake=0; active=false; stick.classList.remove('on'); place();
+  send('t 0 0 0'); }
+function setxy(e){
+  const r=stick.getBoundingClientRect();
+  let dx=e.clientX-r.left-R, dy=e.clientY-r.top-R;
+  const m=Math.hypot(dx,dy);
+  if(m>MAX){ dx=dx/m*MAX; dy=dy/m*MAX; }
+  nx=dx/MAX; ny=-dy/MAX; place();
+}
+stick.addEventListener('pointerdown',e=>{
+  dragging=true; active=true; stick.classList.add('on');
+  stick.setPointerCapture(e.pointerId); setxy(e);
+});
+stick.addEventListener('pointermove',e=>{ if(dragging) setxy(e); });
+for(const ev of ['pointerup','pointercancel','pointerleave'])
+  stick.addEventListener(ev,()=>{ if(dragging){ dragging=false; release(); } });
+addEventListener('blur',()=>{ dragging=false; held.clear(); release(); });
+
+/* ---- Xbox 手柄 ----
+   左摇杆 X=转向。D 档 RT 油门/LT 刹车,R 档对调。RB/LB 切模式。A=D X=R Y=P。B=急停。
+   ⚠️ 浏览器要求先有一次用户手势:插上/配对后**按任意键**才会触发 gamepadconnected。 */
+let padIdx=null, padOn=false, padB=false, padLB=false, padRB=false;
+let padRng={};
+const DZ=0.12;                       /* 摇杆死区 */
+const dz=v=>{const a=Math.abs(v); return a<DZ?0:Math.sign(v)*(a-DZ)/(1-DZ);};
+
+const MODEN  = ['Sloth','Roaming','MAD MAX'];
+const MCLS   = ['m-sloth','m-roam','m-max'];
+function applyMode(m){ const b=document.body;
+  MCLS.forEach(c=>b.classList.remove(c)); b.classList.add(MCLS[m]); }
+let range=1, mode=1, brake=0;       /* 开机 D 档 + Roaming,和 server.py 默认一致 */
+let curSpd=0;
+const SHIFT_V=200, TAP_ON=0.5, TAP_OFF=0.2, TAP_MS=600;
+let padTap=false, padTapT=0;
+
+const isR = () => range===2;
+const isP = () => range===0;
+
+function setRange(r){
+  if(r<0||r>2||r===range) return;
+  range=r;
+  $('#rangen').textContent = 'PDR'[r];
+  $('#rngsel').querySelectorAll('button').forEach(b=>
+    b.classList.toggle('on', +b.dataset.r===r));
+  thumb('#rngsel', r);
+  send('l '+r);
+  const el=$('#gear'); el.classList.add('shift'); setTimeout(()=>el.classList.remove('shift'),130);
+}
+function setMode(m){
+  if(m<0||m>2||m===mode) return;
+  mode=m;
+  applyMode(m);
+  $('#modesel').querySelectorAll('button').forEach(b=>
+    b.classList.toggle('on', +b.dataset.m===m));
+  thumb('#modesel', m);
+  send('y '+m);             /* 服务端据此取油门 PWM 上限 */
+  say('模式 '+MODEN[m]);
+}
+function thumb(sel, i){
+  const t=document.querySelector(sel+' .thumb');
+  if(t) t.style.transform='translateX('+(i*100)+'%)';
+}
+function segDrag(el, cb){
+  const idx = e => {
+    const r=el.getBoundingClientRect();
+    const t=(e.clientX-r.left-3)/(r.width-6);
+    return Math.max(0, Math.min(2, Math.floor(t*3)));
+  };
+  let down=false;
+  el.addEventListener('pointerdown',e=>{ down=true;
+    try{ el.setPointerCapture(e.pointerId); }catch(_){}
+    cb(idx(e)); });
+  el.addEventListener('pointermove',e=>{ if(down) cb(idx(e)); });
+  for(const ev of ['pointerup','pointercancel']) el.addEventListener(ev,()=>{ down=false; });
+}
+segDrag($('#rngsel'),  i=>setRange(i));
+segDrag($('#modesel'), i=>setMode(i));
+$('#rngsel').onclick  = e => { if(e.target.dataset.r) setRange(+e.target.dataset.r); };
+$('#modesel').onclick = e => { if(e.target.dataset.m) setMode(+e.target.dataset.m); };
+addEventListener('gamepadconnected',e=>{
+  padIdx=e.gamepad.index; say('手柄已连接: '+e.gamepad.id);
+  $('#pad').textContent='D档 RT油门/LT刹车,R档对调 · 低速双击刹车换向 · '
+                       +'左摇杆转向 · RB/LB切模式 · A=D X=R Y=P · B急停';
+  setRange(1);
+});
+addEventListener('gamepaddisconnected',e=>{
+  if(e.gamepad.index===padIdx){ padIdx=null; padOn=false; release();
+    $('#pad').textContent='未检测到手柄 —— 插上或配对后按任意键唤醒';
+  }
+});
+function padPoll(){
+  if(padIdx===null || dragging || held.size) return;   /* 触摸/键盘优先 */
+  const g=navigator.getGamepads && navigator.getGamepads()[padIdx];
+  if(!g) return;
+  const rt=g.buttons[7]?g.buttons[7].value:0;
+  const lt=g.buttons[6]?g.buttons[6].value:0;
+  const st=dz(g.axes[0]||0);
+  /* 扳机是"油门 + 刹车",倒车必须挂 R。R 档两个扳机对调。 */
+  const rev = isR();
+  const v   = rev ? lt : rt;
+  brake     = rev ? rt : lt;
+
+  /* 低速双击刹车换向:车速 ≤200mm/s 时,松开刹车再踩一次 -> D<->R */
+  if(brake > TAP_ON && !padTap){
+    padTap = true;
+    if(!isP() && Math.abs(curSpd) <= SHIFT_V && Date.now()-padTapT < TAP_MS)
+      setRange(isR() ? 1 : 2);
+  }else if(brake < TAP_OFF && padTap){
+    padTap = false; padTapT = Date.now();
+  }
+  const b=!!(g.buttons[1]&&g.buttons[1].pressed);
+  if(b&&!padB) send('e '+(estop?0:1));     /* B 键上升沿切急停 */
+  padB=b;
+
+  const rb=!!(g.buttons[5]&&g.buttons[5].pressed);
+  const lb=!!(g.buttons[4]&&g.buttons[4].pressed);
+  if(rb&&!padRB) setMode(Math.min(2, mode+1));
+  if(lb&&!padLB) setMode(Math.max(0, mode-1));
+  padRB=rb; padLB=lb;
+
+  const ra=[[0,1],[2,2],[3,0]];   /* [手柄按钮, 排挡] */
+  for(const [bi,rv] of ra){
+    const dn=!!(g.buttons[bi]&&g.buttons[bi].pressed);
+    if(dn&&!padRng[bi]) setRange(rv);
+    padRng[bi]=dn;
+  }
+
+  const on=(Math.abs(v)>0.02 || brake>0.02 || st!==0);
+  if(on){ nx=st; ny=v; active=true; stick.classList.add('on'); place(); }
+  else if(padOn){ release(); }
+  padOn=on;
+}
+setInterval(padPoll,20);
+
+/* 死人开关:有输入才发,每 100ms 续一次,服务端 300ms 收不到就回中位。 */
+setInterval(()=>{
+  if(!ws||ws.readyState!=1||!active) return;
+  send('t '+thr()+' '+steer()+' '+Math.round(brake*1000));
+},100);
+
+/* 键盘:桌面端备用。空格=急停 */
+const K={w:[0,1],s:[0,-1],a:[-1,0],d:[1,0],
+         ArrowUp:[0,1],ArrowDown:[0,-1],ArrowLeft:[-1,0],ArrowRight:[1,0]};
+const held=new Set();
+function fromKeys(){
+  if(!held.size){ release(); return; }
+  nx=0; ny=0;
+  held.forEach(k=>{ nx+=K[k][0]; ny+=K[k][1]; });
+  nx=Math.max(-1,Math.min(1,nx)); ny=Math.max(-1,Math.min(1,ny));
+  active=true; stick.classList.add('on'); place();
+}
+addEventListener('keydown',e=>{
+  if(e.key==' '){e.preventDefault();send('e '+(estop?0:1));return;}
+  if(K[e.key]&&!e.repeat){e.preventDefault();held.add(e.key);fromKeys();}
+});
+addEventListener('keyup',e=>{ if(K[e.key]){held.delete(e.key);fromKeys();} });
+
+$('#estop').onclick=()=>send('e '+(estop?0:1));
+
+if(/debug/.test(location.hash+location.search)) $('#adv').hidden=false;
+addEventListener('hashchange',()=>{ $('#adv').hidden = !/debug/.test(location.hash); });
+place(); applyMode(mode); connect();
+</script>
+</body></html>
