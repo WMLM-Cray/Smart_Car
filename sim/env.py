@@ -149,7 +149,7 @@ class ConeTrackEnv(gym.Env):
         self.cone_hits += new_hits
         self.last_action = action
 
-        s, lateral, _ = self.track.project((self.car.x, self.car.y))
+        s, lateral, _ = self.track.project((self.car.x, self.car.y), near_s=self.last_s)
         ds = s - self.last_s
         length = self.track.length
         if ds < -length / 2:

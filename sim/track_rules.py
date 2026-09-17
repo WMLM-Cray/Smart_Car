@@ -29,30 +29,44 @@ from .params import RuleTrackParams
 from .track import Track, _resample_closed
 
 
-def _layout(rng: np.random.Generator, p: RuleTrackParams):
-    """按规则图 1 的长条形布局排元素,返回 [(转角°, 该弯半径), ...] 和每段直道的长度上下限。
+def _end(rng: np.random.Generator, p: RuleTrackParams):
+    """端部掉头:方角(两个直角夹一段横直道)或大圆弯。元素 = (转角°, 半径, 前置直道 lo, hi)。
 
-    顺序:主直道 -> 端部 180° 大弯 -> 回程侧连续 S 弯(可能含一个直角弯)
-          -> 另一端 180° 大弯 -> 回到主直道起点。
-    转角和 = 180+180 + S 弯正负抵消 = 360°,闭环成立;直道长度由 _close_loop 解。
+    比赛方常把端部做成方角(赛道图上 ±7.5m 处那种直角弯),所以默认多给方角。
+    方角中间那段横直道同时是闭环方程里唯一能直接改横向的自由量。
     """
-    end_r = rng.uniform(p.end_radius_min, p.end_radius_max)
-    # S 弯成镜像对出现((+a,-a) 配 (-a,+a)):每对结束后航向都回到回程方向,
-    # 横向漂移正好抵消,两端 180° 又是同半径同转向,闭环才有解。
-    pairs = []
+    r = rng.uniform(p.bend_radius_min, p.bend_radius_max)
+    if rng.random() < p.square_end_chance:
+        return [(90.0, r, p.straight_min, p.straight_max),
+                (90.0, r, p.width, p.max_short_side)]        # 中间横过去的一段
+    return [(180.0, rng.uniform(p.end_radius_min, p.end_radius_max), p.straight_min, p.straight_max)]
+
+
+def _layout(rng: np.random.Generator, p: RuleTrackParams):
+    """按规则图 1 的长条形布局排元素,返回 [(转角°, 半径), ...] 与每段直道的长度上下限。
+
+    顺序:主直道 -> 端部掉头 -> 回程侧若干矩形折角 -> 另一端掉头 -> 回到主直道起点。
+    转角和 = 180+180 + 折角正负抵消 = 360°,闭环成立;直道长度由 _close_loop 解。
+    """
+    # 折角成镜像对出现((+a,-a) 配 (-a,+a)):每对结束后航向都回到回程方向,横向漂移抵消。
+    # 90° 一对就是一个矩形台阶,赛道看着方正;45° 用来出斜切段。
+    jogs = []
     for _ in range(int(rng.integers(p.s_bends_min, p.s_bends_max + 1))):
-        a = float(rng.choice(p.turn_angles))               # [规则] 45/90/135
+        a = 90.0 if rng.random() < p.right_angle_ratio else float(rng.choice([45.0, 135.0]))
         r = rng.uniform(p.bend_radius_min, p.bend_radius_max)   # 同一组用同一半径,漂移才抵消
-        pairs += [((a, -a), r), ((-a, a), r)]
-    if rng.random() < p.right_angle_chance:        # [规则] 赛道含直角区
-        r = rng.uniform(p.bend_radius_min, p.bend_radius_max)
-        pairs += [((90.0, -90.0), r), ((-90.0, 90.0), r)]
-    rng.shuffle(pairs)
-    turns = [(180.0, end_r)]                       # 跑完主直道,端部掉头
-    turns += [(a, r) for pair, r in pairs for a in pair]
-    turns.append((180.0, end_r))                   # 另一端掉头回主直道
-    lo = np.full(len(turns), p.straight_min)
-    hi = np.full(len(turns), p.straight_max)
+        step = (p.straight_min, p.straight_max) if a != 90.0 else (p.jog_min, p.jog_max)
+        jogs += [((a, -a), r, step), ((-a, a), r, step)]
+    rng.shuffle(jogs)
+
+    elems = list(_end(rng, p))                     # 跑完主直道,端部掉头
+    for (a, b), r, step in jogs:
+        elems.append((a, r, p.straight_min, p.straight_max))
+        elems.append((b, r, *step))                # 台阶的横向段
+    elems += _end(rng, p)                          # 另一端掉头回主直道
+
+    turns = [(a, r) for a, r, _, _ in elems]
+    lo = np.array([x for _, _, x, _ in elems])
+    hi = np.array([x for _, _, _, x in elems])
     lo[0] = rng.uniform(p.main_straight_min, p.main_straight_max)      # 主直道单独给上下限
     hi[0] = p.main_straight_max
     return turns, lo, np.maximum(hi, lo)

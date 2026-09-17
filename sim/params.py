@@ -78,7 +78,10 @@ class RuleTrackParams(TrackParams):
     end_radius_max: float = 2.6         # [假设]
     s_bends_min: int = 2                # [规则图1] 回程侧是连续小 S 弯(每组 2 个镜像对 = 4 个弯)
     s_bends_max: int = 4                # [规则图1] 图上回程侧弯挺多,连两端掉头一共 10-14 个弯
-    right_angle_chance: float = 0.5     # [规则] 赛道含"直角区",不是每条都有
+    square_end_chance: float = 0.7      # [图1] 端部做成方角(两个直角)的概率,其余是大圆弯
+    right_angle_ratio: float = 0.7      # [规则] 折角里直角的比例,赛道整体偏方正
+    jog_min: float = 1.2                # [假设] 矩形台阶横向段长度
+    jog_max: float = 3.0                # [假设]
     straight_min: float = 0.4           # [假设] 弯与弯之间的短直段下限
     straight_max: float = 4.0           # [规则] 图 9 有 4m 直段标注
     max_extent: float = 16.8            # [规则] 图 9 总横向 16.8m

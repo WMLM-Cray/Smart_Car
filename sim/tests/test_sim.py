@@ -155,8 +155,12 @@ def test_rule_track_uses_only_legal_elements():
                if not straight]
     legal = (*p.turn_angles, 180.0)                 # 180° 是两端掉头的大弯
     assert all(min(abs(abs(c) - a) for a in legal) < 2.0 for c in corners), corners
-    assert sum(1 for c in corners if abs(abs(c) - 180) < 2) == 2      # 长条形:两端各一个掉头
-    assert len(corners) >= 10                                         # 回程侧的 S 弯要够多
+    assert len(corners) >= 10                                         # 弯要够多,不能是个圆角矩形
+    # 长条形往返:主直道方向和它的反方向都要占掉可观的里程(端部掉头无论方角还是圆弯)
+    heading = np.arctan2(*np.diff(closed, axis=0).T[::-1])
+    out = np.mean(np.abs((heading - heading[0] + np.pi) % (2 * np.pi) - np.pi) < math.radians(20))
+    back = np.mean(np.abs((heading - heading[0]) % (2 * np.pi) - np.pi) < math.radians(20))
+    assert out > 0.15 and back > 0.15, (out, back)
     span = sorted((np.ptp(a.centerline[:, 0]), np.ptp(a.centerline[:, 1])))
     assert span[1] > 1.5 * span[0] and span[0] <= p.max_short_side    # 是长条形不是团
     # 主直道:最长的直段应当明显长于其它直段(规则图 1 的大直道)
@@ -167,6 +171,23 @@ def test_rule_track_uses_only_legal_elements():
     # 赛道宽:每个锥桶到中心线的距离在 1.25/2 与 1.5/2 之间
     d = np.hypot(*(a.cones[:, None, :] - a.centerline[None]).transpose(2, 0, 1)).min(axis=1)
     assert d.min() > p.narrow_width / 2 - 0.05 and d.max() < p.width / 2 + 0.05
+
+
+def test_projection_stays_on_the_current_leg():
+    """方正赛道折回来的两段挨得近,投影必须跟着上一帧走,不能跳到隔壁那段。"""
+    track = make_rule_track(np.random.default_rng(2))
+    pts = track.centerline
+    cum = np.concatenate([[0], np.cumsum(np.hypot(*np.diff(pts, axis=0).T))])
+    jumped = 0
+    for i in range(0, len(pts) - 1, 7):                  # 沿中心线走一圈,每步约 0.35m
+        here = pts[i] + 0.6 * np.array([-math.sin(0), math.cos(0)]) * 0   # 就在中心线上
+        s, _, _ = track.project(here, near_s=cum[i])
+        if abs(s - cum[i]) > 1.0:
+            jumped += 1
+    assert jumped == 0
+    # 窗口确实在起作用:提示放到半圈外,投影就只会落在那一带
+    far = track.project(pts[0], near_s=cum[-1] / 2)[0]
+    assert abs(far - cum[-1] / 2) <= 4.0
 
 
 def test_rule_track_boards_are_visible_and_block_the_car():

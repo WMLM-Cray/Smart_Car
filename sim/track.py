@@ -50,16 +50,24 @@ class Track:
     def length(self) -> float:
         return float(np.hypot(*np.diff(np.vstack([self.centerline, self.centerline[:1]]), axis=0).T).sum())
 
-    def project(self, xy) -> tuple[float, float, float]:
-        """点投影到中心线:返回 (弧长 s, 横向偏移(左正), 切向角)。"""
+    def project(self, xy, near_s: float | None = None, window: float = 4.0) -> tuple[float, float, float]:
+        """点投影到中心线:返回 (弧长 s, 横向偏移(左正), 切向角)。
+
+        near_s 给上一帧的弧长时,只在它前后 window 米里找。方正赛道上折回来的两段
+        可能只隔一个赛道宽,全局找最近点会认到隔壁那段去,进度和横向偏移就全错了。
+        """
         pts = self.centerline
         nxt = np.roll(pts, -1, axis=0)
         seg = nxt - pts
         seg_len2 = (seg ** 2).sum(axis=1)
+        cum = np.concatenate([[0], np.cumsum(np.sqrt(seg_len2))])
         t = np.clip(((np.asarray(xy) - pts) * seg).sum(axis=1) / seg_len2, 0, 1)
         proj = pts + seg * t[:, None]
-        i = int(np.argmin(np.hypot(*(proj - xy).T)))
-        cum = np.concatenate([[0], np.cumsum(np.sqrt(seg_len2))])
+        dist = np.hypot(*(proj - xy).T)
+        if near_s is not None:
+            along = np.abs(cum[:-1] - near_s)
+            dist = np.where(np.minimum(along, cum[-1] - along) <= window, dist, np.inf)
+        i = int(np.argmin(dist))
         s = cum[i] + t[i] * math.sqrt(seg_len2[i])
         heading = math.atan2(seg[i, 1], seg[i, 0])
         d = np.asarray(xy) - proj[i]
