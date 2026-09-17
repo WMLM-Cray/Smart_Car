@@ -12,7 +12,8 @@
   S4 满舵转向:angular.z≈+0.101(v·tan(δ)/L, 0.10·tan(0.35)/0.36)
   S5 断流 1.0s:teleop 0.3s 锁定零 → safety 0.5s 超时零速重发,/car_cmd_vel 恒零
   S6 判据3b实链:恢复发送(仍按住使能+满油门)→ 保持零(需 e2113b0 补丁)
-  S7 松开重按:恢复运动
+  S7 锁定恢复(油门门 2026-09-17):杆仍推着时松开重按使能不得起步;
+     油门轴回死区一次后才恢复运动(防"重连后仍推着摇杆,一按使能突然起步")
   S8 kill teleop:safety 超时零速,/car_cmd_vel 恒零
 
 串口帧层(→/dev/car)不在本脚本:该层已由 6bb97d8 无动力联调对真实 driver 字节级验证
@@ -204,13 +205,20 @@ def main():
         check("S6", "断流恢复(仍按使能)不自行运动(判据3b,e2113b0补丁)", ok,
               "样本=%s" % (tail[-3:] if tail else "无"))
 
-        # S7 松开重按恢复
-        node.send_joy(throttle=1.0, enable=False, seconds=0.2)
-        node.send_joy(throttle=1.0, enable=True, seconds=0.6)
-        tail = node.tail(0.3)
-        ok = any(abs(v - V_MAX) < 0.005 for v, _w in tail)
-        check("S7", "松开重按使能恢复运动(判据4)", ok,
-              "样本=%s" % (tail[-3:] if tail else "无"))
+        # S7 锁定恢复:杆仍推着时松开重按不得起步(油门门);回死区一次后恢复
+        node.send_joy(throttle=0.9, enable=False, seconds=0.2)   # 松使能,杆在死区外
+        node.send_joy(throttle=0.9, enable=True, seconds=0.5)    # 重按使能,杆仍推着
+        tail_hold = node.tail(0.2)
+        ok_hold = tail_hold and all(abs(v) < 1e-6 for v, _w in tail_hold)
+        node.send_joy(throttle=0.0, enable=True, seconds=0.3)    # 杆回死区一次(使能保持)
+        node.send_joy(throttle=1.0, enable=True, seconds=0.6)    # 再推杆
+        tail_move = node.tail(0.3)
+        ok_move = any(abs(v - V_MAX) < 0.005 for v, _w in tail_move)
+        check("S7", "锁定恢复:杆仍推着重按使能不得起步,回死区一次后恢复(判据4+7)",
+              ok_hold and ok_move,
+              "按使能(杆0.9)样本=%s 回中+推杆后样本=%s" %
+              (tail_hold[-3:] if tail_hold else "无",
+               tail_move[-3:] if tail_move else "无"))
 
         # S8 teleop 进程退出 → safety 0.5s 超时零速
         stop("teleop")
