@@ -1,7 +1,7 @@
 """PPO 训练:按课程阶段跑,过关自动进下一阶段。
 
-    python -m sim.train                      # 从 s1 开始,过关后自动接 s2
-    python -m sim.train --stage s2 --steps 2000000 --envs 8
+    python -m fastsim.train                      # 从 s1 开始,过关后自动接 s2
+    python -m fastsim.train --stage s2 --steps 2000000 --envs 8
 
 目标(2026-09-16 定):车能自己跑完一圈并把赛道建出图,过关判据见 curriculum.py。
 观测叠 3 帧(单帧看不出速度变化趋势),训练时关掉建图换速度,评估时打开。

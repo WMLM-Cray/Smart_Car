@@ -13,31 +13,39 @@
 | 仿真器 | Gazebo Classic 11(`ros-humble-gazebo-ros-pkgs`) |
 | 后续 | Nav2、slam_toolbox(阶段 3 才需要) |
 
-环境自检:`python3 tools/check_environment.py`(输出 `ready: true` 即可)。
+环境自检:`python3 3Dsim/tools/check_environment.py`(输出 `ready: true` 即可)。
 WSL2 从零装环境可跑 `tools/wsl_setup_ros2.sh`。
 
 ## 2. 目录结构
 
 ```
-├── hwcart_sim/                  # ROS2 colcon 工作区(在这里构建)
-│   └── src/
-│       ├── racecar_sim/         # 仿真车(阶段1 ✅):XACRO 车模+阿克曼控制器+雷达/相机/IMU
-│       ├── racecar_bringup_sim/ # launch 集合骨架
-│       ├── track_generator/     # 赛道生成器:锥桶坐标 CSV → SDF 世界(原型,官方 A-D 坐标待做)
-│       └── racecar_strategy/    # 比赛罚则库(撞锥5s/压线10s/闯红灯30s…,已测)
-├── tools/                       # 环境自检/构建/一键验证/诊断脚本
-├── docs/
-│   ├── TELEOP_INTEGRATION_GUIDE.md  # 手柄遥控包对接文档(接 teleop 必读)
-│   └── SOURCE_AUDIT.md          # 实车接口审计(PWM 公式/话题/参数出处)
-├── examples/                    # 锥桶坐标、赛道间隙示例数据
-├── tests/                       # 基础测试(pytest)
-└── evidence/                    # 验证完整日志存档(未截断)
+├── 3Dsim/                       # Gazebo 仿真(队友负责)
+│   ├── hwcart_sim/              #   ROS2 colcon 工作区(在这里构建)
+│   │   └── src/
+│   │       ├── racecar_sim/         # 仿真车(阶段1 ✅):XACRO 车模+阿克曼控制器+雷达/相机/IMU
+│   │       ├── racecar_bringup_sim/ # launch 集合骨架
+│   │       ├── track_generator/     # 赛道生成器:锥桶坐标 CSV → SDF 世界
+│   │       └── racecar_strategy/    # 比赛罚则库(撞锥5s/压线10s/闯红灯30s…,已测)
+│   ├── tools/                   #   环境自检/构建/一键验证/诊断脚本
+│   ├── tests/                   #   基础测试(pytest)
+│   ├── examples/                #   锥桶坐标、赛道间隙示例数据
+│   └── evidence/                #   验证完整日志存档(未截断)
+├── fastsim/                     # 轻量仿真 + 强化学习训练(纯 Python,无 ROS)
+├── teleop/                      # 实车网页遥控(部署在车上,systemd)
+└── docs/                        # 共用文档
+    ├── SIM_INTEROP.md               # 两套仿真的对接口径(控制/赛道/观测)
+    ├── TELEOP_INTEGRATION_GUIDE.md  # 手柄遥控包对接文档
+    └── SOURCE_AUDIT.md              # 实车接口审计(PWM 公式/话题/参数出处)
 ```
+
+> 目录按负责人划分:`3Dsim/` 是队友的 Gazebo 那一套,`fastsim/` 和 `teleop/` 是训练与实车这一套。
+> 队友脚本里写死的 `~/hwcart_sim` 路径不用改,把它软链到 `3Dsim/` 即可:
+> `ln -s <仓库>/3Dsim ~/hwcart_sim`
 
 ## 3. 快速开始
 
 ```bash
-cd hwcart_sim
+cd 3Dsim/hwcart_sim
 colcon build --symlink-install
 source install/setup.bash
 
@@ -47,7 +55,7 @@ ros2 launch racecar_sim sim_bringup.launch.py
 ros2 launch racecar_sim sim_bringup.launch.py use_gui:=false
 ```
 
-RViz 配置文件:`hwcart_sim/src/racecar_sim/rviz/sim.rviz`。
+RViz 配置文件:`3Dsim/hwcart_sim/src/racecar_sim/rviz/sim.rviz`。
 
 ⚠️ **改过 Python 包文件后必须清理重建**:`rm -rf build install log && colcon build`
 (colcon 增量构建不会删 install 里已不存在的旧文件,会跑旧代码出假结果)。
@@ -62,15 +70,27 @@ RViz 配置文件:`hwcart_sim/src/racecar_sim/rviz/sim.rviz`。
 | `/IMU_data` | `sensor_msgs/Imu` | IMU 200Hz |
 
 - 链路:`/cmd_vel` → `cmd_vel_relay` → `ackermann_steering_controller`(阿克曼 ω=v·tanδ/L)
-- 车辆参数集中在 `hwcart_sim/src/racecar_sim/config/params.yaml`:
+- 车辆参数集中在 `3Dsim/hwcart_sim/src/racecar_sim/config/params.yaml`:
   - 轴距 `wheel_base: 0.305`(出厂代码值,**待实车卷尺复核**)
   - 相机工作模式 640×480/标定内参/hfov≈72.21°(设备标称 1080p/150° 是镜头能力,非工作模式)
   - 未实测项均带 `[实测假设]` 标记
 
+## 4.5 训练(fastsim/)
+
+```bash
+python -m fastsim.train                       # 从 s1 开始,过关自动进下一阶段
+python -m fastsim.preview --seed 0            # 画一张赛道+轨迹+占据栅格 PNG
+python -m pytest fastsim/tests/test_sim.py    # 31 项
+```
+
+赛道按比赛规则的元素随机生成(直道 + 45/90/135° 弯 + 端部掉头 + 5 块随机蓝挡板),
+形状照官方赛道示意图 `fastsim/reference_track_figure.png`。与 Gazebo 那一套的
+控制/赛道/观测口径见 `docs/SIM_INTEROP.md`,同一套策略两边都能跑。
+
 ## 5. 一键验证(42 项,headless)
 
 ```bash
-bash tools/verify_phase1.sh
+bash 3Dsim/tools/verify_phase1.sh
 # 期望输出:===== [8/8] 结果: PASS=42 FAIL=0 ===== / ALL_GREEN
 ```
 

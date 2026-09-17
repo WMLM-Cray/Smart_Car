@@ -11,7 +11,7 @@
 奖励 = 沿中心线前进米数 - 每步时间 - 撞锥 5(规则:撞锥 +5s)- 出界 10;跑完一圈 +10。
 
 用法:
-    from sim.env import ConeTrackEnv
+    from fastsim.env import ConeTrackEnv
     env = ConeTrackEnv(); obs, info = env.reset(seed=0)
 """
 from __future__ import annotations

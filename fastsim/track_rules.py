@@ -4,7 +4,7 @@
 比赛当天从 A/B/C/D 四套模块化赛道里随机抽一套(培训笔记 05:49),四套都由同一批
 元素拼成,所以这里按元素随机拼闭环,训练出来的策略对哪套都见过同类几何。
 
-形状照着官方赛道示意图(sim/reference_track_figure.png,规则图 1):长条形,
+形状照着官方赛道示意图(fastsim/reference_track_figure.png,规则图 1):长条形,
 一条大直道,两端各一个 180° 掉头大弯,回程侧连续小 S 弯,可能含直角区。
 
 规则依据(标注同 params.py):
@@ -15,9 +15,8 @@
   [图1]  锥桶间距 ≈ 赛道宽/1.32 ≈ 1.15m;S 弯比圆弯紧;短边远小于长边
   [假设] 直道长度范围、挡板尺寸、端部大弯半径 —— 规则原文没拿到,先给合理值
 
-闭环怎么保证:两端 180° 同半径同转向抵消横向位移,S 弯成镜像对出现
-((+a,-a) 配 (-a,+a))也互相抵消;剩下的直道长度对闭合方程是线性的,
-用交替投影解出满足长度下限的那组解(_close_loop)。
+闭环怎么保证:见 _layout —— 两端做法相同、台阶成镜像对,纵向位移和转角都结构上抵消,
+只剩主直道一个未知数,一个减法解完。
 """
 from __future__ import annotations
 
@@ -29,96 +28,72 @@ from .params import RuleTrackParams
 from .track import Track, _resample_closed
 
 
-def _end(rng: np.random.Generator, p: RuleTrackParams):
-    """端部掉头:方角(两个直角夹一段横直道)或大圆弯。元素 = (转角°, 半径, 前置直道 lo, hi)。
-
-    比赛方常把端部做成方角(赛道图上 ±7.5m 处那种直角弯),所以默认多给方角。
-    方角中间那段横直道同时是闭环方程里唯一能直接改横向的自由量。
-    """
-    r = rng.uniform(p.bend_radius_min, p.bend_radius_max)
-    if rng.random() < p.square_end_chance:
-        return [(90.0, r, p.straight_min, p.straight_max),
-                (90.0, r, p.width, p.max_short_side)]        # 中间横过去的一段
-    return [(180.0, rng.uniform(p.end_radius_min, p.end_radius_max), p.straight_min, p.straight_max)]
-
-
 def _layout(rng: np.random.Generator, p: RuleTrackParams):
-    """按规则图 1 的长条形布局排元素,返回 [(转角°, 半径), ...] 与每段直道的长度上下限。
+    """排出一圈元素:[(该段直道长度, 转角°, 弯半径), ...],主直道长度先留 None 由闭合定。
 
-    顺序:主直道 -> 端部掉头 -> 回程侧若干矩形折角 -> 另一端掉头 -> 回到主直道起点。
-    转角和 = 180+180 + 折角正负抵消 = 360°,闭环成立;直道长度由 _close_loop 解。
+    形状是矩形回路:主直道 -> 端部拐上去 -> 回程侧若干矩形台阶 -> 另一端拐回来。
+    闭合不靠迭代求解,靠结构:
+      · 两端用同一种做法、同一个半径、同一段横向长度 -> 纵向位移正好抵消
+      · 台阶成镜像对((+a,-a) 配 (-a,+a))-> 纵向位移也抵消
+      · 转角和 = 4x90(或 2x180)+ 台阶正负抵消 = 360°
+    于是只剩主直道一个未知数,一个减法就解完(_solve),而且赛道长宽都由参数直接控制。
     """
-    # 折角成镜像对出现((+a,-a) 配 (-a,+a)):每对结束后航向都回到回程方向,横向漂移抵消。
-    # 90° 一对就是一个矩形台阶,赛道看着方正;45° 用来出斜切段。
+    square = rng.random() < p.square_end_chance
+    height = rng.uniform(p.height_min, p.height_max)          # 主直道到回程直道的间距
+    # 方角要看得出是直角:半径先让位于横直道,不然两个 90° 弯接在一起就成了一个圆弧掉头
+    r_end = min(rng.uniform(p.bend_radius_min, p.bend_radius_max), (height - p.cross_min) / 2)
+
+    def end(lead):
+        if square:                                            # 方角:两个直角夹一段横直道
+            return [(lead, 90.0, r_end), (height - 2 * r_end, 90.0, r_end)]
+        return [(lead, 180.0, max(p.bend_radius_min, height / 2))]     # 圆弯掉头
+
     jogs = []
     for _ in range(int(rng.integers(p.s_bends_min, p.s_bends_max + 1))):
         a = 90.0 if rng.random() < p.right_angle_ratio else float(rng.choice([45.0, 135.0]))
-        r = rng.uniform(p.bend_radius_min, p.bend_radius_max)   # 同一组用同一半径,漂移才抵消
-        step = (p.straight_min, p.straight_max) if a != 90.0 else (p.jog_min, p.jog_max)
-        jogs += [((a, -a), r, step), ((-a, a), r, step)]
+        r = rng.uniform(p.bend_radius_min, p.bend_radius_max)
+        step = rng.uniform(p.jog_min, p.jog_max) if a == 90.0 else rng.uniform(p.straight_min, p.straight_max)
+        lead = rng.uniform(p.straight_min, p.straight_max)
+        jogs += [((a, -a), r, step, lead), ((-a, a), r, step, lead)]   # 镜像对,纵向抵消
     rng.shuffle(jogs)
 
-    elems = list(_end(rng, p))                     # 跑完主直道,端部掉头
-    for (a, b), r, step in jogs:
-        elems.append((a, r, p.straight_min, p.straight_max))
-        elems.append((b, r, *step))                # 台阶的横向段
-    elems += _end(rng, p)                          # 另一端掉头回主直道
-
-    turns = [(a, r) for a, r, _, _ in elems]
-    lo = np.array([x for _, _, x, _ in elems])
-    hi = np.array([x for _, _, _, x in elems])
-    lo[0] = rng.uniform(p.main_straight_min, p.main_straight_max)      # 主直道单独给上下限
-    hi[0] = p.main_straight_max
-    return turns, lo, np.maximum(hi, lo)
+    elems = end(None)                                         # 主直道长度待定
+    for (a, b), r, step, lead in jogs:
+        elems += [(lead, a, r), (step, b, r)]
+    elems += end(rng.uniform(p.straight_min, p.straight_max))
+    return elems
 
 
-def _close_loop(headings: np.ndarray, arc_shift: np.ndarray, lengths: np.ndarray,
-                lo: np.ndarray, hi: np.ndarray) -> np.ndarray:
-    """调整直道长度让首尾闭合:解 A·L = b(A 是各直道方向,b 是弯道位移的相反数)。
-
-    交替投影:先最小范数修正 L += A⁺(b - A·L) 投到闭合面上,再把短于下限的截回 lo,
-    反复直到两边同时满足。只压下限:两边都夹的话可行集太小,九成抽不出解;
-    长度拉太长导致赛道超尺寸,由 make_rule_track 里的骨架粗筛便宜地挡掉。
-    """
-    A = np.stack([np.cos(headings), np.sin(headings)])          # (2,n)
-    pinv = np.linalg.pinv(A)
-    b = -arc_shift
-    for _ in range(200):
-        lengths = lengths + pinv @ (b - A @ lengths)
-        if (lengths >= lo - 1e-9).all():
-            break
-        lengths = np.maximum(lengths, lo)
-    if np.linalg.norm(b - A @ lengths) > 1e-6 or (lengths < lo - 1e-6).any():
-        raise ValueError("这组转角配不出合法直道长度")
-    return lengths
+def _shift(elems, main: float) -> np.ndarray:
+    """走一圈的总位移(主直道长度取 main)。"""
+    pos, yaw = np.zeros(2), 0.0
+    for length, turn, radius in elems:
+        pos = pos + (main if length is None else length) * np.array([math.cos(yaw), math.sin(yaw)])
+        a = math.radians(turn)
+        sign = 1.0 if a >= 0 else -1.0
+        centre = pos + sign * radius * np.array([-math.sin(yaw), math.cos(yaw)])
+        phi0 = math.atan2(*(pos - centre)[::-1])
+        pos = centre + radius * np.array([math.cos(phi0 + a), math.sin(phi0 + a)])
+        yaw += a
+    return pos
 
 
 def _solve(rng: np.random.Generator, p: RuleTrackParams):
-    """抽一套元素并解出直道长度。只做代数,不生成点,失败就重抽(很便宜)。"""
-    layout, lo, hi = _layout(rng, p)
-    angles = np.array([a for a, _ in layout])
-    headings = np.radians(np.concatenate([[0.0], np.cumsum(angles)[:-1]]))
-
-    # 每个弯的位移(在自身入弯朝向下)与直道无关,先算出来
-    shift = np.zeros(2)
-    yaw = 0.0
-    for turn, radius in layout:
-        a = math.radians(turn)
-        sign = 1.0 if a >= 0 else -1.0
-        # 圆心在左(左转)或右(右转),入弯点到出弯点的弦
-        local = np.array([radius * math.sin(abs(a)), sign * radius * (1 - math.cos(a))])
-        c, s = math.cos(yaw), math.sin(yaw)
-        shift += np.array([c * local[0] - s * local[1], s * local[0] + c * local[1]])
-        yaw += a
-
-    lengths = _close_loop(headings, shift, lo + rng.uniform(0, 1.0, len(lo)) * (hi - lo), lo, hi)
-    return layout, lengths
+    """抽一套元素,解出主直道长度。只做代数不生成点,不合法就重抽(约 0.1ms)。"""
+    elems = _layout(rng, p)
+    shift = _shift(elems, 0.0)                                # 主直道方向是 +x,长度线性叠加
+    if abs(shift[1]) > 1e-6:
+        raise ValueError("这套元素纵向不闭合")                 # 结构上不该发生,防回归
+    main = -shift[0]
+    if not p.main_straight_min <= main <= p.main_straight_max:
+        raise ValueError("主直道长度超出范围")
+    return [(main if length is None else length, turn, radius) for length, turn, radius in elems]
 
 
-def _skeleton(layout, lengths) -> np.ndarray:
+def _skeleton(elems) -> np.ndarray:
     """只取各元素端点和弯道中点,用来先粗筛尺寸 —— 比生成整条中心线便宜 50 倍。"""
     pts, pos, yaw = [], np.zeros(2), 0.0
-    for length, (turn, radius) in zip(lengths, layout):
+    for length, turn, radius in elems:
         pos = pos + length * np.array([math.cos(yaw), math.sin(yaw)])
         pts.append(pos.copy())
         a = math.radians(turn)
@@ -132,9 +107,9 @@ def _skeleton(layout, lengths) -> np.ndarray:
     return np.array(pts)
 
 
-def _centerline(layout, lengths) -> np.ndarray:
+def _centerline(elems) -> np.ndarray:
     pts, pos, yaw = [], np.zeros(2), 0.0
-    for length, (turn, radius) in zip(lengths, layout):
+    for length, turn, radius in elems:
         step = max(2, int(length / 0.05))
         d = np.array([math.cos(yaw), math.sin(yaw)])
         pts.append(pos + np.linspace(0, length, step, endpoint=False)[:, None] * d)
@@ -186,15 +161,28 @@ def _place_boards(rng: np.random.Generator, left: np.ndarray, right: np.ndarray,
 
 def make_rule_track(rng: np.random.Generator, p: RuleTrackParams = RuleTrackParams(),
                     attempts: int = 600) -> Track:
+    """抽到一条合法赛道为止。
+
+    极少数随机组合在场地尺寸内怎么摆都不合法(实测约 0.3%),这时逐轮放宽尺寸上限 ——
+    环境 reset 不允许失败,一次抛异常就会让整轮训练挂掉(2026-09-17 踩过)。
+    """
+    for relax, tries in ((1.0, attempts), (1.2, 200), (1.5, 200), (2.0, 200)):
+        track = _try_make(rng, p, tries, p.max_extent * relax, p.max_short_side * relax)
+        if track is not None:
+            return track
+    raise RuntimeError("按规则元素拼不出闭环赛道,放宽 max_extent 或转角/直道范围")
+
+
+def _try_make(rng, p: RuleTrackParams, attempts: int, limit_long: float, limit_short: float):
     for _ in range(attempts):
         try:
-            layout, lengths = _solve(rng, p)
+            elems = _solve(rng, p)
         except (ValueError, RuntimeError):
             continue
-        span = sorted(np.ptp(_skeleton(layout, lengths), axis=0))
-        if span[1] > p.max_extent or span[0] > p.max_short_side:
+        span = sorted(np.ptp(_skeleton(elems), axis=0))
+        if span[1] > limit_long or span[0] > limit_short:
             continue                                 # [规则] 场地尺寸有限,且赛道是长条形
-        centre = _resample_closed(_centerline(layout, lengths), 0.05)
+        centre = _resample_closed(_centerline(elems), 0.05)
         centre = centre - (centre.max(axis=0) + centre.min(axis=0)) / 2    # 摆到原点附近,别跑出建图栅格
         inner, outer = _boundaries(centre, p)
         # 自交检查:沿赛道隔得远的两点,几何上不能靠得比赛道宽还近(否则两段路挤在一起)
@@ -207,6 +195,8 @@ def make_rule_track(rng: np.random.Generator, p: RuleTrackParams = RuleTrackPara
             continue
         left = _resample_closed(inner, p.cone_spacing)
         right = _resample_closed(outer, p.cone_spacing)
-        track = Track(centre, left, right, p, _place_boards(rng, left, right, p))
-        return track
-    raise RuntimeError("按规则元素拼不出闭环赛道,放宽 max_extent 或转角/直道范围")
+        try:
+            return Track(centre, left, right, p, _place_boards(rng, left, right, p))
+        except ValueError:
+            continue                                 # 锥桶太少放不下挡板,换一条
+    return None

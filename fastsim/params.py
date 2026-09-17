@@ -70,20 +70,21 @@ class RuleTrackParams(TrackParams):
     turn_radius: float = 2.0            # [规则] 内径 1.25 / 外径 2.75 -> 中心线 2.0
     turn_angles: tuple = (45.0, 90.0, 135.0)   # [规则] 只有这三种转角
     # --- 布局:一条大直道 + 两端 180° 大弯 + 回程侧连续 S 弯(规则图 1 的长条形)---
-    main_straight_min: float = 5.5      # [规则图1] 主直道明显比其它直段长
-    main_straight_max: float = 8.5      # [假设]
+    main_straight_min: float = 6.0      # [规则图1] 主直道明显比其它直段长(由闭合定出来,超范围就重抽)
+    main_straight_max: float = 12.5     # [规则] 场地 16.8m,留出两端掉头的余量
     bend_radius_min: float = 1.0        # [图1] S 弯比圆弯紧得多;下限对车(最小转弯半径0.53m)仍有裕量
     bend_radius_max: float = 1.8        # [图1]
-    end_radius_min: float = 1.6         # [假设] 端部掉头大弯,图上比普通弯大
-    end_radius_max: float = 2.6         # [假设]
-    s_bends_min: int = 2                # [规则图1] 回程侧是连续小 S 弯(每组 2 个镜像对 = 4 个弯)
-    s_bends_max: int = 4                # [规则图1] 图上回程侧弯挺多,连两端掉头一共 10-14 个弯
+    cross_min: float = 1.5              # [假设] 方角中间那段横直道至少这么长,否则看不出是直角
+    height_min: float = 3.5             # [图1] 主直道到回程直道的间距(赛道"厚度")
+    height_max: float = 6.0             # [图1]
+    s_bends_min: int = 2                # [规则图1] 回程侧的台阶组数(每组 2 个镜像对 = 4 个弯)
+    s_bends_max: int = 2                # 连两端的弯,一共 10-12 个
     square_end_chance: float = 0.7      # [图1] 端部做成方角(两个直角)的概率,其余是大圆弯
     right_angle_ratio: float = 0.7      # [规则] 折角里直角的比例,赛道整体偏方正
     jog_min: float = 1.2                # [假设] 矩形台阶横向段长度
     jog_max: float = 3.0                # [假设]
     straight_min: float = 0.4           # [假设] 弯与弯之间的短直段下限
-    straight_max: float = 4.0           # [规则] 图 9 有 4m 直段标注
+    straight_max: float = 1.2           # [假设] 回程侧两弯之间留得短,整圈才塞得进 16.8m
     max_extent: float = 16.8            # [规则] 图 9 总横向 16.8m
     max_short_side: float = 8.0         # [图1] 赛道是长条形,短边明显小于长边
     # 队友读规则图 9 记的"局部 1.25m"存疑:1.25 也正好是圆形赛道的内径,可能是看串了。

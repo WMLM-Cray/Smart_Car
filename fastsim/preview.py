@@ -1,7 +1,7 @@
 """画一张 PNG:左边赛道锥桶 + 轨迹 + 最后一帧雷达点,右边跑出来的占据栅格图。
 
-    python -m sim.preview --seed 0 --out sim_preview.png          # 纯追踪参考控制器
-    python -m sim.preview --model runs/s1/model.zip --stage s1    # 训练出来的策略
+    python -m fastsim.preview --seed 0 --out sim_preview.png          # 纯追踪参考控制器
+    python -m fastsim.preview --model runs/s1/model.zip --stage s1    # 训练出来的策略
 """
 import argparse
 import math

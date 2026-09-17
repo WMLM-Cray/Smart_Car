@@ -9,18 +9,18 @@ import numpy as np
 import pytest
 from gymnasium.utils.env_checker import check_env
 
-from sim.curriculum import STAGES, evaluate, passed
-from sim.env import SECTOR_EDGES, SECTORS, ConeTrackEnv, sector_index, sectorize
-from sim.interop import export_track, from_cmd_vel, to_cmd_vel
-from sim.mapping import FREE, OCCUPIED
-from sim.params import CarParams, RuleTrackParams, TrackParams
-from sim.preview import pure_pursuit
-from sim.pwm import pwm_to_speed, speed_to_pwm, steer_to_turn, turn_to_steer
-from sim.raycast import cast_cones, cast_walls
-from sim.sensors import Lidar
-from sim.track import make_track
-from sim.track_rules import make_rule_track
-from sim.vehicle import Car
+from fastsim.curriculum import STAGES, evaluate, passed
+from fastsim.env import SECTOR_EDGES, SECTORS, ConeTrackEnv, sector_index, sectorize
+from fastsim.interop import export_track, from_cmd_vel, to_cmd_vel
+from fastsim.mapping import FREE, OCCUPIED
+from fastsim.params import CarParams, RuleTrackParams, TrackParams
+from fastsim.preview import pure_pursuit
+from fastsim.pwm import pwm_to_speed, speed_to_pwm, steer_to_turn, turn_to_steer
+from fastsim.raycast import cast_cones, cast_walls
+from fastsim.sensors import Lidar
+from fastsim.track import make_track
+from fastsim.track_rules import make_rule_track
+from fastsim.vehicle import Car
 
 TP = TrackParams()
 
@@ -187,7 +187,7 @@ def test_projection_stays_on_the_current_leg():
     assert jumped == 0
     # 窗口确实在起作用:提示放到半圈外,投影就只会落在那一带
     far = track.project(pts[0], near_s=cum[-1] / 2)[0]
-    assert abs(far - cum[-1] / 2) <= 4.0
+    assert abs(far - cum[-1] / 2) <= 4.1                # 窗口 4m,再加最多一个 5cm 采样段
 
 
 def test_rule_track_boards_are_visible_and_block_the_car():
@@ -313,7 +313,7 @@ def test_stacked_policy_frame_order_matches_vecframestack():
     pytest.importorskip("stable_baselines3")
     from stable_baselines3.common.vec_env import DummyVecEnv, VecFrameStack
 
-    from sim.train import FRAMES, StackedPolicy
+    from fastsim.train import FRAMES, StackedPolicy
     vec = VecFrameStack(DummyVecEnv([lambda: ConeTrackEnv(noise=False)]), FRAMES)
     env = ConeTrackEnv(noise=False)
     dim = env.observation_space.shape[0]
@@ -332,7 +332,7 @@ def test_stacked_policy_frame_order_matches_vecframestack():
 
 def test_train_stage_produces_model_and_plots(tmp_path):
     pytest.importorskip("stable_baselines3")
-    from sim.train import train_stage
+    from fastsim.train import train_stage
     stage = replace(STAGES["s1"], budget=4.0)               # 只跑通流程,不指望学出东西
     result = train_stage(stage, steps=1024, n_envs=1, seed=0, out_dir=tmp_path,
                          init_model=None, seeds=[90000, 90001])
@@ -356,7 +356,7 @@ def test_cmd_vel_matches_vehicle_model_and_round_trips():
 
 
 def _their_generator():
-    path = Path(__file__).resolve().parents[2] / "hwcart_sim/src/track_generator/track_generator/generate.py"
+    path = Path(__file__).resolve().parents[2] / "3Dsim/hwcart_sim/src/track_generator/track_generator/generate.py"
     spec = importlib.util.spec_from_file_location("their_generate", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

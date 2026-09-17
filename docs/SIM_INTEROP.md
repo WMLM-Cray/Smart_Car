@@ -1,7 +1,7 @@
-# 快仿真(sim/)与 Gazebo 仿真(hwcart_sim/)的对接口径
+# 快仿真(fastsim/)与 Gazebo 仿真(3Dsim/)的对接口径
 
-两套仿真不合并:`sim/` 纯 Python、无 ROS,一步 ~1ms,用来训练;`hwcart_sim/` 是 Gazebo,
-贴近实车,用来验证。同一套策略要两边都能跑,只需要下面三个口径一致。对接代码在 `sim/interop.py`。
+两套仿真不合并:`fastsim/` 纯 Python、无 ROS,一步 ~1ms,用来训练;`3Dsim/` 是 Gazebo,
+贴近实车,用来验证。同一套策略要两边都能跑,只需要下面三个口径一致。对接代码在 `fastsim/interop.py`。
 
 ## 1. 控制口径:physical Twist
 
@@ -14,7 +14,7 @@
 
 `to_cmd_vel(v, steer)` / `from_cmd_vel(linear_x, angular_z)` 做换算,L 取 `wheel_base=0.305`
 (两边必须同一个值,否则满舵半径对不上)。实车 `/car_cmd_vel` 收的是 PWM 刻度,那一层在
-`sim/pwm.py`,不要和这里混。
+`fastsim/pwm.py`,不要和这里混。
 
 ⚠️ 实车 PWM 公式待订正:`contract.json` 写的是 `linear.x*100+1500`,但车上
 `racecar_teleop.py` 的电调中位是 **1550**、前进起转 1600、倒车起步 1360(2026-09-16 读源码),
@@ -23,14 +23,14 @@
 ## 2. 赛道口径:cones.csv + gaps.json
 
 ```python
-from sim.env import ConeTrackEnv
-from sim.interop import export_track
+from fastsim.env import ConeTrackEnv
+from fastsim.interop import export_track
 env = ConeTrackEnv(); env.reset(seed=0)
 export_track(env.track, "work/cones.csv", "work/gaps.json")
 ```
 再喂给 `track_generator` 生成 Gazebo world,两边就是同一条赛道:
 ```bash
-python3 hwcart_sim/src/track_generator/track_generator/generate.py \
+python3 3Dsim/hwcart_sim/src/track_generator/track_generator/generate.py \
   --cones work/cones.csv --gaps work/gaps.json --seed 0 \
   --board-thickness 0.1 --output work/track.world
 ```
@@ -43,7 +43,7 @@ python3 hwcart_sim/src/track_generator/track_generator/generate.py \
 策略的输入不是原始 `/scan`,而是压成的 48 个扇区最近距离
 (前 ±90° 每 5° 一格,后方每 15° 一格),所以对点数不敏感:
 ```python
-from sim.env import sector_index, sectorize
+from fastsim.env import sector_index, sectorize
 obs48 = sectorize(scan.ranges, sector_index(angles), obs_range=10.0)   # angles 为车体系
 ```
 1667 点(实车/本仿真)与 2000 点(Gazebo)压出来的结果逐扇区一致,只有擦着锥桶边缘的
@@ -51,7 +51,7 @@ obs48 = sectorize(scan.ranges, sector_index(angles), obs_range=10.0)   # angles 
 
 ## 4. 待统一的参数(以实车实测为准)
 
-2026-09-16 在车上量到的值与 `hwcart_sim/config/params.yaml` 的假设值不一致,建议改 Gazebo 侧:
+2026-09-16 在车上量到的值与 `3Dsim/hwcart_sim/src/racecar_sim/config/params.yaml` 的假设值不一致,建议改 Gazebo 侧:
 
 | 项 | params.yaml | 实车实测 |
 |---|---|---|
