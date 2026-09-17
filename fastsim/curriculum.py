@@ -37,6 +37,11 @@ STAGES: dict[str, Stage] = {
     # S2:标准随机赛道 + 传感器噪声,按目标验收
     "s2": Stage(name="s2", track=TrackParams(), v_cmd_fwd=1.5, noise=True, budget=120.0,
                 min_laps=18, min_coverage=0.9, max_cone_hits=1),
+    # S3a:规则赛道但限速 0.8 —— S1/S2 满油门就能过,策略 96% 的时间把油门焊死在上限,
+    # 到 S3 的紧弯(半径 1.0-1.8m)必须减速时就撞锥出局(2026-09-17 实测 0/20)。
+    # 先在低速下学几何:同样的赛道纯追踪在 0.6m/s 下是 20/20,慢速时这活儿不难。
+    "s3a": Stage(name="s3a", track=RuleTrackParams(), v_cmd_fwd=0.8, noise=True, budget=120.0,
+                 min_laps=18, min_coverage=0.9, max_cone_hits=1),
     # S3:按比赛规则元素拼的赛道(45/90/135°弯、1.5m 宽、局部 1.25m、5 块蓝挡板)
     "s3": Stage(name="s3", track=RuleTrackParams(), v_cmd_fwd=1.5, noise=True, budget=120.0,
                 min_laps=18, min_coverage=0.9, max_cone_hits=1),

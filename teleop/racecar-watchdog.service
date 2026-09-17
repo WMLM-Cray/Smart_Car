@@ -1,0 +1,12 @@
+[Unit]
+Description=HW-Autocar chassis watchdog (/teleop_cmd_vel stops -> neutral)
+After=network-online.target
+
+[Service]
+User=orange-pi
+ExecStart=/bin/bash -c 'source /opt/ros/humble/setup.bash && exec python3 /home/orange-pi/web_teleop/watchdog.py'
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
