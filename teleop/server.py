@@ -23,9 +23,13 @@ HTML = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'index.html')
 
 # PWM 约定取自 racecar_teleop.py:中位 1550,前进 1600 起步,倒车 1360 起步;转向中位 84,±60。
 # ⚠️ 顶速上限放在服务端,不信任浏览器发来的数。数值偏保守,架空实测后再往上调。
-SPEED_MID, FWD_START, REV_START = 1550, 1600, 1360
+SPEED_MID, FWD_START, REV_START = 1550, 1600, 1500
 FWD_CAP = [1610, 1640, 1700]          # Sloth / Roaming / MAD MAX
-REV_CAP = 1340
+# ⚠️ 倒车:厂家 teleop 用 1360 起步,实车上会窜出去(2026-09-17)。
+# 电调没有渐进区(实测前进 1595->0、1600->470mm/s 一步到位),光调 PWM 保证不了速度,
+# 所以这里既把 PWM 收到贴近中位,又用编码器做闭环硬限速 REV_SPEED_CAP。
+REV_CAP = 1470
+REV_SPEED_CAP = 0.40                  # m/s,倒车超过就立刻回中位
 TURN_MID, TURN_SPAN = 84, 60
 DEADMAN = 0.3                         # 这么久没收到 t 就回中位
 GUARD_STOP = 0.25                     # 保险杠前净空小于这个就不许再往前(米)
@@ -45,6 +49,7 @@ class State:
         self.guard = 1                # 防撞开关,雷达掉线可以在网页上关掉
         self.gap = None               # 保险杠前净空,None = 雷达没数据
         self.blocked = 0
+        self.rev_block = 0            # 1=倒车超速被截 2=编码器无数据不许倒车
         self.last_dir = 0
         self.dir_change_t = 0.0
         self.pwm, self.turn = SPEED_MID, TURN_MID
@@ -84,6 +89,12 @@ def compute(now):
             S.blocked = 0
             pwm = FWD_START + t * (cap - FWD_START)
         else:
+            fresh = now - S.enc_t < 0.3
+            if not fresh or abs(S.spd) > REV_SPEED_CAP:
+                # 编码器没数据就不知道倒多快,宁可不倒 —— 这车的 USB 掉过线
+                S.rev_block = 1 if fresh else 2
+                return SPEED_MID, turn, True
+            S.rev_block = 0
             pwm = REV_START + t * (REV_START - REV_CAP)   # t<0,越推越小
         return round(pwm), turn, True
 
@@ -213,7 +224,7 @@ def telemetry():
             'th': round(S.th, 1), 'wz': round(S.wz, 1), 'ax': round(S.ax, 2), 'ay': round(S.ay, 2),
             'pwm': S.pwm, 'turn': S.turn, 'es': S.estop, 'rng': S.range, 'mode': S.mode,
             'enc': round(time.time() - S.enc_t, 1) if S.enc_t else -1,
-            'guard': S.guard, 'blocked': S.blocked,
+            'guard': S.guard, 'blocked': S.blocked, 'revb': S.rev_block,
             'gap': -1 if S.gap is None else round(min(S.gap, 9.99), 2),
         })
 

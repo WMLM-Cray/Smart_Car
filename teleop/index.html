@@ -237,6 +237,8 @@ function tel(d){
   $('#guard').textContent = d.guard ? '防撞 开' : '防撞 关';
   $('#hint').innerHTML=d.es?'<span class=bad>急停锁定</span>':
       (d.enc<0||d.enc>1)?'<span class=warn>没有传感器数据 —— car.sh 开了吗?</span>':
+      (d.revb==1)?'<span class=warn>倒车已到限速 400mm/s —— 松一点</span>':
+      (d.revb==2)?'<span class=bad>编码器无数据 —— 不许倒车(测不到速度)</span>':
       (d.guard&&d.blocked)?'<span class=warn>前方有障碍 —— 已禁止前进,可倒车</span>':
       (d.guard&&d.gap<0)?'<span class=warn>雷达无数据 —— 前进被禁,要开就先关防撞</span>':'';
 }
