@@ -164,7 +164,7 @@ body.m-max #modesel button.on{color:#fff}
 </div>
 <button id="estop">急停</button>
 <button id="guard">防撞 开</button>
-<div id="pad">未检测到手柄 —— 插上或配对后按任意键唤醒</div>
+<div id="pad">直接拖上面的摇杆就能开(手机/鼠标都行) · 手柄是可选的,插上后按任意键唤醒</div>
 </section>
 
 <section><div id="tel"></div></section>
@@ -337,7 +337,7 @@ addEventListener('gamepadconnected',e=>{
 });
 addEventListener('gamepaddisconnected',e=>{
   if(e.gamepad.index===padIdx){ padIdx=null; padOn=false; release();
-    $('#pad').textContent='未检测到手柄 —— 插上或配对后按任意键唤醒';
+    $('#pad').textContent='手柄已断开,继续用屏幕摇杆开';
   }
 });
 function padPoll(){
