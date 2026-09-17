@@ -174,7 +174,7 @@ body.m-max #modesel button.on{color:#fff}
 
 </main><script>
 const $=s=>document.querySelector(s), dot=$('#dot'), log=$('#log');
-let ws, estop=0, nx=0, ny=0, active=false, dragging=false;
+let ws, estop=0, nx=0, ny=0, active=false, dragging=false, stickPid=null;
 
 /* 发给服务端的都是"比例":油门/方向盘/刹车 -1000..1000。
    PWM 换算和顶速上限都在 server.py 里做 —— 限速不能交给浏览器。
@@ -252,8 +252,8 @@ function place(){
   knob.style.setProperty('--kg', g);
 }
 /* 松手 = 油门回零,服务端给电调中位 */
-function release(){ nx=0; ny=0; brake=0; active=false; stick.classList.remove('on'); place();
-  send('t 0 0 0'); }
+function release(){ nx=0; ny=0; brake=0; active=false; stickPid=null;
+  stick.classList.remove('on'); place(); send('t 0 0 0'); }
 function setxy(e){
   const r=stick.getBoundingClientRect();
   let dx=e.clientX-r.left-R, dy=e.clientY-r.top-R;
@@ -262,7 +262,7 @@ function setxy(e){
   nx=dx/MAX; ny=-dy/MAX; place();
 }
 stick.addEventListener('pointerdown',e=>{
-  dragging=true; active=true; stick.classList.add('on');
+  dragging=true; active=true; stickPid=e.pointerId; stick.classList.add('on');
   stick.setPointerCapture(e.pointerId); setxy(e);
 });
 stick.addEventListener('pointermove',e=>{ if(dragging) setxy(e); });
@@ -385,11 +385,31 @@ function padPoll(){
 }
 setInterval(padPoll,20);
 
-/* 死人开关:有输入才发,每 100ms 续一次,服务端 300ms 收不到就回中位。 */
-setInterval(()=>{
+/* 死人开关:有输入才发,每 100ms 续一次,服务端 300ms 收不到就回中位。
+   ⚠️ 两条都是 2026-09-17 车自己往前冲的教训,别改回 setInterval + 只看 active:
+
+   1) 心跳靠 requestAnimationFrame 驱动。规范保证页面隐藏(锁屏/切后台)时 rAF 不执行,
+      心跳自然断掉,服务端超时回中位。setInterval 在后台照跑,会把卡住的油门一直发下去。
+   2) 不信 active 这个布尔标志,每一拍问浏览器指针还在不在。松手要靠 pointerup/
+      pointercancel/pointerleave/blur 里某一个被正确派发,这四个全不触发的情况是存在的
+      —— 标志就卡在 true,摇杆值原地不动地重发到天荒地老。标志会和真相脱钩,
+      hasPointerCapture 是浏览器自己维护的真相,不会。 */
+let beatT=0;
+function beat(ts){
+  requestAnimationFrame(beat);
+  if(stickPid!==null && !stick.hasPointerCapture(stickPid)){ dragging=false; release(); return; }
+  if(ts-beatT<100) return;
+  beatT=ts;
   if(!ws||ws.readyState!=1||!active) return;
   send('t '+thr()+' '+steer()+' '+Math.round(brake*1000));
-},100);
+}
+requestAnimationFrame(beat);
+
+/* 页面一隐藏就松手。光靠 rAF 停摆只能让心跳断,回到前台 active 还是 true,
+   会接着发老油门 —— 必须在这里把状态清干净。 */
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){ dragging=false; held.clear(); release(); }
+});
 
 /* 键盘:桌面端备用。空格=急停 */
 const K={w:[0,1],s:[0,-1],a:[-1,0],d:[1,0],
