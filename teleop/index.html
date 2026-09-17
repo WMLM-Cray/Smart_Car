@@ -271,7 +271,7 @@ for(const ev of ['pointerup','pointercancel','pointerleave'])
 addEventListener('blur',()=>{ dragging=false; held.clear(); release(); });
 
 /* ---- Xbox 手柄 ----
-   左摇杆 X=转向。D 档 RT 油门/LT 刹车,R 档对调。RB/LB 切模式。A=D X=R Y=P。B=急停。
+   左摇杆 X=转向。RT 油门、LT 刹车(不随排挡对调)。RB/LB 切模式。A=D X=R Y=P。B=急停。
    ⚠️ 浏览器要求先有一次用户手势:插上/配对后**按任意键**才会触发 gamepadconnected。 */
 let padIdx=null, padOn=false, padB=false, padLB=false, padRB=false;
 let padRng={};
@@ -333,7 +333,7 @@ $('#rngsel').onclick  = e => { if(e.target.dataset.r) setRange(+e.target.dataset
 $('#modesel').onclick = e => { if(e.target.dataset.m) setMode(+e.target.dataset.m); };
 addEventListener('gamepadconnected',e=>{
   padIdx=e.gamepad.index; say('手柄已连接: '+e.gamepad.id);
-  $('#pad').textContent='D档 RT油门/LT刹车,R档对调 · 低速双击刹车换向 · '
+  $('#pad').textContent='RT 油门 / LT 刹车,方向看排挡 · 低速双击刹车换向 · '
                        +'左摇杆转向 · RB/LB切模式 · A=D X=R Y=P · B急停';
   setRange(1);
 });
@@ -349,10 +349,9 @@ function padPoll(){
   const rt=g.buttons[7]?g.buttons[7].value:0;
   const lt=g.buttons[6]?g.buttons[6].value:0;
   const st=dz(g.axes[0]||0);
-  /* 扳机是"油门 + 刹车",倒车必须挂 R。R 档两个扳机对调。 */
-  const rev = isR();
-  const v   = rev ? lt : rt;
-  brake     = rev ? rt : lt;
+  /* RT 恒油门、LT 恒刹车,不随排挡对调;前进还是后退由排挡决定(见 thr())。 */
+  const v   = rt;
+  brake     = lt;
 
   /* 低速双击刹车换向:车速 ≤200mm/s 时,松开刹车再踩一次 -> D<->R */
   if(brake > TAP_ON && !padTap){

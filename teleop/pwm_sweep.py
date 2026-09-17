@@ -4,6 +4,9 @@
 用法(车上):python3 pwm_sweep.py [起始 终止 步长 每档秒数] [--pause 秒] [--max-dist 米]
 默认 1555 1620 5 2,每档之间回中位停 2.5 秒,累计跑出 4 米就中止。
 
+加 --duty-at <PWM> 就改成扫占空比:起始/终止/步长按百分比算,在该 PWM 和中位之间
+按比例通断。电调最低就是 470mm/s,比这慢只能靠占空比,这个模式就是用来测那条曲线的。
+
 编码器是落地从动轮,架空测不到速度 —— 必须落地跑。每档之间会回中位让车停下,
 方便你把车拖回起点;--max-dist 是硬保险:走够距离就回中位退出,别指望场地够长。
 """
@@ -21,6 +24,7 @@ from scan_guard import ScanGuard
 SPEED_MID, TURN_MID = 1550, 84
 ABORT_SPEED = 1.5            # m/s,超过就中止
 ABORT_GAP = 0.6              # 保险杠前净空小于这个就中止(米)
+DUTY_TICKS = 6               # 占空比周期 = 6 x 50ms = 0.3s,和 server.py 保持一致
 
 
 class Sweep(Node):
@@ -64,6 +68,7 @@ def main():
     argv = sys.argv[1:]
     pause, argv = opt(argv, '--pause', 2.5)
     max_dist, argv = opt(argv, '--max-dist', 4.0)
+    duty_at, argv = opt(argv, '--duty-at', 0.0)
     start, stop, step, hold = (list(map(float, argv)) + [1555, 1620, 5, 2][len(argv):])[:4]
     rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
     node = Sweep()
@@ -80,27 +85,44 @@ def main():
     class Blocked(Exception):
         pass
 
-    def hold_pwm(pwm, sec, watch=False):
+    def hold_pwm(pwm, sec, watch=False, duty=None):
+        """duty 给了就按占空比在 duty_at 和中位之间通断,否则一直发 pwm。"""
         end = time.time() + sec
+        tick = 0
         while time.time() < end:
             if watch:                                  # 前进时盯着雷达,不够净空就停
                 gap = node.scan.gap()
                 if gap is None or gap < ABORT_GAP:
                     raise Blocked('雷达无数据' if gap is None else f'前方只剩 {gap:.2f}m')
-            node.send(pwm); time.sleep(0.05)
+            if duty is None:
+                node.send(pwm)
+            else:
+                node.send(duty_at if tick % DUTY_TICKS < round(duty / 100 * DUTY_TICKS) else SPEED_MID)
+            tick += 1
+            time.sleep(0.05)
 
     try:
         print('中位 2s(让电调解锁)...', flush=True)
         hold_pwm(SPEED_MID, 2)
+        # 等第一帧雷达:ROS 发现发布者要 1-3s,不等就会把"还没收到"误判成"雷达掉线"
+        wait_until = time.time() + 10
+        while node.scan.gap() is None and time.time() < wait_until:
+            node.send(SPEED_MID); time.sleep(0.1)
+        if node.scan.gap() is None:
+            print('等了 10s 还是没有 /scan —— 雷达节点没起来?(car.sh)', flush=True)
+            return
         node.take()
+        if duty_at:
+            print(f'占空比模式:在 {duty_at:.0f} 和中位之间通断,周期 {DUTY_TICKS * 0.05:.2f}s', flush=True)
         print(f'每档 {hold:.1f}s,档间回中位 {pause:.1f}s,累计 {max_dist:.1f}m 中止', flush=True)
-        print(f'{"PWM":>5} {"平均mm/s":>9} {"最小":>6} {"最大":>6} {"波动(std)":>9} {"累计m":>6}', flush=True)
+        print(f'{"占空%" if duty_at else "PWM":>5} {"平均mm/s":>9} {"最小":>6} {"最大":>6} {"波动(std)":>9} {"累计m":>6}', flush=True)
         pwm = start
         while pwm <= stop:
+            duty = pwm if duty_at else None
             try:
-                hold_pwm(pwm, hold / 2, watch=True)      # 前一半等速度稳定
+                hold_pwm(pwm, hold / 2, watch=True, duty=duty)   # 前一半等速度稳定
                 node.take()
-                hold_pwm(pwm, hold / 2, watch=True)      # 后一半采样
+                hold_pwm(pwm, hold / 2, watch=True, duty=duty)   # 后一半采样
             except Blocked as e:
                 print(f'{pwm:>5.0f}  前方挡住了({e}),中止', flush=True); break
             s = [v * 1000 for v in node.take()]

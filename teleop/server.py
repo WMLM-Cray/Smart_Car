@@ -30,6 +30,11 @@ FWD_CAP = [1610, 1640, 1700]          # Sloth / Roaming / MAD MAX
 # 所以这里既把 PWM 收到贴近中位,又用编码器做闭环硬限速 REV_SPEED_CAP。
 REV_CAP = 1470
 REV_SPEED_CAP = 0.40                  # m/s,倒车超过就立刻回中位
+# 低速靠占空比:电调解锁就是 470mm/s,1599->0、1600->470 中间没有值(2026-09-17 实测)。
+# 所以摇杆前 CREEP_SPAN 段不调 PWM,而是在起步 PWM 和中位之间按比例通断,
+# 平均速度 ≈ 占空比 x 最低速度。周期 0.3s:再快电调跟不上,再慢车会一顿一顿。
+CREEP_SPAN = 0.45                     # 摇杆前 45% 行程是占空比低速区
+DUTY_TICKS = 6                        # 6 个 20Hz 周期 = 0.3s
 TURN_MID, TURN_SPAN = 84, 60
 DEADMAN = 0.3                         # 这么久没收到 t 就回中位
 GUARD_STOP = 0.25                     # 保险杠前净空小于这个就不许再往前(米)
@@ -50,6 +55,7 @@ class State:
         self.gap = None               # 保险杠前净空,None = 雷达没数据
         self.blocked = 0
         self.rev_block = 0            # 1=倒车超速被截 2=编码器无数据不许倒车
+        self.tick = 0                 # 20Hz 计数,占空比用
         self.last_dir = 0
         self.dir_change_t = 0.0
         self.pwm, self.turn = SPEED_MID, TURN_MID
@@ -59,6 +65,14 @@ class State:
 
 
 S = State()
+
+
+def creep_or_pwm(t, start, cap):
+    """t 是 0..1 的行程。前 CREEP_SPAN 段用占空比跑低速,之后才真的加 PWM。"""
+    if t >= CREEP_SPAN:
+        return start + (t - CREEP_SPAN) / (1 - CREEP_SPAN) * (cap - start)
+    on = round(t / CREEP_SPAN * DUTY_TICKS)          # 这一周期里有几拍通电
+    return start if S.tick % DUTY_TICKS < on else SPEED_MID
 
 
 def compute(now):
@@ -77,6 +91,7 @@ def compute(now):
             S.last_dir = want
         if now - S.dir_change_t < REVERSE_PAUSE:
             return SPEED_MID, turn, True
+        S.tick += 1
         if want > 0:
             cap = FWD_CAP[S.mode]
             if S.guard:
@@ -87,7 +102,7 @@ def compute(now):
                 if gap < GUARD_SLOW:
                     cap = FWD_CAP[0]
             S.blocked = 0
-            pwm = FWD_START + t * (cap - FWD_START)
+            pwm = creep_or_pwm(t, FWD_START, cap)
         else:
             fresh = now - S.enc_t < 0.3
             if not fresh or abs(S.spd) > REV_SPEED_CAP:
@@ -95,7 +110,7 @@ def compute(now):
                 S.rev_block = 1 if fresh else 2
                 return SPEED_MID, turn, True
             S.rev_block = 0
-            pwm = REV_START + t * (REV_START - REV_CAP)   # t<0,越推越小
+            pwm = creep_or_pwm(-t, REV_START, REV_CAP)    # 倒车两端都比中位小
         return round(pwm), turn, True
 
 
