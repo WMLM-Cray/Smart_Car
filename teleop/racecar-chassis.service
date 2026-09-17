@@ -1,0 +1,14 @@
+[Unit]
+Description=HW-Autocar chassis stack (lidar + IMU + encoder + ESC driver)
+After=network-online.target
+
+[Service]
+User=orange-pi
+# 串口设备(/dev/car /dev/encoder)靠 udev 建,开机时可能还没就绪,等一下再起
+ExecStartPre=/bin/sleep 8
+ExecStart=/bin/bash -c 'source /opt/ros/humble/setup.bash && source /home/orange-pi/racecar/install/setup.bash && exec ros2 launch racecar Run_car.launch.py'
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
