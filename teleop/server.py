@@ -14,7 +14,9 @@ from rclpy.node import Node
 from rclpy.signals import SignalHandlerOptions
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
-from sensor_msgs.msg import Imu
+from sensor_msgs.msg import Imu, LaserScan
+
+from scan_guard import ScanGuard
 
 PORT = 8080
 HTML = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'index.html')
@@ -26,6 +28,8 @@ FWD_CAP = [1610, 1640, 1700]          # Sloth / Roaming / MAD MAX
 REV_CAP = 1340
 TURN_MID, TURN_SPAN = 84, 60
 DEADMAN = 0.3                         # 这么久没收到 t 就回中位
+GUARD_STOP = 0.25                     # 保险杠前净空小于这个就不许再往前(米)
+GUARD_SLOW = 0.8                      # 小于这个就把前进档位压到最慢一档
 NEUTRAL_HOLD = 1.0                    # 回中位后续发这么久再静默,不跟导航的指令抢底盘
 REVERSE_PAUSE = 0.3                   # 前进<->倒车换向前先给中位,电调要求
 
@@ -38,6 +42,9 @@ class State:
         self.estop = 0
         self.range = 1
         self.mode = 1
+        self.guard = 1                # 防撞开关,雷达掉线可以在网页上关掉
+        self.gap = None               # 保险杠前净空,None = 雷达没数据
+        self.blocked = 0
         self.last_dir = 0
         self.dir_change_t = 0.0
         self.pwm, self.turn = SPEED_MID, TURN_MID
@@ -67,6 +74,14 @@ def compute(now):
             return SPEED_MID, turn, True
         if want > 0:
             cap = FWD_CAP[S.mode]
+            if S.guard:
+                gap = S.gap
+                if gap is None or gap < GUARD_STOP:   # 雷达没数据也当挡着,总比撞上去强
+                    S.blocked = 1
+                    return SPEED_MID, turn, True
+                if gap < GUARD_SLOW:
+                    cap = FWD_CAP[0]
+            S.blocked = 0
             pwm = FWD_START + t * (cap - FWD_START)
         else:
             pwm = REV_START + t * (REV_START - REV_CAP)   # t<0,越推越小
@@ -81,6 +96,8 @@ class Bridge(Node):
         self.create_subscription(Odometry, '/encoder', self.on_enc, 10)
         self.create_subscription(Odometry, '/odom_combined', self.on_odom, 10)
         self.create_subscription(Imu, '/IMU_data', self.on_imu, 10)
+        self.guard = ScanGuard()
+        self.create_subscription(LaserScan, '/scan', self.on_scan, 1)
         self.idle_since = 0.0
         self.create_timer(0.05, self.tick)
         self.get_logger().info(f'publishing to {topic}, http://0.0.0.0:{PORT}')
@@ -100,8 +117,17 @@ class Bridge(Node):
             S.wz = math.degrees(m.angular_velocity.z)
             S.ax, S.ay = m.linear_acceleration.x, m.linear_acceleration.y
 
+    def on_scan(self, m):
+        self.guard.update(m)
+        gap = self.guard.gap()
+        with S.lock:
+            S.gap = gap
+
     def tick(self):
         now = time.time()
+        with S.lock:
+            if S.gap is not None and time.time() - self.guard.stamp > 1.0:
+                S.gap = None                      # 雷达掉线,别拿旧值当真
         pwm, turn, active = compute(now)
         if active:
             self.idle_since = 0.0
@@ -170,6 +196,9 @@ def handle_cmd(line):
                 S.range = int(p[1])
             elif p[0] == 'y' and int(p[1]) in (0, 1, 2):
                 S.mode = int(p[1])
+            elif p[0] == 'g':
+                S.guard = 1 if int(p[1]) else 0
+                return '防撞已开' if S.guard else '⚠ 防撞已关,前进不再看雷达'
             elif p[0] == 'h':
                 return 'HW-Autocar web teleop 已连接'
     except (ValueError, IndexError):
@@ -184,6 +213,8 @@ def telemetry():
             'th': round(S.th, 1), 'wz': round(S.wz, 1), 'ax': round(S.ax, 2), 'ay': round(S.ay, 2),
             'pwm': S.pwm, 'turn': S.turn, 'es': S.estop, 'rng': S.range, 'mode': S.mode,
             'enc': round(time.time() - S.enc_t, 1) if S.enc_t else -1,
+            'guard': S.guard, 'blocked': S.blocked,
+            'gap': -1 if S.gap is None else round(min(S.gap, 9.99), 2),
         })
 
 

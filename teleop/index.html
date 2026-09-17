@@ -163,6 +163,7 @@ body.m-max #modesel button.on{color:#fff}
   <button data-m="0">Sloth</button><button data-m="1" class="on">Roaming</button><button data-m="2">MAD MAX</button>
 </div>
 <button id="estop">急停</button>
+<button id="guard">防撞 开</button>
 <div id="pad">未检测到手柄 —— 插上或配对后按任意键唤醒</div>
 </section>
 
@@ -214,10 +215,12 @@ setInterval(()=>{
     try{ws.close();}catch(e){}
   }
 },1000);
+let guardOn=1;
 const F=[['速度','mm/s',x=>x.spd],['电调','PWM',x=>x.pwm],['舵机','',x=>x.turn],
          ['x','mm',x=>x.x],['y','mm',x=>x.y],['θ','°',x=>x.th],
          ['角速度','°/s',x=>x.wz],['加速度 x','m/s²',x=>x.ax],['加速度 y','m/s²',x=>x.ay],
-         ['编码器','s 前',x=>x.enc<0?'无数据':x.enc]];
+         ['编码器','s 前',x=>x.enc<0?'无数据':x.enc],
+         ['前方净空','m',x=>x.gap<0?'雷达无数据':x.gap]];
 function tel(d){
   const el=$('#tel');
   if(!el.children.length) el.innerHTML=F.map(f=>`<div><b>${f[0]} ${f[1]}</b><span></span></div>`).join('');
@@ -229,8 +232,13 @@ function tel(d){
   estop=d.es; $('#estop').classList.toggle('armed',!!d.es);
   $('#estop').textContent=d.es?'已急停 — 点此解除':'急停';
   /* 编码器 1 秒以上没数据 = car.sh 没开,底盘驱动多半也没在跑 */
+  guardOn = d.guard;
+  $('#guard').classList.toggle('armed', !d.guard);
+  $('#guard').textContent = d.guard ? '防撞 开' : '防撞 关';
   $('#hint').innerHTML=d.es?'<span class=bad>急停锁定</span>':
-      (d.enc<0||d.enc>1)?'<span class=warn>没有传感器数据 —— car.sh 开了吗?</span>':'';
+      (d.enc<0||d.enc>1)?'<span class=warn>没有传感器数据 —— car.sh 开了吗?</span>':
+      (d.guard&&d.blocked)?'<span class=warn>前方有障碍 —— 已禁止前进,可倒车</span>':
+      (d.guard&&d.gap<0)?'<span class=warn>雷达无数据 —— 前进被禁,要开就先关防撞</span>':'';
 }
 
 /* ---- 屏幕摇杆 ---- */
@@ -399,6 +407,7 @@ addEventListener('keydown',e=>{
 });
 addEventListener('keyup',e=>{ if(K[e.key]){held.delete(e.key);fromKeys();} });
 
+$('#guard').onclick=()=>send('g '+(guardOn?0:1));   /* guardOn 由遥测回来的值决定,不自己记状态 */
 $('#estop').onclick=()=>send('e '+(estop?0:1));
 
 if(/debug/.test(location.hash+location.search)) $('#adv').hidden=false;

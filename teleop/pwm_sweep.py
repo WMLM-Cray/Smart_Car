@@ -14,9 +14,13 @@ from rclpy.node import Node
 from rclpy.signals import SignalHandlerOptions
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
+from sensor_msgs.msg import LaserScan
+
+from scan_guard import ScanGuard
 
 SPEED_MID, TURN_MID = 1550, 84
 ABORT_SPEED = 1.5            # m/s,超过就中止
+ABORT_GAP = 0.6              # 保险杠前净空小于这个就中止(米)
 
 
 class Sweep(Node):
@@ -24,6 +28,8 @@ class Sweep(Node):
         super().__init__('pwm_sweep')
         self.pub = self.create_publisher(Twist, '/teleop_cmd_vel', 5)
         self.create_subscription(Odometry, '/encoder', self.on_enc, 10)
+        self.scan = ScanGuard()
+        self.create_subscription(LaserScan, '/scan', lambda m: self.scan.update(m), 1)
         self.samples = []
         self.distance = 0.0
         self.last_stamp = None
@@ -71,9 +77,16 @@ def main():
     for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
         signal.signal(sig, neutral_exit)
 
-    def hold_pwm(pwm, sec):
+    class Blocked(Exception):
+        pass
+
+    def hold_pwm(pwm, sec, watch=False):
         end = time.time() + sec
         while time.time() < end:
+            if watch:                                  # 前进时盯着雷达,不够净空就停
+                gap = node.scan.gap()
+                if gap is None or gap < ABORT_GAP:
+                    raise Blocked('雷达无数据' if gap is None else f'前方只剩 {gap:.2f}m')
             node.send(pwm); time.sleep(0.05)
 
     try:
@@ -84,9 +97,12 @@ def main():
         print(f'{"PWM":>5} {"平均mm/s":>9} {"最小":>6} {"最大":>6} {"波动(std)":>9} {"累计m":>6}', flush=True)
         pwm = start
         while pwm <= stop:
-            hold_pwm(pwm, hold / 2)          # 前一半等速度稳定
-            node.take()
-            hold_pwm(pwm, hold / 2)          # 后一半采样
+            try:
+                hold_pwm(pwm, hold / 2, watch=True)      # 前一半等速度稳定
+                node.take()
+                hold_pwm(pwm, hold / 2, watch=True)      # 后一半采样
+            except Blocked as e:
+                print(f'{pwm:>5.0f}  前方挡住了({e}),中止', flush=True); break
             s = [v * 1000 for v in node.take()]
             if s:
                 print(f'{pwm:>5.0f} {statistics.mean(s):>9.0f} {min(s):>6.0f} {max(s):>6.0f} '

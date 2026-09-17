@@ -7,6 +7,12 @@
 # 直接从 PowerShell 用 ssh 传参数容易被吞掉引号,先 ssh 进车再在车上跑这一行最稳。
 set -euo pipefail
 
+# nmcli 改网络要 root(否则报 "Not authorized to control networking"),自己提权
+if [ "$(id -u)" -ne 0 ]; then
+    echo "需要 root 改网络配置,下面输你的登录密码:"
+    exec sudo -E bash "$0" "$@"
+fi
+
 SSID=${1:?用法: bash car_wifi.sh "SSID" [密码]}
 PASS=${2:-}
 IFACE=${IFACE:-wlan0}
