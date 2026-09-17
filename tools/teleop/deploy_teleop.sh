@@ -49,7 +49,7 @@ ssh hwcar '
   cd ~/racecar_team/teleop_ws
   [ -d build ] && rm -rf build/racecar_teleop install/racecar_teleop   # clean 重建本包
   colcon build --packages-select racecar_teleop 2>&1 | tail -3
-  source install/setup.bash
+  set +u; source install/setup.bash; set -u
   cd src/racecar_teleop && python3 -m pytest test/ -q 2>&1 | tail -1
 ' || { echo "!! 车端解包/构建/单测失败(见上方输出),中止部署"; exit 4; }
 

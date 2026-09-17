@@ -154,10 +154,18 @@ def main():
               "--ros-args -p serial_port:=%s" % serial)
     start("teleop", "ros2 run racecar_teleop teleop_node --ros-args "
           "--params-file %s -r /teleop/cmd_vel:=/cmd_vel" % params_file)
-    time.sleep(2.0)
+    time.sleep(1.0)
 
     rclpy.init()
     node = ChainChecker()
+    # 链就绪等待(2026-09-17 车机实测):车机/WiFi 环境 DDS 图发现可达 4s+
+    # (WSL 共享内存 ~2s 即通),S1/S2 若落在发现窗口内会"无样本"假 FAIL。
+    # 等到 safety 的首条 /car_cmd_vel 再开测;判据与场景零改动。
+    _deadline = time.monotonic() + 15.0
+    while not node.cv_events and time.monotonic() < _deadline:
+        rclpy.spin_once(node, timeout_sec=0.1)
+    print("  链就绪等待: %s" % ("收到 /car_cmd_vel 首条" if node.cv_events
+                                else "15s 超时(链未通,后续判据将如实 FAIL)"))
     try:
         # S1 启动锁定:上电即按住使能(未先松开),不运动
         node.send_joy(throttle=1.0, enable=True, seconds=0.6)
