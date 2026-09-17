@@ -59,3 +59,42 @@ class Car:
         dx = np.maximum(np.maximum(x_lo - lx, 0.0), lx - x_hi)
         dy = np.maximum(np.abs(ly) - p.width / 2, 0.0)
         return np.hypot(dx, dy) < radius
+
+    def footprint_hits_squares(self, centres_xy: np.ndarray, half: float) -> np.ndarray:
+        """车体矩形与锥桶方形基座(边长 2·half,世界系轴对齐)是否相交。
+
+        2026-09-17 审查修正:官方锥底座是 0.28×0.28m 方形;原先 footprint_hits_
+        circles 用内切圆 r=0.14 是**乐观近似**——方形对角伸出圆外 (√2−1)·half
+        ≈0.058m,角对角擦碰会漏判。本判定用分离轴(SAT):车 OBB 的两条轴 +
+        方形的两条轴,任一轴上投影分离即不相交。
+        朝向假设:实际摆锥的底座朝向未记录,这里取世界系轴对齐;朝向偏差最多
+        45° 时方形投影宽度在 [0.28, 0.396] 之间,方向可正可负,如实披露。
+        粗筛:先用外接圆半径 half·√2 调 circles 取超集,再对候选做精确 SAT。
+        """
+        centres = np.asarray(centres_xy, float).reshape((-1, 2))
+        near = self.footprint_hits_circles(centres, half * 1.4143)   # 外接圆粗筛(超集)
+        hits = np.zeros(len(centres), bool)
+        idx = np.flatnonzero(near)
+        if not len(idx):
+            return hits
+        p = self.p
+        c, s = math.cos(self.yaw), math.sin(self.yaw)
+        # 车体四角(世界系),顺序绕矩形一圈
+        lx = np.array([-p.rear_overhang, p.length - p.rear_overhang,
+                       p.length - p.rear_overhang, -p.rear_overhang])
+        ly = np.array([-p.width / 2, -p.width / 2, p.width / 2, p.width / 2])
+        car_pts = np.stack([self.x + lx * c - ly * s, self.y + lx * s + ly * c], axis=1)
+        axes = np.array([[c, s], [-s, c], [1.0, 0.0], [0.0, 1.0]])   # 车两轴 + 世界两轴
+        off = np.array([[-half, -half], [half, -half], [half, half], [-half, half]])
+        for i in idx:
+            cone_pts = centres[i] + off
+            separated = False
+            for ax in axes:
+                pc = car_pts @ ax
+                pk = cone_pts @ ax
+                if pc.max() < pk.min() or pk.max() < pc.min():
+                    separated = True
+                    break
+            if not separated:
+                hits[i] = True
+        return hits

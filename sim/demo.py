@@ -1,10 +1,12 @@
-"""四工况集成演示(2026-09-16 任务书第 5 项):直行/定舵圆周/倒车/撞锥。
+"""六工况集成演示(2026-09-16 任务书第 5 项;2026-09-17 审查轮补⑤⑥):
+直行/定舵圆周/倒车/撞锥/停止/满舵兜圈时间截断。
 
     python3 -m sim.demo [--json out.json]
 
-前三个工况在**纯车辆模型**(sim.vehicle.Car)上做,不进赛道环境——对账对象
-是运动学自行车模型本身,不掺入出界/撞锥终止;撞锥工况用冻结 A 赛道环境
-(ConeTrackEnv(track=load_trackA()))验证碰撞检测链路。
+①②③⑤在**纯车辆模型**(sim.vehicle.Car)上做,不进赛道环境——对账对象
+是运动学自行车模型本身,不掺入出界/撞锥终止;④撞锥用冻结 A 赛道环境
+(ConeTrackEnv(track=load_trackA()))验证碰撞检测链路;⑥用随机赛道(seed0)
+验证"可持续兜圈必须被 budget 截断为 truncated(不得改测试动作绕开)"。
 
 圆周对账:δ=0.3rad、v→0.6m/s 稳态,理论 R = L/tanδ(阿克曼运动学),
       ω = v·tanδ/L;取加速收敛后(t>5s)的轨迹做最小二乘圆拟合,
@@ -115,6 +117,40 @@ def main():
     rows.append(("撞锥(trackA 朝红锥直开)", ok,
                  f"reason={col['reason']} hits={col['cone_hits']} t={col['time']:.2f}s"))
 
+    # ⑤ 停止:稳态 1.0 m/s 后给 0 指令 → 一阶减速停住,停后位移不再增长
+    car = Car(p); car.reset(0.0, 0.0, 0.0)
+    for _ in range(600):
+        car.step(1.0, 0.0, 0.01)
+    v_top, x_top = car.v, car.x
+    for _ in range(900):                                # 9s 足够 τ=0.35s 响应收敛
+        car.step(0.0, 0.0, 0.01)
+        if abs(car.v) < 1e-9:
+            break
+    x_rest = car.x
+    for _ in range(100):                                # 停后再等 1s
+        car.step(0.0, 0.0, 0.01)
+    ok = abs(car.v) < 1e-6 and abs(car.x - x_rest) < 1e-9 and x_rest > x_top
+    ok_all &= ok
+    rows.append(("停止(1.0m/s→0 指令)", ok,
+                 f"v_top={v_top:.3f} 停点前进 {x_rest - x_top:.3f}m 停后位移 "
+                 f"{abs(car.x - x_rest):.1e}m"))
+
+    # ⑥ 满舵兜圈时间截断:动作 [1,1] 兜圈被赛道容纳(几何事实),不许靠改动作
+    #    绕开——budget(取 8s)到点必须 truncated=True / reason=timeout
+    from .env import ConeTrackEnv
+    env = ConeTrackEnv(budget=8.0)
+    env.reset(seed=0)
+    while True:
+        _, _, term, trunc, info = env.step([1.0, 1.0])
+        if term or trunc:
+            break
+    ok = (trunc and not term and info["termination_reason"] == "timeout"
+          and info["cone_hits"] == 0)
+    ok_all &= ok
+    rows.append(("满舵兜圈时间截断(budget=8s)", ok,
+                 f"reason={info['termination_reason']} truncated={trunc} "
+                 f"hits={info['cone_hits']} t={info['time']:.2f}s"))
+
     print(f"{'工况':<22}{'结果':<6}测量")
     print("-" * 78)
     for name, ok, detail in rows:
@@ -128,7 +164,12 @@ def main():
                        "overall": "PASS" if ok_all else "FAIL",
                        "wheelbase": p.wheelbase,
                        "r_theory": r_theory, "omega_theory": w_theory,
-                       "circle_fit": c, "collision": col}, f, ensure_ascii=False, indent=1)
+                       "circle_fit": c, "collision": col,
+                       "stop": dict(v_top=v_top, coast=x_rest - x_top,
+                                    drift_after_rest=abs(car.x - x_rest)),
+                       "timeout_circle": dict(reason=info["termination_reason"],
+                                              truncated=trunc, cone_hits=info["cone_hits"],
+                                              time=info["time"])}, f, ensure_ascii=False, indent=1)
 
 
 if __name__ == "__main__":

@@ -168,7 +168,9 @@ class ConeTrackEnv(gym.Env):
         for _ in range(steps):
             self.car.step(self.v_cmd, self.steer_cmd, self.physics_dt)
             self.time += self.physics_dt
-            hits = np.flatnonzero(self.car.footprint_hits_circles(self.track.cones, self.tp.cone_base_radius))
+            # 地面碰撞=锥方形基座(0.28×0.28,SAT);雷达打的是锥体在扫描高度的
+            # 圆截面(cast_cones 圆台解析),两层几何不同,见 vehicle.py。
+            hits = np.flatnonzero(self.car.footprint_hits_squares(self.track.cones, self.tp.cone_base_radius))
             fresh = set(hits.tolist()) - self.hit_ids
             new_hits += len(fresh)
             self.hit_ids |= fresh

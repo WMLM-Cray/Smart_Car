@@ -268,10 +268,13 @@ def test_sectorize_is_independent_of_scan_resolution():
 
 
 def test_driving_hard_left_ends_on_cone_or_off_track():
-    # [2026-09-16 集成调整] 原动作 [1,1](满舵左):轴距 0.305→0.36 对齐主线后,
-    # 满舵兜圈半径 0.50→0.59m,seed0 赛道可容纳该圈,实测 120s timeout 兜圈不终止。
-    # 改用满速直行 [1,0](实测 2.3s 撞锥):同样验证"不可持续动作 → cone/off_track
-    # 终止链路可达"这一测试本意。满舵兜圈在新轴距下可持续本身是几何事实,不是缺陷。
+    # [2026-09-16 集成调整;2026-09-17 审查复核] 原动作 [1,1](满舵左):轴距
+    # 0.305→0.36 对齐主线后,满舵兜圈半径 0.50→0.59m,seed0 赛道可容纳该圈,
+    # 120s 兜圈只以 timeout 截断(当时把本测试改成满速直行 [1,0] 验证终止链路)。
+    # [2026-09-17 补正] "兜圈可持续"是几何事实,但其时间上限行为不得只靠改
+    # 动作绕开:满舵兜圈的 truncated 断言已由 test_core_audit.
+    # test_full_steer_circling_truncates_at_budget 专门覆盖;本测试保留满速
+    # 直行,继续验证 cone/off_track 终止链路可达。
     env = ConeTrackEnv()
     env.reset(seed=0)
     while True:
