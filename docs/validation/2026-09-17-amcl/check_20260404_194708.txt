@@ -1,0 +1,60 @@
+# AMCL 定位链只读核对 20260404_194708 (车机钟, 相对刻度)
+== 生命周期状态 ==
+  map_server: [37;1m2026-04-04 19:47:09.230 [31;1m[[37;1mRTPS_TRANSPORT_SHM[31;1m Error] [37mFailed init_port fastrtps_port7413: open_and_lock_file failed[34;1m -> Function [36mopen_port_internal[m
+[37;1m2026-04-04 19:47:09.230 [31;1m[[37;1mRTPS_TRANSPORT_SHM[31;1m Error] [37mFailed init_port fastrtps_port7415: open_and_lock_file failed[34;1m -> Function [36mopen_port_internal[m
+active [3]
+  amcl:       [37;1m2026-04-04 19:47:12.254 [31;1m[[37;1mRTPS_TRANSPORT_SHM[31;1m Error] [37mFailed init_port fastrtps_port7413: open_and_lock_file failed[34;1m -> Function [36mopen_port_internal[m
+[37;1m2026-04-04 19:47:12.254 [31;1m[[37;1mRTPS_TRANSPORT_SHM[31;1m Error] [37mFailed init_port fastrtps_port7415: open_and_lock_file failed[34;1m -> Function [36mopen_port_internal[m
+active [3]
+== 运动话题发布者(应全为 0 或不存在, 全程无运动指令输出) ==
+-- /cmd_vel
+  话题不存在
+-- /car_cmd_vel
+Publisher count: 0
+Subscription count: 1
+-- /teleop_cmd_vel
+Publisher count: 0
+Subscription count: 1
+-- /teleop/cmd_vel
+  话题不存在
+== 禁用组件确认不存在 ==
+  无 planner_server OK
+  无 controller_server OK
+  无 bt_navigator OK
+  无 waypoint OK
+  无 online_async OK
+  无 slam_toolbox OK
+== /tf 发布者(期望: ekf_filter_node + amcl + static, 无 slam) ==
+Publisher count: 2
+Node name: ekf_filter_node
+Node namespace: /
+Node name: amcl
+Node namespace: /
+Node name: transform_listener_impl_aaaad7c4b600
+Node namespace: /
+Node name: transform_listener_impl_aaab0f0f2750
+Node namespace: /
+Node name: slam_map_monitor
+Node namespace: /
+== map->odom_combined (应可解析, 发布者=amcl) ==
+- Translation: [-0.034, 0.080, 0.000]
+- Rotation: in Quaternion (xyzw) [0.000, 0.000, -0.231, 0.973]
+- Rotation: in RPY (radian) [0.000, 0.000, -0.465]
+== /amcl_pose 一帧 ==
+[37;1m2026-04-04 19:47:22.386 [31;1m[[37;1mRTPS_TRANSPORT_SHM[31;1m Error] [37mFailed init_port fastrtps_port7413: open_and_lock_file failed[34;1m -> Function [36mopen_port_internal[m
+[37;1m2026-04-04 19:47:22.387 [31;1m[[37;1mRTPS_TRANSPORT_SHM[31;1m Error] [37mFailed init_port fastrtps_port7415: open_and_lock_file failed[34;1m -> Function [36mopen_port_internal[m
+header:
+  stamp:
+    sec: 1775303101
+    nanosec: 724553472
+  frame_id: map
+pose:
+  pose:
+    position:
+      x: -0.03354644138997778
+      y: 0.07974768732148124
+      z: 0.0
+    orientation:
+== /particle_cloud 发布者在 ==
+Publisher count: 1
+Subscription count: 0
