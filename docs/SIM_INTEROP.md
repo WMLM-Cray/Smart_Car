@@ -136,11 +136,15 @@ frame_id=**laser_link**(仿真用 laser_sensor_link 属策略性不同名,实车
 
 | 命令(WSL,仓库根) | 说明 |
 |---|---|
-| `python3 -m sim.demo` | 四工况演示:直行/定舵圆周(与 R=L/tanδ 对账 ≤2%)/倒车/撞锥 |
+| `python3 -m sim.demo` | 六工况演示:直行/定舵圆周(与 R=L/tanδ 对账 ≤2%)/倒车/撞锥/停止/满舵兜圈时间截断(2026-09-17 审查轮补后两项) |
+| `python3 -m sim.interactive --track trackA --mode manual` | **实时交互驾驶**(需 GUI;WSLg 已验证):键盘↑↓=车速(松开保持)/←→=转向(松开回中)/X 急停/空格暂停/. 单步/R 重置;`--mode pp` 纯追踪自动跑;`--selftest`/`--demo-gif`/`--shot` 为无头凭据模式(见 docs/validation/2026-09-17-sim2d/) |
 | `python3 -m sim.preview --track trackA --out t.png` | A 赛道纯追踪一圈静态图(轨迹+末帧雷达) |
 | `python3 -m sim.preview --seed 0` | 随机赛道同款预览 |
 | `python3 -m sim.video --track trackA --out t.gif` | 纯追踪一圈 GIF 短视频 |
-| `python3 -m pytest sim/tests/ -q` | 全部测试(随机赛道+A 赛道+周期接线) |
+| `python3 -m pytest sim/tests/ -q` | 全部测试(随机赛道+A 赛道+周期接线+核心审查+交互) |
+
+**2026-09-17 核心审查**:碰撞改方形基座 SAT、满舵兜圈截断补回、观测行为级验证,
+详见 docs/SIM2D_CORE_AUDIT.md;交互入口的参考线仅为画布 debug,不进策略观测。
 
 **结果来源声明**:以上全部输出来自 Pure Pursuit 参考控制器(用赛道真值,只用于预览/测试)
 或确定性运动学模型;**RL 策略未训练,本仓库当前没有任何 RL 结果**。操作:改
