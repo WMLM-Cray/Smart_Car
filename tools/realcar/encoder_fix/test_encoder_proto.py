@@ -421,6 +421,84 @@ def worker_measured_dt_off_by_default():
     assert abs(v_dt * 2 - v_fixed) < 1e-3         # dt 翻倍→速度减半(容实时抖动)
 
 
+# ---------- 六、tap 唯一读取者(TapWorker,无 rclpy 依赖) ----------
+
+from encoder_tap import TapWorker, CSV_HEADER  # noqa: E402
+
+
+def tap_responses(vel_raw, dir_raw=0x3039):
+    """一次 tap 周期 = 速度响应+圈数响应两条(FakeSerial 按序弹)。"""
+    return [vel_frame(vel_raw), make_response(0x01, 2, bytes(
+        [(dir_raw >> 8) & 0xFF, dir_raw & 0xFF]))]
+
+
+@case
+def tap_clean_cycle_dual_parser_agree():
+    """干净流: legacy 与 fixed 同一份字节解出同值(顶替语义等价性)。"""
+    fs = FakeSerial(tap_responses(60))
+    w = TapWorker()
+    rec = w.cycle_once(fs, t_mono=1.0)
+    assert rec['legacy_vel'] is not None and rec['fixed_vel'] is not None
+    assert abs(rec['legacy_vel'] - rec['fixed_vel']) < 1e-12
+    assert 'raw=0x003C' in rec['note']
+    assert rec['req_v'] == '010300030001740a'      # 请求原样入档
+
+
+@case
+def tap_poison_cycle_matrix():
+    """毒字节周期(0918 场景): legacy 出鬼值(照记), fixed 拒(fixed_reject)——
+    A/B 证据矩阵在同一行 CSV 里同时可见。"""
+    fs = FakeSerial([bytes.fromhex('FF 01 03 02 27 10 FF'), vel_frame(0)])
+    w = TapWorker()
+    rec = w.cycle_once(fs, t_mono=2.0)
+    assert rec['legacy_vel'] > 5.0                  # 鬼值被记录(不是被隐藏)
+    assert rec['fixed_vel'] is None and 'fixed_reject' in rec['note']
+    assert w.n_fixed_reject == 1
+
+
+@case
+def tap_legacy_indexerror_contained():
+    """厂家 DueVelData 越界缺陷防护: 触发字节模式下捕获 IndexError 不崩溃,
+    note 留痕 legacy_IndexError,该周期不发布。"""
+    # 触发构造: 位置3起 01 03 02 → data_high=[6] 可读, data_low=[7] 越界
+    fs = FakeSerial([bytes.fromhex('00 00 00 01 03 02 FF'), vel_frame(0)])
+    w = TapWorker()
+    rec = w.cycle_once(fs, t_mono=3.0)
+    assert 'legacy_IndexError' in rec['note'], rec['note']
+    assert rec['legacy_vel'] is None
+    assert w.n_legacy_err == 1
+
+
+@case
+def tap_timeout_cycle_recorded():
+    """无响应周期: 空字节照记(resp 空), 双解析 None 不发布——
+    特别验证 DueVelData(b'')=0.0 的坑被防住(无数据≠新鲜零速度)。"""
+    fs = FakeSerial([b'', b''])
+    w = TapWorker()
+    rec = w.cycle_once(fs, t_mono=4.0)
+    assert rec['resp_v'] == '' and rec['resp_d'] == ''
+    assert rec['legacy_vel'] is None and rec['fixed_vel'] is None
+    assert 'timeout' in rec['note']
+    assert w.n_fixed_reject == 0                    # 空≠坏(不计拒帧)
+    # DueVelData(b'') 数学上返回 0.0(厂家无 timeout 永不触发此路径,tap 须防)
+    assert DueVelData(b'') == 0.0
+
+
+@case
+def tap_mixed_stream_stats():
+    """混合流统计: 好/毒/超时混合周期,计数器三分离(ok/legacy_err/fixed_reject)。"""
+    fs = FakeSerial(tap_responses(10)
+                    + [bytes.fromhex('FF 01 03 02 27 10 FF'), vel_frame(0)]
+                    + [b'', b'']
+                    + tap_responses(20))
+    w = TapWorker()
+    recs = [w.cycle_once(fs, t_mono=float(i)) for i in range(3)]
+    assert len(recs) == 3
+    assert w.n_ok == 2 and w.n_fixed_reject == 1
+    vals = [(r['legacy_vel'], r['fixed_vel']) for r in recs]
+    assert vals[0][0] is not None and vals[1][0] > 5.0 and vals[2][0] is None
+
+
 def main():
     failed = 0
     for fn in CASES:
