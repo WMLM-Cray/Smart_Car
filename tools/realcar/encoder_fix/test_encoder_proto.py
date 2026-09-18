@@ -499,6 +499,71 @@ def tap_mixed_stream_stats():
     assert vals[0][0] is not None and vals[1][0] > 5.0 and vals[2][0] is None
 
 
+# ---------- 七、异常响应分类(用户任务书第3条) ----------
+
+from encoder_proto import crc16_modbus, detect_exception_frame  # noqa: E402
+
+
+def exc_frame(code):
+    """构造合法设备异常响应帧 01 83 <code> <crc_lo> <crc_hi>(5 字节)。"""
+    body = bytes([0x01, 0x83, code])
+    c = crc16_modbus(body)
+    return body + bytes([c & 0xFF, c >> 8])
+
+
+@case
+def detect_exc_valid():
+    """合法异常响应: CRC 过 → (True, code, True),与垃圾分开。"""
+    is_exc, code, ok = detect_exception_frame(exc_frame(0x02))
+    assert (is_exc, code, ok) == (True, 0x02, True)
+
+
+@case
+def detect_exc_bad_crc():
+    """0x83 形态但 CRC 不过 → 归坏CRC/垃圾类(ok=False)。"""
+    f = bytearray(exc_frame(0x02))
+    f[2] ^= 0x01
+    is_exc, code, ok = detect_exception_frame(bytes(f))
+    assert is_exc and not ok and code != 0x02
+
+
+@case
+def detect_exc_ignores_normal():
+    """正常数据帧/短块/垃圾 → 非异常形态。"""
+    assert detect_exception_frame(vel_frame(100))[0] is False
+    assert detect_exception_frame(b'')[0] is False
+    assert detect_exception_frame(b'\x01\x83')[0] is False       # 不足 5 字节
+    assert detect_exception_frame(bytes.fromhex('FF 01 03 02 27 10 FF'))[0] is False
+
+
+@case
+def tap_exc_cycle_no_output():
+    """tap 收到合法异常帧: 不进速度输出(legacy/fixed 双 None=不发布),
+    原始帧保留在 CSV hex,异常码入 note 与计数(任务书: 不进入速度输出是正确的)。"""
+    fs = FakeSerial([exc_frame(0x02), vel_frame(0)])
+    w = TapWorker()
+    rec = w.cycle_once(fs, t_mono=5.0)
+    assert 'exc=0x02' in rec['note'], rec['note']
+    assert rec['legacy_vel'] is None and rec['fixed_vel'] is None
+    assert rec['resp_v'] == exc_frame(0x02).hex()                 # 原始帧保留
+    assert w.n_exc == 1 and w.last_exc_code == 0x02
+    # 厂家差异 D4 如实对照: 旧 DueVelData 对同一帧解出 0.0(厂家会发布,tap 不发布)
+    assert DueVelData(exc_frame(0x02)) == 0.0
+
+
+@case
+def tap_exc_badcrc_goes_garbage_path():
+    """坏 CRC 的 0x83 形态: 归垃圾类走正常双解析(照厂家行为解出 0.0),
+    计入 n_exc=0、n_ok+1(发布 0.0 与厂家一致,差异只在合法异常帧)。"""
+    f = bytearray(exc_frame(0x02))
+    f[2] ^= 0x01
+    fs = FakeSerial([bytes(f), vel_frame(0)])
+    w = TapWorker()
+    rec = w.cycle_once(fs, t_mono=6.0)
+    assert 'exc_badcrc' in rec['note']
+    assert rec['legacy_vel'] == 0.0 and w.n_ok == 1 and w.n_exc == 0
+
+
 def main():
     failed = 0
     for fn in CASES:

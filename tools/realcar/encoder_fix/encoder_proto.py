@@ -116,6 +116,21 @@ class ModbusRtuExtractor:
         return None
 
 
+def detect_exception_frame(data: bytes):
+    """识别字节块开头的 Modbus 异常响应帧(用户任务书 0918: 异常响应分类)。
+
+    正常读响应=01 03 bc ...;设备异常响应=01 83 <ex_code> <crc_lo> <crc_hi> 共 5 字节。
+    返回 (is_exc, ex_code, crc_ok):
+      is_exc=True 且 crc_ok=True  → 合法设备异常响应(设备在报错,不是线路坏)
+      is_exc=True 且 crc_ok=False → 01 83 形态但 CRC 不过 → 归坏CRC/垃圾类
+      is_exc=False                → 非异常帧形态
+    频繁合法异常时先查请求地址/寄存器/长度/时序/设备状态,不直接定性下位机故障。
+    """
+    if len(data) >= 5 and data[0] == 0x01 and data[1] == 0x83:
+        return True, data[2], frame_crc_valid(bytes(data[:5]))
+    return False, None, False
+
+
 def decode_first_register(frame: bytes) -> int:
     """合法帧 -> 第一个 16 位寄存器原始值(大端,与现役 data_high*256+data_low 一致)。"""
     bc = frame[2]

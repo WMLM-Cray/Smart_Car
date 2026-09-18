@@ -10,18 +10,27 @@
   [第2条 记录] 每周期记录: 单调时钟 time.monotonic()(不受车机系统钟跳变影响)
     + 所发请求帧 hex + 收到的原始响应字节块 hex → CSV 逐行落盘。
   [第2条 同流对照] 同一份响应字节分别喂:
-      旧 = DueVelData+厂家公式(逐字保留) → **发布 /encoder(顶替厂家语义,EKF 输入不变)**
+      旧 = DueVelData+厂家公式(逐字保留) → 发布 /encoder(**近似顶替**,差异见下,EKF 输入话题不变)
       新 = encoder_proto CRC 提取器 → 只旁路: 落盘 + 发布 /encoder_fixed_obs(**不供给 EKF**)
-  [第3条 协议实证前] 新解析输出只做旁路观察;响应协议(含异常响应帧)由落盘字节离线裁决。
-  [第7条 失效可见性] --stop-publish-after N: N 秒后停止发布 /encoder 但继续读串口记录
-    (隔离实验: 观察 EKF/AMCL 对断流的真实反应,证据进报告)。
+  [第3条 异常响应分类] 0x83 异常帧不进速度输出;保留原始帧+校验 CRC+记异常码;
+      "合法设备异常响应(CRC 过)"与"坏CRC/垃圾字节"分开统计。
+      频繁合法异常 → 先查请求地址/寄存器/长度/时序/设备状态,不直接定性下位机故障。
+  [第7条 失效可见性] --stop-publish-after N: N 秒后停止发布 /encoder 但继续读串口记录。
+      **仅在无动力、无导航运动源条件下执行**;观察 EKF 是否继续预测/AMCL 表现,
+      不预设 EKF 必然停止发布(如实记录)。
 
-厂家节奏保持: 每 0.02s 发两条请求(速度 0x0003 + 圈数 0x0000)各读 7 字节,
-与现役 encoder_node.py 相同(不为对照改变下位机被询方式)。
+请求节奏保持厂家: 每 0.02s 发两条请求(速度 0x0003 + 圈数 0x0000)各读 7 字节,
+不为对照改变下位机被询方式(实际周期是否吻合入阶段 A 实测表)。
 
-已知厂家缺陷(调用处防护,DueVelData 本体逐字保留不改):
-  DueVelData 的 range(len-1) 循环在特定字节模式(如 7 字节帧尾 3 字节=01 03 02)下
-  会 IndexError 越界——tap 捕获后记 note=legacy_IndexError,该周期不发布(如实留痕)。
+⚠️ 与厂家节点的已知行为差异(不得宣称完全等价;阶段 A 须实测六项后再说"近似"):
+  D1 读取超时:   tap timeout=0.02(可返回部分/空字节); 厂家无 timeout,read 永阻塞等满 7 字节
+  D2 异常处理:   tap 捕获 IndexError 继续运行并记录; 厂家同情形节点抛异常退出
+  D3 空响应:     tap 不发布(无数据≠零速,用户裁定保留); 厂家不遇此情形(阻塞无输出)
+  D4 异常响应帧: tap 合法 0x83 帧不发布(记码); 厂家 DueVelData 找不到 01 03 02 → 发布 0.0
+                 (坏 CRC 的 0x83 形态字节归垃圾类,走正常双解析=照厂家行为解出 0.0 发布)
+  D5 发布时间:   tap 循环自由跑+sleep 补齐 vs 厂家 rclpy timer 0.02s 回调——发布频率待实测
+  D6 字节拼接:   两者都不 flush 输入缓冲(残留拼接行为保留,便于复现与取证)
+  阶段 A 实测比较项(入表): 请求周期/响应拼接/单位/符号/比例/发布频率。
 
 用法(上车,见 NEXT_ROUND_PLAN 阶段 A):
   # 1) 停厂家 encoder 节点(仅进程,不动安装目录)
@@ -35,7 +44,7 @@ import time
 
 from encoder_proto import (
     ModbusRtuExtractor, decode_first_register, to_signed16,
-    counts_to_velocity, REQUEST_VEL, REQUEST_DIR,
+    counts_to_velocity, detect_exception_frame, REQUEST_VEL, REQUEST_DIR,
 )
 from encoder_node_fixed import DueVelData  # 厂家旧解析器逐字保留
 
@@ -60,6 +69,8 @@ class TapWorker:
         self.k = k
         self.ex = ModbusRtuExtractor()
         self.n_ok = self.n_legacy_err = self.n_fixed_reject = 0
+        self.n_exc = 0            # 合法设备异常响应(CRC 过的 01 83 帧)
+        self.last_exc_code = None
         self.last_fixed_vel = None
 
     def cycle_once(self, ser, t_mono):
@@ -76,6 +87,16 @@ class TapWorker:
         resp_d = ser.read(7)
         rec['resp_d'] = resp_d.hex() if resp_d else ''
 
+        # 异常响应分类(任务书第3条): 合法 0x83 帧不进速度输出,记码不发布(D4 差异)
+        is_exc, exc_code, exc_crc_ok = detect_exception_frame(resp_v)
+        if is_exc and exc_crc_ok:
+            self.n_exc += 1
+            self.last_exc_code = exc_code
+            rec['note'] = f'exc=0x{exc_code:02X}'
+            return rec
+        if is_exc:
+            rec['note'] = 'exc_badcrc'             # 0x83 形态但 CRC 不过 → 走正常双解析
+
         # 旧解析(厂家语义): 异常捕获留痕,不崩溃。
         # ⚠️ 空响应(超时)绝不当 0.0 发布——DueVelData(b'')数学上返回0,但"无数据≠零速",
         # 厂家节点因 read 永阻塞从不遇此情形;tap 带 timeout,必须显式不发布(任务书第7条)。
@@ -84,10 +105,10 @@ class TapWorker:
                 rec['legacy_vel'] = legacy_velocity(resp_v, k=self.k)
                 self.n_ok += 1
             except Exception as e:                 # noqa: BLE001
-                rec['note'] = f'legacy_{type(e).__name__}'
+                rec['note'] += f'legacy_{type(e).__name__}'
                 self.n_legacy_err += 1
         else:
-            rec['note'] = 'timeout'
+            rec['note'] += 'timeout'
 
         # 新解析(旁路): 同一份字节喂 CRC 提取器
         self.ex.feed(resp_v)
@@ -188,7 +209,8 @@ def main():
                 next_flush = t0 + 5.0
                 n.get_logger().info(
                     f"rec={n_rec} ok={w.n_ok} legacy_err={w.n_legacy_err} "
-                    f"fixed_reject={w.n_fixed_reject}")
+                    f"fixed_reject={w.n_fixed_reject} exc={w.n_exc}"
+                    + (f" last_exc=0x{w.last_exc_code:02X}" if w.last_exc_code is not None else ''))
             if args.duration and t0 - t_start >= args.duration:
                 break
             dt = args.cycle - (time.monotonic() - t0)
@@ -200,7 +222,7 @@ def main():
         ser.close()
         n.get_logger().info(
             f'退出: rec={n_rec} ok={w.n_ok} legacy_err={w.n_legacy_err} '
-            f'fixed_reject={w.n_fixed_reject} csv={csv_path}')
+            f'fixed_reject={w.n_fixed_reject} exc={w.n_exc} csv={csv_path}')
 
 
 if __name__ == '__main__':
