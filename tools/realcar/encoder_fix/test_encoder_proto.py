@@ -440,6 +440,8 @@ def tap_clean_cycle_dual_parser_agree():
     rec = w.cycle_once(fs, t_mono=1.0)
     assert rec['legacy_vel'] is not None and rec['fixed_vel'] is not None
     assert abs(rec['legacy_vel'] - rec['fixed_vel']) < 1e-12
+    assert rec['frame_valid'] == 'valid'           # CRC 通过的正常数据帧
+    assert rec['published'] == 'none'              # 默认值,实际发布由 main 填
     assert 'raw=0x003C' in rec['note']
     assert rec['req_v'] == '010300030001740a'      # 请求原样入档
 
@@ -452,6 +454,7 @@ def tap_poison_cycle_matrix():
     w = TapWorker()
     rec = w.cycle_once(fs, t_mono=2.0)
     assert rec['legacy_vel'] > 5.0                  # 鬼值被记录(不是被隐藏)
+    assert rec['frame_valid'] == 'bad'              # 鬼值行明确标坏帧,不算有效数据
     assert rec['fixed_vel'] is None and 'fixed_reject' in rec['note']
     assert w.n_fixed_reject == 1
 
@@ -466,6 +469,7 @@ def tap_legacy_indexerror_contained():
     rec = w.cycle_once(fs, t_mono=3.0)
     assert 'legacy_IndexError' in rec['note'], rec['note']
     assert rec['legacy_vel'] is None
+    assert rec['frame_valid'] == 'bad'              # 帧头凑不齐=本周期无有效帧
     assert w.n_legacy_err == 1
 
 
@@ -478,6 +482,7 @@ def tap_timeout_cycle_recorded():
     rec = w.cycle_once(fs, t_mono=4.0)
     assert rec['resp_v'] == '' and rec['resp_d'] == ''
     assert rec['legacy_vel'] is None and rec['fixed_vel'] is None
+    assert rec['frame_valid'] == 'empty'            # 无响应≠零速(与 bad 分开)
     assert 'timeout' in rec['note']
     assert w.n_fixed_reject == 0                    # 空≠坏(不计拒帧)
     # DueVelData(b'') 数学上返回 0.0(厂家无 timeout 永不触发此路径,tap 须防)
@@ -497,6 +502,7 @@ def tap_mixed_stream_stats():
     assert w.n_ok == 2 and w.n_fixed_reject == 1
     vals = [(r['legacy_vel'], r['fixed_vel']) for r in recs]
     assert vals[0][0] is not None and vals[1][0] > 5.0 and vals[2][0] is None
+    assert [r['frame_valid'] for r in recs] == ['valid', 'bad', 'empty']
 
 
 # ---------- 七、异常响应分类(用户任务书第3条) ----------
@@ -544,6 +550,7 @@ def tap_exc_cycle_no_output():
     w = TapWorker()
     rec = w.cycle_once(fs, t_mono=5.0)
     assert 'exc=0x02' in rec['note'], rec['note']
+    assert rec['frame_valid'] == 'exc'              # 帧CRC有效但是设备异常响应
     assert rec['legacy_vel'] is None and rec['fixed_vel'] is None
     assert rec['resp_v'] == exc_frame(0x02).hex()                 # 原始帧保留
     assert w.n_exc == 1 and w.last_exc_code == 0x02
@@ -554,7 +561,9 @@ def tap_exc_cycle_no_output():
 @case
 def tap_exc_badcrc_goes_garbage_path():
     """坏 CRC 的 0x83 形态: 归垃圾类走正常双解析(照厂家行为解出 0.0),
-    计入 n_exc=0、n_ok+1(发布 0.0 与厂家一致,差异只在合法异常帧)。"""
+    计入 n_exc=0、n_ok+1(发布 0.0 与厂家一致,差异只在合法异常帧)。
+    ⚠️用户补充口径(0918): 此处 legacy_vel=0.0 是解析失败产物,仅作 legacy
+    对照值,**不算有效静止测量**——CSV 中 frame_valid='bad' 同行可辨。"""
     f = bytearray(exc_frame(0x02))
     f[2] ^= 0x01
     fs = FakeSerial([bytes(f), vel_frame(0)])
@@ -562,6 +571,7 @@ def tap_exc_badcrc_goes_garbage_path():
     rec = w.cycle_once(fs, t_mono=6.0)
     assert 'exc_badcrc' in rec['note']
     assert rec['legacy_vel'] == 0.0 and w.n_ok == 1 and w.n_exc == 0
+    assert rec['frame_valid'] == 'bad'              # 0.0 来自坏CRC,非有效测量
 
 
 def main():

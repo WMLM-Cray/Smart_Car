@@ -9,6 +9,15 @@
     绝不允许 cat/xxd 等旁路程序与任何节点同时读该串口。
   [第2条 记录] 每周期记录: 单调时钟 time.monotonic()(不受车机系统钟跳变影响)
     + 所发请求帧 hex + 收到的原始响应字节块 hex → CSV 逐行落盘。
+  [补充口径(0918用户)] CSV 五项分别记录,防"解析失败的零/鬼值"被当正常数据:
+    resp_v/resp_d = 原始字节 hex;
+    frame_valid   = 帧有效性(CRC 客观判定): valid=正常数据帧 / exc=合法设备异常
+                    / bad=坏CRC·垃圾字节 / empty=无响应;
+    legacy_vel    = 旧解析值——**坏CRC字节经旧解析得到的 0.0 仅作 legacy 对照值,
+                    不算有效静止测量**(分析时以 frame_valid 同行辨别);
+    fixed_vel     = 新解析值;
+    published     = /encoder 实际发布: legacy/fixed/none/stopped(stopped=
+                    --stop-publish-after 失效实验期;旁路 /encoder_fixed_obs 不在此列)。
   [第2条 同流对照] 同一份响应字节分别喂:
       旧 = DueVelData+厂家公式(逐字保留) → 发布 /encoder(**近似顶替**,差异见下,EKF 输入话题不变)
       新 = encoder_proto CRC 提取器 → 只旁路: 落盘 + 发布 /encoder_fixed_obs(**不供给 EKF**)
@@ -77,7 +86,8 @@ class TapWorker:
         """一个完整厂家周期(双请求)。返回 record dict(始终返回,坏周期也记)。"""
         rec = {'t': t_mono, 'req_v': REQUEST_VEL.hex(), 'resp_v': '',
                'req_d': REQUEST_DIR.hex(), 'resp_d': '',
-               'legacy_vel': None, 'fixed_vel': None, 'note': ''}
+               'frame_valid': 'empty', 'legacy_vel': None, 'fixed_vel': None,
+               'published': 'none', 'note': ''}
 
         ser.write(REQUEST_VEL)
         resp_v = ser.read(7)
@@ -92,6 +102,7 @@ class TapWorker:
         if is_exc and exc_crc_ok:
             self.n_exc += 1
             self.last_exc_code = exc_code
+            rec['frame_valid'] = 'exc'             # 帧CRC有效但是设备异常响应
             rec['note'] = f'exc=0x{exc_code:02X}'
             return rec
         if is_exc:
@@ -115,19 +126,22 @@ class TapWorker:
         frames = self.ex.extract()
         if frames:
             raw = decode_first_register(frames[0])
+            rec['frame_valid'] = 'valid'           # CRC 通过的正常数据帧
             rec['fixed_vel'] = counts_to_velocity(
                 to_signed16(raw), cycle_s=0.02, k=self.k)
             rec['note'] += f' raw=0x{raw:04X}'
             self.last_fixed_vel = rec['fixed_vel']
         else:
             if resp_v:
+                rec['frame_valid'] = 'bad'         # 有字节但CRC不过=坏帧/垃圾
                 self.n_fixed_reject += 1
                 rec['note'] += ' fixed_reject'
+            # resp_v 为空保持 'empty'
         return rec
 
 
 CSV_HEADER = ['monotonic_s', 'req_v', 'resp_v', 'req_d', 'resp_d',
-              'legacy_vel', 'fixed_vel', 'note']
+              'frame_valid', 'legacy_vel', 'fixed_vel', 'published', 'note']
 
 
 def main():
@@ -185,18 +199,27 @@ def main():
                     f'--stop-publish-after 生效: 停止发布 /encoder(继续读串口记录)。'
                     f'此刻观察 EKF/AMCL 反应(隔离实验)。')
             rec = w.cycle_once(ser, t0 - t_start)
+            # 实际是否发布 /encoder(补充口径: 与解析值分列,分析时可辨别)
+            if not publishing:
+                pub_kind = 'stopped'
+            elif args.publish == 'legacy' and rec['legacy_vel'] is not None:
+                pub_kind = 'legacy'
+            elif args.publish == 'fixed' and rec['fixed_vel'] is not None:
+                pub_kind = 'fixed'
+            else:
+                pub_kind = 'none'
+            rec['published'] = pub_kind
             w_csv.writerow([f"{rec['t']:.6f}", rec['req_v'], rec['resp_v'],
-                            rec['req_d'], rec['resp_d'],
+                            rec['req_d'], rec['resp_d'], rec['frame_valid'],
                             '' if rec['legacy_vel'] is None else f"{rec['legacy_vel']:.6f}",
                             '' if rec['fixed_vel'] is None else f"{rec['fixed_vel']:.6f}",
-                            rec['note']])
+                            pub_kind, rec['note']])
             n_rec += 1
-            if publishing and rec['legacy_vel'] is not None:
+            if pub_kind == 'legacy':
                 msg.header.stamp = n.get_clock().now().to_msg()
                 msg.twist.twist.linear.x = rec['legacy_vel']
-                if args.publish == 'legacy':
-                    pub_legacy.publish(msg)
-            if publishing and args.publish == 'fixed' and rec['fixed_vel'] is not None:
+                pub_legacy.publish(msg)
+            elif pub_kind == 'fixed':
                 msg.header.stamp = n.get_clock().now().to_msg()
                 msg.twist.twist.linear.x = rec['fixed_vel']
                 pub_legacy.publish(msg)

@@ -29,8 +29,13 @@ scp hwcar:~/racecar/install/racecar/share/racecar/config/ekf.yaml ekf_车端当�
 Run_car.launch.py(全起) → kill 厂家 encoder 进程(确认串口无第二读取者) → 起 tap
   /encoder         = tap 旧解析发布(近似顶替,差异 D1-D6 见 tap 头注,EKF 输入话题不变)
   /encoder_fixed_obs = 新解析旁路(无人消费)
-  tap_*.csv        = 单调时钟+请求+响应原始 hex+双解析值+异常分类逐行
+  tap_*.csv        = 单调时钟+请求+响应原始 hex+帧有效性+双解析值+实际是否发布,逐行
 ```
+**补充记录口径(用户 0918)**: CSV 五项分别记录,防"解析失败的零/鬼值"被当正常数据——
+①原始字节 hex(resp_v/resp_d);②帧有效性 frame_valid(CRC 客观判定:
+valid/exc/bad/empty);③旧解析值(**坏CRC字节经旧解析得到的 0.0 仅作 legacy 对照值,
+不算有效静止测量**,分析时以 frame_valid 同行辨别);④新解析值;⑤实际是否发布
+published(/encoder 实发 legacy/fixed/none/stopped;旁路 /encoder_fixed_obs 不在此列)。
 **先核实实际响应协议**(用户裁定: 请求 CRC 正确只支持协议判断,不替代响应实证):
 地址/功能码/帧长/数据语义/CRC/异常响应,全部由捕获字节裁决——A1 静态 30s 的 CSV
 就是证据源。**tap 不宣称与旧节点完全等价**: 实测六项入表——请求周期/响应拼接/
@@ -56,7 +61,13 @@ Run_car.launch.py(全起) → kill 厂家 encoder 进程(确认串口无第二�
 定位/里程计失效后的自动处置方案——**仅取消目标不能冒充已停车**,须与现有安全链
 (cmd_vel_safety/电调断电)建立明确停止路径,此为阶段 E 的前置条件。
 
-**A4 汇报交割**: 原始数据(CSV/对账表/失效实验记录)+结论交用户,**停下等确认**。
+**A4 汇报交割(集中回答四问,用户 0918 定义)**: 保存原始数据(CSV/对账表/失效实验
+记录)+配置与版本,收链,交用户**停下等确认**——
+1. 实车响应帧格式、CRC 和数据含义是否支持当前新解析器?
+2. 静止时是否出现原始异常字节;若没有,**不强行复现或宣称排除历史故障**。
+3. 三次前推、一次后推中,卷尺距离与编码器积分分别相差多少,比例是否稳定?
+4. 停发 encoder 后,EKF 与 AMCL 实际如何变化,失效是否能被明确识别?
+结果决定是否进入 B——不自动切换、不接电调、不发导航目标。
 
 ## 阶段 B:无动力切换新解析器(gate 不参与;唯一改变因素=发布源)
 
@@ -99,7 +110,7 @@ ekf.yaml 改前备份;回滚=odom0 指回 /encoder。
 
 | 文件 | 状态 |
 |---|---|
-| `encoder_tap.py` | 含异常响应分类(合法 exc 记码不发布/坏CRC归垃圾)+差异 D1-D6 披露;`--publish`/`--stop-publish-after` |
+| `encoder_tap.py` | 含异常响应分类(合法 exc 记码不发布/坏CRC归垃圾)+差异 D1-D6 披露;CSV 十列含 frame_valid/published(补充口径);`--publish`/`--stop-publish-after` |
 | `encoder_proto.py` | 新增 `detect_exception_frame()`(CRC 校验+异常码,与垃圾分开) |
 | `test_encoder_proto.py` | **45/45**(新增异常分类六用例) |
 | `encoder_gate_v2.py`/`test_gate.py` | 13/13(D 阶段才上场) |
