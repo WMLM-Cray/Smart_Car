@@ -53,10 +53,16 @@
   判不健康并 `_handle_loc_lost`(取消在途/整段取消)。
 - **硬依赖(需返工)**: 门控订阅 `localization_status_topic`(默认 `/localization_ok`,std_msgs/Bool)。
   主线 `tools/realcar/` 目前**没有该话题的发布者**;无发布者时 `_loc_state` 恒 `unknown`,
-  executor 将**拒绝 start**。README 也写明"真实发布者由主线诊断模块/适配节点提供"。→ 实车接入
-  前主线须提供一个适配节点(AMCL/EKF 健康 → Bool),否则任务器起不动。
-- **默认参数隐患(需返工)**: `localization_watchdog=0.0`(默认禁用)。禁用时若发布者最后一次发
-  True 后死亡,状态永远 healthy,失去 STALE 检测。实车应设 `localization_watchdog>0`(如 1.0~2.0s)。
+  executor 将**拒绝 start**。README 也写明"真实发布者由主线诊断模块/适配节点提供"。
+  → **"补一个发布者"不是终点(队长收口)**: 主线须先定义这个 Bool 的**健康判据**——什么证据算
+  "定位有效"(**不能仅凭"AMCL 有消息"或"协方差小"就发 True**)、什么算失效、什么算过期,以及
+  **任务运行中定位失效时任务器如何处置**(门控只负责拒绝 start/resume 与整段取消,"失效→恢复→
+  是否续跑"的语义须主线定)。发布者只是接口载体,判据不定义清楚,发 True 就是伪安全。
+- **默认参数隐患(需返工)**: `localization_watchdog=0.0`。**源码语义已确认 = 禁用**(`_start_loc_watchdog`
+  在 `<=0` 时不建 timer、`_loc_healthy` 在 `<=0` 时不检查过期,executor_node.py:807/587):
+  发布者最后一次发 True 后死亡,状态永远 healthy,失去 STALE 检测。实车接入须**显式**设
+  `localization_watchdog>0`(如 1.0~2.0s),且要**验证超时行为**——发布者停发后任务器应在
+  watchdog 内判 stale 并处置,而非只把参数写上不验证。
 
 ### 2.4 SIGINT/SIGTERM 生命周期 —— ✅ 通过
 
@@ -93,8 +99,8 @@
 
 | 项 | 问题 | 处置 |
 |---|---|---|
-| `/localization_ok` 发布者缺失 | 无发布者 → 任务器拒 start(硬依赖) | 主线补适配节点(AMCL/EKF 健康→Bool) |
-| `localization_watchdog` 默认 0.0 | 发布者死亡后失去 STALE 检测 | 实车 launch 显式设 >0 |
+| `/localization_ok` 发布者缺失 | 无发布者 → 任务器拒 start(硬依赖) | **非"补一个 Bool 节点"即完成**: 主线先定义健康判据(有效/失效/过期/运行中失效处置),不能仅凭 AMCL 有消息或协方差小发 True,再落地发布者 |
+| `localization_watchdog` 默认 0.0 | 源码确认 = 禁用 STALE;发布者死亡后失去 STALE 检测 | 实车显式设 >0 且**验证超时行为**(停发 → 判 stale → 处置) |
 | 版本号/目录名未随 rework 递增 | 追踪性差 | 后续以 git SHA 为准 |
 
 ### 未验证(如实,非缺陷)
