@@ -8,7 +8,7 @@
 #      违反"本轮只做单目标");直接起 bringup_launch.py(纯 nav2,无循环途经点)。
 #
 # 链路:RViz 单目标 → bt_navigator → controller_server(/cmd_vel)
-#         → cmd_vel_safety(限幅 0.55m/s(0918过电调死区0.485) / 超时 0.5s 零速) → /car_cmd_vel
+#         → cmd_vel_safety(限幅 0.10m/s / 超时 0.5s 零速) → /car_cmd_vel
 #         → racecar_driver_node → /dev/car → 电调/舵机
 #
 # 用法: bash safety_nav_one.sh [地图yaml]     # 默认 map1
@@ -51,7 +51,7 @@ trap terminate SIGINT SIGTERM
 echo "=== 安全链启动(地图: $MAP)==="
 echo "=== 前提自查:车辆按 POWERON 方案就位?区域清空?手边有电调开关? ==="
 
-python3 "$TEAM/cmd_vel_safety.py" --ros-args -p max_linear:=0.55 > "$TEAM/safety_last.log" 2>&1 &
+python3 "$TEAM/cmd_vel_safety.py" > "$TEAM/safety_last.log" 2>&1 &
 SAFETY_PID=$!
 echo "[1/3] cmd_vel_safety 已起(日志 $TEAM/safety_last.log)"
 

@@ -107,7 +107,7 @@ controller_server:
       stateful: True
     FollowPath:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
-      desired_linear_vel: 0.55 # team改0918:0.10远低于电调起步死区(实测≈0.485m/s,PWM≈1588)车不动;用户拍板方案B=0.55(仅动此数+安全层max_linear,弯道/接近参数不动,掉死区实测再收)
+      desired_linear_vel: 0.10 # team改:原0.25;保守基线(任务书≤0.1m/s)。0918事故试验曾临时0.55(过死区0.485)已撤回0.10基线;0.10≠已证实可稳定起步,若车不动不得自行加速,须先低速动力标定(另行现场确认)
       lookahead_dist: 1.2  #前瞻距离0.3 给他调成0.1后车废了，往大了调！  往大了调车跑的很好，但也不能太大！                            
       min_lookahead_dist: 0.9  #0.3                   
       max_lookahead_dist: 1.4 #0.6                         
