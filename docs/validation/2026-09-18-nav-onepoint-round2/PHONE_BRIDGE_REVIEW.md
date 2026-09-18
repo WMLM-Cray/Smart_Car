@@ -67,12 +67,13 @@
 
 ---
 
-## 3. 需返工 / 需主线接线（接入前置）
+## 3. 集成待办 / 接入前置（非模块缺陷）
 
-### 3.1 主线 remap 缺口：`/phone/cmd_vel` 尚未接入安全链
-- 本包只产出隔离话题 `/phone/cmd_vel`。主线 `cmd_vel_safety` 订阅 `/cmd_vel`，现役 `tools/realcar/` 下**尚无**把 `/phone/cmd_vel` remap 进 `/cmd_vel` 的集成 launch/remap。
-- 这与任务三 mission 模块的 `/localization_ok` 缺口同构：**模块自洽，但主线缺一根接线**。
-- **接线纪律（关键）**：remap 必须走 `/phone/cmd_vel → /cmd_vel → cmd_vel_safety → /car_cmd_vel`，**严禁** `/phone/cmd_vel → /car_cmd_vel` 直连。理由：桥接节点崩溃时 `/phone/cmd_vel` 停发，cmd_vel_safety 的 0.5s 超时零速是唯一兜底；直连则节点死 = 命令冻结/无兜底。
+### 3.1 主线 remap 待办：`/phone/cmd_vel` 尚未接入安全链
+- 本包只产出隔离话题 `/phone/cmd_vel`——**独立输出本就是隔离要求，是特性不是缺陷**（避免与 Nav2/键盘争夺 `/cmd_vel`）。主线 `cmd_vel_safety` 订阅 `/cmd_vel`，现役 `tools/realcar/` 下**尚无**把 `/phone/cmd_vel` remap 进 `/cmd_vel` 的集成 launch/remap → 属**主线集成待办**，不归咎于桥接模块。
+- **接线纪律（关键）**：remap 必须走 `/phone/cmd_vel → /cmd_vel → cmd_vel_safety → /car_cmd_vel`，**严禁** `/phone/cmd_vel → /car_cmd_vel` 直连（直连绕过安全层）。
+- **指令源互斥（接入前提）**：手机桥与 Nav2 不能同时占用 `/cmd_vel`。主线既有"唯一速度源"纪律（Nav2 速度输出不得与手柄/键盘争抢 cmd_vel），接入须确保同一时刻只有一个运动指令源在发 `/cmd_vel`。
+- **桥进程退出停止链（接入前提，须实测验证）**：桥接节点崩溃 → `/phone/cmd_vel` 停发 → 经 remap 后 cmd_vel_safety 的 0.5s 超时发零速。**但这条停止链依赖安全节点、driver 与串口仍正常，不是"任何故障下都可靠停车"**——若 safety 或 driver 也死，仍只剩物理断电源（与主线现役已知缺口一致）。接入时须实测"杀桥接节点 → safety 超时零速 → driver 回中位"整链，不能仅凭 0.5s 看门狗存在就宣称可靠停车。
 
 ### 3.2 依赖主线 racecar_teleop 包（colcon 环境）
 - 桥接 `import racecar_teleop.state/mapping`，要求 colcon 工作区已安装含 `lock()` 的主线 `racecar_teleop` 包。zip 随附的 `RTO_*.py` 只是基线副本（供核对），桥接运行时不读它。
@@ -110,4 +111,4 @@
 
 - **架构评级：可接入（有条件）**。设计克制、复用主线状态机而非重写、锁定语义真实、竞态处理到位、口径诚实（M1/蓝牙/热点/串口/实车五项未验证如实列出）。
 - **接入前置**：① 主线补 `/phone/cmd_vel → /cmd_vel` 集成 remap（经 cmd_vel_safety，禁直连）；② 确认车机工作区含 `lock()` 主线 racecar_teleop；③ M1 真机兼容性先过（放行门槛），尤其是「拔线/断蓝牙是否重发旧值」。
-- 与任务三 mission 模块并列，两个队友交付的**共同缺口都是「主线接线」而非模块内部**：mission 缺 `/localization_ok` 发布者，phone bridge 缺 `/phone/cmd_vel` 集成 remap。主线集成层是下一轮真正要补的环节。
+- 与任务三 mission 模块并列：两个队友交付的**模块内部均自洽**，剩下的都是**主线集成待办**——mission 需主线定义并落地定位健康接口（非"补一个 Bool 节点"即完成）、phone bridge 需主线做 `/phone/cmd_vel` 集成 remap（隔离输出本就是要求，属接线待办非缺陷）。主线集成层（定位健康接口 + 指令源互斥 + 桥进程退出停止链）是下一轮真正要补的环节。
