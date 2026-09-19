@@ -21,7 +21,16 @@ TEAM="$HOME/racecar_team"
 MAP="${1:-$HOME/racecar/src/racecar/map/map1.yaml}"
 PARAMS="$TEAM/nav_safe.yaml"
 
-for f in "$TEAM/cmd_vel_safety.py" "$PARAMS" "$MAP"; do
+# gate 版本选择(2026-09-19 增): v1=现役(默认,保留回滚) / v2=候选(修复 B1/B2/B3)。
+# ⚠️ v2 未部署车端、未经队友阶段验证前,不得作动力导航前提;动力导航默认仍走 v1。
+GATE_VERSION="${GATE_VERSION:-v1}"
+case "$GATE_VERSION" in
+  v1) GATE_PY="$TEAM/encoder_gate.py" ;;
+  v2) GATE_PY="$TEAM/encoder_fix/encoder_gate_v2.py" ;;
+  *)  echo "未知 GATE_VERSION=$GATE_VERSION(仅 v1/v2),中止"; exit 2 ;;
+esac
+
+for f in "$TEAM/cmd_vel_safety.py" "$PARAMS" "$MAP" "$GATE_PY"; do
   [ -f "$f" ] || { echo "缺少 $f,中止"; exit 2; }
 done
 
@@ -55,10 +64,10 @@ python3 "$TEAM/cmd_vel_safety.py" > "$TEAM/safety_last.log" 2>&1 &
 SAFETY_PID=$!
 echo "[1/3] cmd_vel_safety 已起(日志 $TEAM/safety_last.log)"
 
-# 0918 增:编码器合理性闸门(毛刺→假odom→碰撞已发生一次,见 encoder_gate.py 头注)
-python3 "$TEAM/encoder_gate.py" > "$TEAM/encoder_gate_last.log" 2>&1 &
+# 0918 增:编码器合理性闸门(毛刺→假odom→碰撞已发生一次,见 encoder_gate*.py 头注)
+python3 "$GATE_PY" > "$TEAM/encoder_gate_last.log" 2>&1 &
 GATE_PID=$!
-echo "[1b] encoder_gate 已起(日志 $TEAM/encoder_gate_last.log)"
+echo "[1b] encoder_gate($GATE_VERSION) 已起(日志 $TEAM/encoder_gate_last.log)"
 
 setsid ros2 launch racecar Run_car.launch.py > "$TEAM/runcar_last.log" 2>&1 &
 CAR_PID=$!
