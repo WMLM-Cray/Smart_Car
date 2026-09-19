@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # 车机本机扫图监控渲染: /map + /scan + 轨迹 -> PNG (SSH 拉取显示用)
 # 2026-09-17 阶段1; 与 slam_scan.sh 同用; 只读订阅, 不动控制链
+# 2026-09-19 v2: 顶部新增 /scan 最后接收时间 + TF 数据时间新鲜度标注(过期红色 STALE);
+#                 /map 为静态图不持续更新, 只标"已加载"不判过期(静态地图停更≠故障)。
 # 退出: SIGINT/SIGTERM (自接管, 避免 rclpy 默认 handler 先 shutdown 的坑 6bb97d8)
 import os, signal, sys, time
 import numpy as np
@@ -16,6 +18,10 @@ import tf2_ros
 
 OUT = os.path.expanduser("~/racecar_team/logs/slam/monitor.png")
 TMP = OUT + ".tmp.png"
+
+# 新鲜度阈值(秒): 超过即判输入冻结。scan 约 12Hz / TF 约 20Hz, 正常 age 恒 < 0.5s。
+SCAN_STALE = 2.0
+TF_STALE = 2.0
 
 
 class Monitor(Node):
@@ -34,11 +40,15 @@ class Monitor(Node):
         self.map = None
         self.scan_pts = None
         self.trail = []
+        # v2: 新鲜度时间戳(墙钟相对刻度, 车机钟慢5个月但相对差值可用)
+        self.last_scan_recv = None   # 最后收到 /scan 的墙钟时刻
+        self.last_tf_ok = None       # 最后一次 TF lookup 成功的墙钟时刻
 
     def on_map(self, msg):
         self.map = msg
 
     def on_scan(self, msg):
+        self.last_scan_recv = time.time()   # 收到即记, 不依赖后续 TF 是否成功
         r = np.array(msg.ranges)
         a = np.arange(len(r)) * msg.angle_increment + msg.angle_min
         m = np.isfinite(r) & (r > msg.range_min) & (r < 8.0)
@@ -49,11 +59,38 @@ class Monitor(Node):
             tyaw = 2.0 * np.arctan2(t.transform.rotation.z, t.transform.rotation.w)
         except Exception:
             return  # TF 未就绪跳过本帧
+        self.last_tf_ok = time.time()   # TF 成功才记
         x = r[m] * np.cos(a[m])
         y = r[m] * np.sin(a[m])
         self.scan_pts = (tx + x * np.cos(tyaw) - y * np.sin(tyaw),
                          ty + x * np.sin(tyaw) + y * np.cos(tyaw))
         self.trail.append((tx, ty))
+
+
+def _status_lines(mon):
+    """返回 [(文本, 颜色)] 列表, 供 render 在左上角绘制。"""
+    now = time.time()
+    lines = []
+    # /scan 新鲜度(实时数据, 应持续更新)
+    if mon.last_scan_recv is not None:
+        a = now - mon.last_scan_recv
+        stale = a > SCAN_STALE
+        lines.append((f"scan: {a:.1f}s ago {'[STALE]' if stale else '[ok]'}",
+                      "red" if stale else "green"))
+    else:
+        lines.append(("scan: 无数据 [STALE]", "red"))
+    # TF 数据时间(实时, 应持续更新)
+    if mon.last_tf_ok is not None:
+        a = now - mon.last_tf_ok
+        stale = a > TF_STALE
+        lines.append((f"tf: {a:.1f}s ago {'[STALE]' if stale else '[ok]'}",
+                      "red" if stale else "green"))
+    else:
+        lines.append(("tf: 无数据 [STALE]", "red"))
+    # /map 静态图, 不持续更新是正常的, 只标"已加载", 不判过期
+    lines.append(("map: 已加载(静态)" if mon.map is not None else "map: 无",
+                  "gray"))
+    return lines
 
 
 def render(mon):
@@ -80,6 +117,11 @@ def render(mon):
     ax.set_title("SLAM map monitor  (map + scan + trail)")
     ax.legend(loc="upper right")
     ax.set_aspect("equal")
+    # v2: 左上角新鲜度状态(transform=ax.transAxes, 不因 bbox_inches=tight 被裁)
+    for i, (txt, color) in enumerate(_status_lines(mon)):
+        ax.text(0.02, 0.98 - i * 0.05, txt, transform=ax.transAxes, fontsize=9,
+                color=color, va="top", fontweight="bold",
+                bbox=dict(facecolor="white", alpha=0.65, edgecolor="none"))
     fig.savefig(TMP, bbox_inches="tight")
     plt.close(fig)
     os.replace(TMP, OUT)   # 原子替换, 拉图不会拉到半张
