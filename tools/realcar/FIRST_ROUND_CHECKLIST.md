@@ -84,18 +84,26 @@ ssh orange-pi@<车机IP> 'cd ~/racecar_team/encoder_fix && python3 test_encoder_
 2. 再按**显示 v2 增强包**(`hwcart_display_v2_20260919.zip`)的清单,替换/新增显示文件。
 3. **无需先跑 v1 再跑 v2**——直接部署 v2 文件即可;历史压缩包保持原样,不覆盖。
 
-**若队友已跑过 v1 显示**:先核对并停止旧实例,再启动 v2,禁止两个渲染器同时跑:
+**若队友已跑过 v1 显示**:先只读核对旧实例(PID + 完整命令行 + 脚本路径),精确停止该 PID,确认退出后再启动 v2。禁止两个渲染器同时跑。
+> **v1 若由手动 nohup 启动, 很可能没有 v2 的 PIDFILE, 不能假定 `display_monitor.sh stop` 能停掉它**——只能按下面"先查后杀"。**全程不得用全局 pkill。**
+
 ```bash
-# 查旧实例(PIDFILE 失效时兜底查命令名)
-ssh orange-pi@<车机IP> 'cd ~/racecar_team && [ -f logs/slam/monitor.pid ] && cat logs/slam/monitor.pid; pgrep -f map_monitor.py'
-# 停旧实例(有 v1 手动 nohup 起的, 先精确 kill 这个 PID)
-ssh orange-pi@<车机IP> 'kill <旧PID>'
+# ① 只读核对: 列出 map_monitor.py 进程的 PID + 完整命令行(核对 args 里的脚本路径确实是本目录的
+#    map_monitor.py, 不是别的同名进程; 可能有多个, 逐个核对)
+ssh orange-pi@<车机IP> 'ps -ww -eo pid,args | grep "[m]ap_monitor.py"'
+#   记录上面显示的 PID。
+
+# ② 精确停止该 PID(单个 PID, 不用 pkill -f)
+ssh orange-pi@<车机IP> 'kill <核对后的PID>'
+
+# ③ 确认已退出(下面命令无输出 = 已退出)
+ssh orange-pi@<车机IP> 'ps -p <PID> -o pid= || echo 已退出'
 ```
 
 **部署(替换显示文件)**:
 ```bash
 ssh orange-pi@<车机IP> 'cp ~/racecar_team/map_monitor.py ~/racecar_team/map_monitor.py.bak_v1_$(date +%Y%m%d) 2>/dev/null || true'
-scp map_monitor.py display_monitor.sh save_map_pgm.py orange-pi@<车机IP>:~/racecar_team/
+scp map_monitor.py path_display.py display_monitor.sh save_map_pgm.py orange-pi@<车机IP>:~/racecar_team/
 ssh orange-pi@<车机IP> 'chmod +x ~/racecar_team/display_monitor.sh'
 ```
 

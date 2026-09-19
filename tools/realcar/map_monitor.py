@@ -4,7 +4,9 @@
 # 2026-09-19 v2: 顶部新增 /scan 最后接收时间 + TF 数据时间新鲜度标注(过期红色 STALE);
 #                 /map 为静态图不持续更新, 只标"已加载"不判过期(静态地图停更≠故障)。
 # 2026-09-19 v3: 可选订阅规划路径话题(--path-topic 指定), 话题名不写死、默认不订阅(行为与 v2 一致);
-#                 路径按需更新不持续, 故只标"已加载+最后更新时间", 不判 STALE。
+#                 路径按需更新不持续, 不判 STALE, 状态行标"最近收到 Ns ago"(非当前有效性判定);
+#                 路径 frame 与地图 frame 不一致走 TF 转换, 无 TF 则拒绝绘制(绝不直接套坐标);
+#                 空路径清空旧线(render 每帧重建, 天然清除)。frame 对齐/状态行纯逻辑在 path_display.py。
 # 退出: SIGINT/SIGTERM (自接管, 避免 rclpy 默认 handler 先 shutdown 的坑 6bb97d8)
 import argparse, os, signal, sys, time
 import numpy as np
@@ -17,6 +19,7 @@ from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy, HistoryPo
 from nav_msgs.msg import OccupancyGrid, Path
 from sensor_msgs.msg import LaserScan
 import tf2_ros
+import path_display   # 路径 frame 对齐 + 状态行纯逻辑(无 ROS 依赖, 可离线单测)
 
 OUT = os.path.expanduser("~/racecar_team/logs/slam/monitor.png")
 TMP = OUT + ".tmp.png"
@@ -64,6 +67,14 @@ class Monitor(Node):
         self.path = msg
         self.last_path_recv = time.time()
 
+    def _tf_lookup(self, target, source):
+        """给 path_display 用的 TF 查询: target<-source, 返回 (tx, ty, yaw 弧度); 查不到抛异常。"""
+        t = self.tf.lookup_transform(target, source, rclpy.time.Time())
+        tx = t.transform.translation.x
+        ty = t.transform.translation.y
+        yaw = 2.0 * np.arctan2(t.transform.rotation.z, t.transform.rotation.w)
+        return tx, ty, yaw
+
     def on_scan(self, msg):
         self.last_scan_recv = time.time()   # 收到即记, 不依赖后续 TF 是否成功
         r = np.array(msg.ranges)
@@ -108,12 +119,10 @@ def _status_lines(mon):
     lines.append(("map: 已加载(静态)" if mon.map is not None else "map: 无",
                   "gray"))
     # v3: 规划路径(仅当订阅了 path 话题才显示; 默认不订阅则不加此行, 与 v2 输出一致)
-    if mon.path_topic:
-        if mon.path is not None:
-            a = now - mon.last_path_recv
-            lines.append((f"plan: 已加载({a:.0f}s ago)", "gray"))
-        else:
-            lines.append(("plan: 无数据", "gray"))
+    #     只标"最近收到+年龄", 不判 STALE, 不暗示是当前有效路径(见 path_display.path_status_text)
+    st = path_display.path_status_text(mon, now)
+    if st is not None:
+        lines.append(st)
     return lines
 
 
@@ -131,9 +140,15 @@ def render(mon):
         ax.imshow(img, cmap="gray", origin="lower",
                   extent=[ox, ox + w * res, oy, oy + h * res])
     if mon.path is not None:
-        px = [p.pose.position.x for p in mon.path.poses]
-        py = [p.pose.position.y for p in mon.path.poses]
-        ax.plot(px, py, "-c", lw=1.5, label="plan")
+        xy, err = path_display.transform_path_poses(
+            mon.path.poses, mon.path.header.frame_id, mon._tf_lookup)
+        if err:
+            ax.text(0.02, 0.02, err, transform=ax.transAxes, color="red",
+                    fontsize=9, va="bottom",
+                    bbox=dict(facecolor="white", alpha=0.7, edgecolor="none"))
+        elif xy:
+            ax.plot([p[0] for p in xy], [p[1] for p in xy], "-c", lw=1.5, label="plan")
+        # xy 为空(空路径)则不画, 旧线随本帧 fig 重建自然消失
     if mon.trail:
         ax.plot([p[0] for p in mon.trail], [p[1] for p in mon.trail], "-b", lw=1, label="trail")
     if mon.scan_pts is not None:

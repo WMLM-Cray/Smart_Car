@@ -3,7 +3,7 @@
 > 方案:车机本机跑 `map_monitor.py` 渲染 PNG,队友电脑拉 PNG + 浏览器(`monitor.html`)每 2s 刷新。
 > **不是 web_teleop**(那是队友仓库里的遥控模块,无地图/雷达/路径显示,不启动,也非显示方案)。
 > 队友环境已确认:Windows 11 + ssh/scp/curl + Edge,WSL Ubuntu-22.04 暂未启动,不要求装 ROS。
-> 本版 = **v2 增强版**(map_monitor.py 加时间戳新鲜度 + display_monitor.sh 独立启动 + fetch_monitor 拉图脚本)。
+> 本版 = **v3 路径显示版**(在 v2 时间戳新鲜度基础上, 新增可选规划路径渲染 `--path-topic`, 默认关)。
 
 ---
 
@@ -13,7 +13,8 @@
 
 | 文件 | 作用 | 依赖(车机已有) |
 |---|---|---|
-| `map_monitor.py` | 订阅 `/map` + `/scan` + TF,渲染 PNG(黑墙/白自由/灰未知/红激光/蓝轨迹/绿车 + **左上角新鲜度状态**) | python3、`rclpy`、`numpy`、`matplotlib`(Agg,无 GUI)、`tf2_ros`、`nav_msgs`、`sensor_msgs` |
+| `map_monitor.py` | 订阅 `/map` + `/scan` + TF(+可选规划路径),渲染 PNG(黑墙/白自由/灰未知/红激光/蓝轨迹/绿车/青路径 + **左上角新鲜度状态**) | python3、`rclpy`、`numpy`、`matplotlib`(Agg,无 GUI)、`tf2_ros`、`nav_msgs`、`sensor_msgs` |
+| `path_display.py` | 路径 frame 对齐 + 状态行文案的纯逻辑(无 ROS 依赖,可离线单测) | 仅 `math` |
 | `display_monitor.sh` | **独立启动/关闭/状态**,不借 `slam_scan.sh`(避免误启另一套 SLAM 链) | bash |
 
 - 输出:`~/racecar_team/logs/slam/monitor.png`(每 2s 原子替换 `os.replace`,拉图不会拉到半张)。
@@ -49,6 +50,7 @@
 | 文件 | 位置 |
 |---|---|
 | `map_monitor.py` | **车端** `~/racecar_team/`(渲染器) |
+| `path_display.py` | **车端** `~/racecar_team/`(map_monitor.py 的依赖,必须同目录一起部署) |
 | `display_monitor.sh` | **车端** `~/racecar_team/`(启停脚本,与 map_monitor.py 同目录) |
 | `fetch_monitor.bat` / `fetch_monitor.sh` | **队友电脑**(拉图,任选一个) |
 | `monitor.html` | **队友电脑**(与拉下来的 monitor.png 同目录) |
@@ -87,11 +89,24 @@ scan/TF 时间戳才是权威判据。**
 | 扫描 | `/scan` (`sensor_msgs/LaserScan`) | BEST_EFFORT + VOLATILE | ✅ 已确认 |
 | 轨迹/车位姿 | TF `map→base_footprint`(`tf2_ros`) | — | ✅ 已确认(蓝轨迹+绿三角) |
 | 定位协方差/粒子 | `/amcl_pose`、`/particle_cloud` | — | ⚠️ 未渲染,需现场发现/后续扩展 |
-| 规划路径 | `/plan` 或 `/global_plan`(`nav_msgs/Path`) | — | ⚠️ 未渲染,**导航演示前的下一项**,话题从现场发现不写死 |
-| 导航状态 | nav2 状态/目标反馈 | — | ⚠️ 未覆盖,需现场发现 |
+| 规划路径 | `nav_msgs/Path`(话题名现场发现) | 订阅侧 TRANSIENT_LOCAL+RELIABLE | ✅ 已实现(`--path-topic` 启用,默认关) |
+| 导航状态 | nav2 状态/目标反馈 | — | ⚠️ 未覆盖(路径线当前有效性无从判断) |
 
-> 当前 `map_monitor.py` 画 map+scan+TF 轨迹;**路径显示列为导航演示前的下一项,不必等车辆实际
-> 运动才准备,话题从现场发现,不写死 `/plan`**。传感器上线后即可先验证显示,不用等导航成功。
+> 路径显示已实现: `display_monitor.sh start <路径话题名>`(或 `map_monitor.py --path-topic <话题名>`)启用,
+> 默认不订阅 = 只画 map+scan+TF, 与 v2 一致。
+> **现场发现路径话题时不能只看 `ros2 topic list` 的名字, 必须同时确认三件事:**
+> ①话题类型是 `nav_msgs/msg/Path`(`ros2 topic info <话题> -v` 看 type) ②发布者是哪个节点 ③实际 QoS
+> (订阅侧 TRANSIENT_LOCAL+RELIABLE; 若发布者 VOLATILE, 后启动的显示器收不到最后一条, 要等下一次规划)。
+
+**路径显示的限制(如实)**
+- **frame 对齐**: 路径 `header.frame_id` 与地图 frame(默认 `map`)一致时直接画; 不一致时用 TF 转换,
+  TF 查不到则**拒绝绘制并在图上提示, 绝不直接套坐标**。
+- **空路径清旧线**: 收到空 `Path` 清掉旧线(render 每帧重建图, 空路径不画)。
+- **无路径消息/TF 缺失不崩**: 无路径只标"无数据"; frame 不同且无 TF 只提示不绘制; 均不崩溃。
+- **旧线≠当前有效路径**: 本工具**没有导航状态订阅**, 路径线只是"最近一次收到的路径", 目标结束/取消后
+  若发布者不发新路径或空路径, 旧线仍会显示——状态行只标"最近收到 Ns ago", 不做有效性判定。
+- **后启动能否收到已有路径取决于发布者 QoS**: 发布者 TRANSIENT_LOCAL → 后启动能收到最后一条;
+  发布者 VOLATILE → 后启动收不到, 等下一次规划。以 `ros2 topic info` 实测为准, 不预设。
 
 ---
 
@@ -110,7 +125,7 @@ scan/TF 时间戳才是权威判据。**
 ```bash
 # 部署(车端已有同名文件先备份; map_monitor.py / display_monitor.sh 放 ~/racecar_team/)
 ssh orange-pi@<车机IP> 'cp ~/racecar_team/map_monitor.py ~/racecar_team/map_monitor.py.bak_$(date +%Y%m%d) 2>/dev/null || true'
-scp map_monitor.py display_monitor.sh save_map_pgm.py orange-pi@<车机IP>:~/racecar_team/
+scp map_monitor.py path_display.py display_monitor.sh save_map_pgm.py orange-pi@<车机IP>:~/racecar_team/
 ssh orange-pi@<车机IP> 'chmod +x ~/racecar_team/display_monitor.sh'
 # 核验(比对 SHA256,见交付包 MANIFEST)
 ssh orange-pi@<车机IP> 'sha256sum ~/racecar_team/map_monitor.py'
