@@ -35,8 +35,10 @@
   D1 读取超时:   tap timeout=0.02(可返回部分/空字节); 厂家无 timeout,read 永阻塞等满 7 字节
   D2 异常处理:   tap 捕获 IndexError 继续运行并记录; 厂家同情形节点抛异常退出
   D3 空响应:     tap 不发布(无数据≠零速,用户裁定保留); 厂家不遇此情形(阻塞无输出)
-  D4 异常响应帧: tap 合法 0x83 帧不发布(记码); 厂家 DueVelData 找不到 01 03 02 → 发布 0.0
-                 (坏 CRC 的 0x83 形态字节归垃圾类,走正常双解析=照厂家行为解出 0.0 发布)
+  D4 异常响应帧: tap 合法 0x83 帧不发布(记码); 厂家 A 版 DueVelData 找不到 01 03 02 → 返回 None
+                 → `3.57*None` 抛 TypeError → 厂家节点崩溃(无 try/except,tap 捕获留痕)。
+                 坏 CRC 的 0x83 形态字节归垃圾类,走正常双解析: legacy 同样 None→TypeError 留痕,
+                 fixed 按 bad 拒帧——两路都不造数(与 B 版"静默 0.0"不同)。
   D5 发布时间:   tap 循环自由跑+sleep 补齐 vs 厂家 rclpy timer 0.02s 回调——发布频率待实测
   D6 字节拼接:   两者都不 flush 输入缓冲(残留拼接行为保留,便于复现与取证)
   阶段 A 实测比较项(入表): 请求周期/响应拼接/单位/符号/比例/发布频率。
@@ -109,8 +111,9 @@ class TapWorker:
             rec['note'] = 'exc_badcrc'             # 0x83 形态但 CRC 不过 → 走正常双解析
 
         # 旧解析(厂家语义): 异常捕获留痕,不崩溃。
-        # ⚠️ 空响应(超时)绝不当 0.0 发布——DueVelData(b'')数学上返回0,但"无数据≠零速",
-        # 厂家节点因 read 永阻塞从不遇此情形;tap 带 timeout,必须显式不发布(任务书第7条)。
+        # ⚠️ 空响应(超时)绝不当零速发布——A 版 DueVelData(b'') 返回 None(非 0.0),
+        # legacy_velocity 对 None 抛 TypeError 留痕;厂家节点因 read 永阻塞从不遇此情形;
+        # tap 带 timeout,此处 `if resp_v:` 显式不发布(任务书第7条)。
         if resp_v:
             try:
                 rec['legacy_vel'] = legacy_velocity(resp_v, k=self.k)

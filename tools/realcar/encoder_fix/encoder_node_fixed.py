@@ -103,10 +103,52 @@ class EncoderWorker:
                 f"last_raw={s['last_raw']} vel={s['vel']}")
 
 
-# ---- 厂家旧解析器逐字保留(对照用,勿改;源=D:\Claude\projects\hwcart_amcl_stage2\encoder_src\encoder_node.py) ----
+# ---- 厂家旧解析器逐字保留(legacy 对照用;勿改其语义) ----
+# 源 = 厂商包 racecar_05_27.tar.gz → src/encoder/encoder/encoder_node.py 的 DueVelData
+# (与 install/、历史 AMCL 副本、阶段0现役车端、车端当时运行安装文件逐字节一致,
+#   md5 30b19137… / sha256 999242c3…;见 PARSER_SOURCE_PROVENANCE.md)。
+# ⚠️ 2026-09-19 修复: 前版(索引搜索版)对单字节 data_high 判 >=32768 恒假,
+#   负速度被解成正大数,已隔离为下方 DueVelData_index_buggy。本 DueVelData 恢复为
+#   厂家原版逐字节遍历状态机: 对拼接 16 位 Angle_vel 判符号,符号正确;
+#   无完整 01 03 02 序列时隐式返回 None(厂家原版即如此,非 0.0)。
+
+Bytenum_vel = 0  # 厂家原版全局状态机(跨调用保留,是 0918 错位污染的根因之一,勿"修掉")
+
 
 def DueVelData(inputdata):  # noqa: N802 (厂家原名)
-    """厂家版: 无 CRC/无对齐保证的三字节状态机。仅作 A/B 对照,不用于发布。"""
+    """厂家原版逐字节遍历状态机,仅作 legacy 对照,不用于发布。
+    符号判断对拼接 16 位 Angle_vel(正确);无匹配返回 None(非 0.0)。"""
+    global Bytenum_vel
+
+    for data in inputdata:
+        if data == 0x01 and Bytenum_vel == 0:
+            Bytenum_vel = 1
+            continue
+        if data == 0x03 and Bytenum_vel == 1:
+            Bytenum_vel = 2
+            continue
+        if data == 0x02 and Bytenum_vel == 2:
+            Bytenum_vel = 3
+            continue
+        if Bytenum_vel == 3:
+            data_high = data
+            Bytenum_vel = 4
+            continue
+        if Bytenum_vel == 4:
+            data_low = data
+            Bytenum_vel = 0
+            Angle_vel = data_high * 256 + data_low
+            if Angle_vel >= 32768:
+                Angle_vel -= 65536
+            return float(Angle_vel)
+    return None  # 厂家原版隐式返回 None(无 return);显式写出仅为了清晰,语义一致
+
+
+def DueVelData_index_buggy(inputdata):  # noqa: N802
+    """[已隔离,勿用于 legacy 对照] 前版"索引搜索"实现——符号缺陷:
+    `if data_high >= 32768` 对单字节(0~255)恒假,负速度被解成正大数(如 0xffff→65535)。
+    无匹配返回 0.0(把"找不到帧"静默伪造成零速)。保留仅供历史对照/复现
+    2026-09-18 tap_push CSV 后退段 legacy 列符号错误。"""
     data_high = 0
     data_low = 0
     for i in range(len(inputdata) - 1):

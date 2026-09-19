@@ -311,6 +311,17 @@ def velocity_scale_k():
 from encoder_node_fixed import EncoderWorker, DueVelData, legacy_velocity  # noqa: E402
 
 
+@case
+def legacy_ab_version_sign_contrast():
+    """A 版(逐字节) vs B 版(索引搜索,已隔离)负速度符号对照:
+    A 版 0xffff → -1(符号正确), B 版 0xffff → 65535(对单字节判 >=32768 恒假,
+    符号缺陷,固化为历史对照,勿再用 B 版做 legacy 对照)。"""
+    from encoder_node_fixed import DueVelData_index_buggy
+    neg_frame = vel_frame(0xffff)                     # 01 03 02 ff ff <crc>
+    assert DueVelData(neg_frame) == -1.0              # A 版: 拼接16位判符号 ✅
+    assert DueVelData_index_buggy(neg_frame) == 65535.0  # B 版: 符号错误(隔离固化)
+
+
 class FakeSerial:
     """离线假串口: 脚本化 read() 返回序列,可注入垃圾/超时/坏帧。"""
 
@@ -460,14 +471,16 @@ def tap_poison_cycle_matrix():
 
 
 @case
-def tap_legacy_indexerror_contained():
-    """厂家 DueVelData 越界缺陷防护: 触发字节模式下捕获 IndexError 不崩溃,
-    note 留痕 legacy_IndexError,该周期不发布。"""
-    # 触发构造: 位置3起 01 03 02 → data_high=[6] 可读, data_low=[7] 越界
+def tap_legacy_none_typeerror_contained():
+    """A 版厂家 DueVelData 对错位帧(帧头 01 03 02 后缺 data_low)返回 None →
+    legacy_velocity 对 None 运算抛 TypeError,tap 捕获不崩溃,note 留痕
+    legacy_TypeError,该周期不发布。(A 版逐字节遍历无越界 IndexError,
+    其缺陷是错位帧返回 None,而非 B 版的越界)"""
+    # 触发构造: 01 03 02 后只剩 1 字节 data_high,缺 data_low → A 版状态机停在 4 → None
     fs = FakeSerial([bytes.fromhex('00 00 00 01 03 02 FF'), vel_frame(0)])
     w = TapWorker()
     rec = w.cycle_once(fs, t_mono=3.0)
-    assert 'legacy_IndexError' in rec['note'], rec['note']
+    assert 'legacy_TypeError' in rec['note'], rec['note']
     assert rec['legacy_vel'] is None
     assert rec['frame_valid'] == 'bad'              # 帧头凑不齐=本周期无有效帧
     assert w.n_legacy_err == 1
@@ -476,7 +489,7 @@ def tap_legacy_indexerror_contained():
 @case
 def tap_timeout_cycle_recorded():
     """无响应周期: 空字节照记(resp 空), 双解析 None 不发布——
-    特别验证 DueVelData(b'')=0.0 的坑被防住(无数据≠新鲜零速度)。"""
+    特别验证 DueVelData(b'')=None 的坑被防住(无数据≠新鲜零速度)。"""
     fs = FakeSerial([b'', b''])
     w = TapWorker()
     rec = w.cycle_once(fs, t_mono=4.0)
@@ -485,8 +498,8 @@ def tap_timeout_cycle_recorded():
     assert rec['frame_valid'] == 'empty'            # 无响应≠零速(与 bad 分开)
     assert 'timeout' in rec['note']
     assert w.n_fixed_reject == 0                    # 空≠坏(不计拒帧)
-    # DueVelData(b'') 数学上返回 0.0(厂家无 timeout 永不触发此路径,tap 须防)
-    assert DueVelData(b'') == 0.0
+    # A 版 DueVelData(b'') 返回 None(空输入无 01 03 02 序列,厂家隐式 None)
+    assert DueVelData(b'') is None
 
 
 @case
@@ -554,29 +567,34 @@ def tap_exc_cycle_no_output():
     assert rec['legacy_vel'] is None and rec['fixed_vel'] is None
     assert rec['resp_v'] == exc_frame(0x02).hex()                 # 原始帧保留
     assert w.n_exc == 1 and w.last_exc_code == 0x02
-    # 厂家差异 D4 如实对照: 旧 DueVelData 对同一帧解出 0.0(厂家会发布,tap 不发布)
-    assert DueVelData(exc_frame(0x02)) == 0.0
+    # 厂家差异 D4 如实对照: A 版 DueVelData 对异常帧找不到 01 03 02 → 返回 None
+    # (厂家据此对 None 运算会 TypeError 崩溃;tap 不发布)
+    assert DueVelData(exc_frame(0x02)) is None
 
 
 @case
 def tap_exc_badcrc_goes_garbage_path():
-    """坏 CRC 的 0x83 形态: 归垃圾类走正常双解析(照厂家行为解出 0.0),
-    计入 n_exc=0、n_ok+1(发布 0.0 与厂家一致,差异只在合法异常帧)。
-    ⚠️用户补充口径(0918): 此处 legacy_vel=0.0 是解析失败产物,仅作 legacy
-    对照值,**不算有效静止测量**——CSV 中 frame_valid='bad' 同行可辨。"""
+    """坏 CRC 的 0x83 形态: 归垃圾类走正常双解析。A 版 DueVelData 找不到完整
+    01 03 02 序列 → 返回 None → legacy_velocity 对 None 运算抛 TypeError,tap 捕获,
+    note 记 legacy_TypeError(不是 B 版那样解出 0.0 发布)。计入 n_exc=0、n_legacy_err+1。
+    ⚠️用户补充口径: 此处 legacy_vel=None 是解析失败,不发布、不算有效静止测量——
+    CSV 中 frame_valid='bad' 同行可辨。"""
     f = bytearray(exc_frame(0x02))
     f[2] ^= 0x01
     fs = FakeSerial([bytes(f), vel_frame(0)])
     w = TapWorker()
     rec = w.cycle_once(fs, t_mono=6.0)
     assert 'exc_badcrc' in rec['note']
-    assert rec['legacy_vel'] == 0.0 and w.n_ok == 1 and w.n_exc == 0
-    assert rec['frame_valid'] == 'bad'              # 0.0 来自坏CRC,非有效测量
+    assert rec['legacy_vel'] is None and w.n_legacy_err == 1 and w.n_exc == 0
+    assert rec['frame_valid'] == 'bad'              # 坏CRC非有效测量
 
 
 def main():
+    import encoder_node_fixed
     failed = 0
     for fn in CASES:
+        # A 版 DueVelData 用全局状态机 Bytenum_vel 跨调用保留,逐 case 复位防污染
+        encoder_node_fixed.Bytenum_vel = 0
         try:
             fn()
             print(f'  PASS  {fn.__name__}')
