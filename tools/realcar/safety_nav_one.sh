@@ -22,16 +22,18 @@ MAP="${1:-$HOME/racecar/src/racecar/map/map1.yaml}"
 PARAMS="$TEAM/nav_safe.yaml"
 
 # gate 版本选择(2026-09-19 增, 2026-09-19 晚改默认 v1→v2):
-#   默认 v2 —— 关闭 v1 的"必然坏"缺陷(B1 重锁死锁 + 静止→起步 0.55 阶跃全帧误拒,
-#      audit_gate_v1_demo.py 已离线实证);v2 修复 B1/B2/B3,13/13+4/4 单测覆盖。
-#   ⚠️ 默认切 v2 **不等于**授权动力导航:v2 未部署车端、未经队友阶段 D 验证前,
-#      不得作动力导航前提;动力导航须待阶段 D 四项验证通过后由我/用户另行放行。
-#   v1 降级为显式回滚(现役于车机 318b3d8),仅对照/回滚,禁动力导航。
+#   默认 v2 —— 关闭 v1 的缺陷(B1 重锁死锁 + 特定跳变输入下持续拒帧;
+#     audit_gate_v1_demo.py 已离线复现该风险机制,0918 当天是否触发需日志证明,
+#     不能据"指令 0.55"认定编码器实测速度发生 0→0.55 阶跃);v2 修复 B1/B2/B3,13/13+4/4。
+#   ⚠️ 默认切 v2 **不等于**授权动力导航:v2 未部署车端、未经验证,仅候选入口就绪;
+#      实车阶段 D 与整链验证仍待完成,动力导航须待验证后由我/用户另行放行。
+#   gate 也不等于里程计失效停车保护(只过滤毛刺,不监控断流新鲜度)。
+#   v1 降级为显式回滚,仅隔离诊断用,不作动力演示备用。
 GATE_VERSION="${GATE_VERSION:-v2}"
 case "$GATE_VERSION" in
   v1) GATE_PY="$TEAM/encoder_gate.py"
-      echo "⚠️ GATE_VERSION=v1(回滚): v1 有 B1 死锁 + 静止→0.55 起步误拒缺陷,"
-      echo "   动力导航禁用,仅作对照/回滚。要动力导航请切 v2 并完成阶段 D 验证。" ;;
+      echo "⚠️ GATE_VERSION=v1(回滚): v1 有 B1 死锁 + 特定跳变输入下持续拒帧缺陷,"
+      echo "   禁动力演示,仅作隔离诊断。要动力导航请切 v2 并完成阶段 D 验证。" ;;
   v2) GATE_PY="$TEAM/encoder_fix/encoder_gate_v2.py"
       echo "ℹ️ GATE_VERSION=v2(默认候选): 修复 B1/B2/B3(13/13+4/4);"
       echo "   未部署车端、未经验证,动力导航须待阶段 D 验证后另授权。" ;;
@@ -44,7 +46,7 @@ done
 if [ ! -f "$GATE_PY" ]; then
   if [ "$GATE_VERSION" = v2 ]; then
     echo "缺少 $GATE_PY —— v2 未部署车端。先部署 v2 做阶段 D 验证," \
-         "或显式 GATE_VERSION=v1 回滚(v1 有 B1 缺陷,禁动力导航)。中止"
+         "或显式 GATE_VERSION=v1 隔离诊断(v1 有 B1 缺陷,禁动力演示)。中止"
   else
     echo "缺少 $GATE_PY,中止"
   fi
