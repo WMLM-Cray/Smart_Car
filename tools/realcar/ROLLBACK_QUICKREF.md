@@ -23,8 +23,9 @@
 |---|---|---|---|---|---|
 | 1 | `ekf.yaml` odom0 切源 | 0918 | `odom0=encoder_gate` | `.bak_pregate0918`（`odom0=encoder`） | EKF 里程计供血走 gate 还是直连 |
 | 2 | `nav_safe.yaml` scan 三处话题 | 0917 | `/scan_filtered` | `.bak_scanfilter` | AMCL + 双 costmap 订哪个激光话题 |
-| 3 | `nav_safe.yaml` desired_linear_vel | 0918 | 车端 `0.55`（污染） | 本地已回退 `0.10`（1c09973，**未部署车端**） | 安全层限幅 |
+| 3 | `nav_safe.yaml` desired_linear_vel | 0918 | 车端 `0.55`（污染） | 本地已回退 `0.10`（1c09973，**未部署车端**） | RPP 控制器期望速度（nav2） |
 | 4 | gate 版本默认 | 0919 晚 | 本地 `v2`（未部署）/ 车端 `v1`（现役） | `GATE_VERSION=v1` 显式回滚 | `/encoder` 过滤闸门 |
+| 5 | `cmd_vel_safety` 限幅入口 | 0920 | 本地 `MAX_LINEAR=0.10`/`MAX_ANGULAR=0.35`（未部署） | 不传参=0.10/0.35 | 安全层硬限幅（区别于 #3 期望速度） |
 
 > ⚠️ **本地 ≠ 车端，车端版本待取证**：上表"现役值"是 0917/0918 历史部署记录，本轮本机修改
 > （第 3、4 项）**未部署**；且**另一会话已在车上改 driver、回退、重编译**，车端当前版本未知。
@@ -88,6 +89,23 @@ export GATE_VERSION=v1
 >   **未部署车端、未经验证，仅候选入口就绪**，动力导航须待阶段 D + 整链验证后另授权。
 >   未部署时脚本会因缺文件中止（安全）。
 > - **gate ≠ 里程计失效停车保护**：gate 只过滤毛刺，不监控断流新鲜度。
+
+### 2.4 cmd_vel_safety 限幅入口（MAX_LINEAR / MAX_ANGULAR）
+
+`safety_nav_one.sh` 从 2026-09-20 起支持**限幅可选入口**（透传 `cmd_vel_safety` 的
+`max_linear`/`max_angular`，与 `GATE_VERSION` 同款环境变量模式）：
+
+```bash
+MAX_LINEAR=0.30 bash safety_nav_one.sh map1.yaml          # 现场显式放宽限幅
+GATE_VERSION=v1 MAX_LINEAR=0.30 bash safety_nav_one.sh    # gate + 限幅同时选
+# 不传任何参数 = 默认 0.10/0.35（保守基线，cmd_vel_safety 内部默认）
+```
+
+> - **默认保守**：不传 `MAX_LINEAR`/`MAX_ANGULAR` = `0.10`/`0.35`（任务书阶段4 上限），与历史行为一致。
+> - **放宽=用户安全决策**：`0.10 < 电调死区（≈485mm/s）` 推不动车，但显式放宽须现场确认
+>   电调/地面状态 + 用户明确授权，**不自动提速**。
+> - **与本卡 #3 的区别**：#3 `desired_linear_vel` 是 nav2 RPP 控制器**期望速度**；
+>   `MAX_LINEAR` 是安全层 `cmd_vel_safety` 的**硬限幅**（超过即截断）。两层各自独立，别混。
 
 ---
 

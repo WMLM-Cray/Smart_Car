@@ -40,6 +40,13 @@ case "$GATE_VERSION" in
   *)  echo "未知 GATE_VERSION=$GATE_VERSION(仅 v1/v2),中止"; exit 2 ;;
 esac
 
+# 限幅可选入口(2026-09-20 增):透传给 cmd_vel_safety 的 max_linear/max_angular。
+#   默认不传=cmd_vel_safety 内部默认 0.10/0.35(保守基线,任务书阶段4 上限)。
+#   ⚠️ 显式放宽(如 MAX_LINEAR=0.55)是用户安全决策:0.10 < 电调死区(≈485mm/s)推不动车,
+#      但放宽须现场确认电调/地面状态 + 用户明确授权,默认一律保守,不自动提速。
+MAX_LINEAR="${MAX_LINEAR:-0.10}"
+MAX_ANGULAR="${MAX_ANGULAR:-0.35}"
+
 for f in "$TEAM/cmd_vel_safety.py" "$PARAMS" "$MAP"; do
   [ -f "$f" ] || { echo "缺少 $f,中止"; exit 2; }
 done
@@ -79,9 +86,10 @@ trap terminate SIGINT SIGTERM
 echo "=== 安全链启动(地图: $MAP)==="
 echo "=== 前提自查:车辆按 POWERON 方案就位?区域清空?手边有电调开关? ==="
 
-python3 "$TEAM/cmd_vel_safety.py" > "$TEAM/safety_last.log" 2>&1 &
+python3 "$TEAM/cmd_vel_safety.py" --ros-args -p max_linear:=$MAX_LINEAR -p max_angular:=$MAX_ANGULAR \
+  > "$TEAM/safety_last.log" 2>&1 &
 SAFETY_PID=$!
-echo "[1/3] cmd_vel_safety 已起(日志 $TEAM/safety_last.log)"
+echo "[1/3] cmd_vel_safety 已起(max_linear=$MAX_LINEAR max_angular=$MAX_ANGULAR,日志 $TEAM/safety_last.log)"
 
 # 0918 增:编码器合理性闸门(毛刺→假odom→碰撞已发生一次,见 encoder_gate*.py 头注)
 python3 "$GATE_PY" > "$TEAM/encoder_gate_last.log" 2>&1 &
