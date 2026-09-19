@@ -1,0 +1,16 @@
+# 回归场景 2：单个含转弯的目标（终点要求一个朝向变化）。
+mission:
+  frame_id: map
+  mode: single
+  loop: false
+  on_failure: stop
+  default:
+    timeout: 20.0
+    xy_tolerance: 0.1
+    yaw_tolerance: 0.1
+  goals:
+    - name: turn_1
+      seq: 1
+      x: 2.0
+      y: 1.5
+      yaw: 1.5708

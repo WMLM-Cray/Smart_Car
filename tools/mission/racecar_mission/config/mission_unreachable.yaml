@@ -1,0 +1,16 @@
+# 回归场景 6：不可达目标（目标在赛道/地图之外，Nav2 应 abort）。
+mission:
+  frame_id: map
+  mode: single
+  loop: false
+  on_failure: stop
+  default:
+    timeout: 20.0
+    xy_tolerance: 0.1
+    yaw_tolerance: 0.1
+  goals:
+    - name: unreachable
+      seq: 1
+      x: 100.0
+      y: 100.0
+      yaw: 0.0
