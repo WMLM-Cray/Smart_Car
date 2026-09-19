@@ -3,8 +3,10 @@
 # 2026-09-17 阶段1; 与 slam_scan.sh 同用; 只读订阅, 不动控制链
 # 2026-09-19 v2: 顶部新增 /scan 最后接收时间 + TF 数据时间新鲜度标注(过期红色 STALE);
 #                 /map 为静态图不持续更新, 只标"已加载"不判过期(静态地图停更≠故障)。
+# 2026-09-19 v3: 可选订阅规划路径话题(--path-topic 指定), 话题名不写死、默认不订阅(行为与 v2 一致);
+#                 路径按需更新不持续, 故只标"已加载+最后更新时间", 不判 STALE。
 # 退出: SIGINT/SIGTERM (自接管, 避免 rclpy 默认 handler 先 shutdown 的坑 6bb97d8)
-import os, signal, sys, time
+import argparse, os, signal, sys, time
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
@@ -12,7 +14,7 @@ import matplotlib.pyplot as plt
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy, HistoryPolicy
-from nav_msgs.msg import OccupancyGrid
+from nav_msgs.msg import OccupancyGrid, Path
 from sensor_msgs.msg import LaserScan
 import tf2_ros
 
@@ -25,7 +27,7 @@ TF_STALE = 2.0
 
 
 class Monitor(Node):
-    def __init__(self):
+    def __init__(self, path_topic=None):
         super().__init__("slam_map_monitor")
         map_qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
                              durability=DurabilityPolicy.TRANSIENT_LOCAL,
@@ -43,9 +45,24 @@ class Monitor(Node):
         # v2: 新鲜度时间戳(墙钟相对刻度, 车机钟慢5个月但相对差值可用)
         self.last_scan_recv = None   # 最后收到 /scan 的墙钟时刻
         self.last_tf_ok = None       # 最后一次 TF lookup 成功的墙钟时刻
+        # v3: 可选规划路径订阅(默认 None = 不订阅, 行为与 v2 完全一致)
+        self.path_topic = path_topic
+        self.path = None
+        self.last_path_recv = None
+        if path_topic:
+            # Nav2 规划路径惯例 transient_local+reliable; 现场若 QoS 不匹配收不到, 加参数或改此处
+            path_qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
+                                  durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                                  history=HistoryPolicy.KEEP_LAST)
+            self.create_subscription(Path, path_topic, self.on_path, path_qos)
+            self.get_logger().info(f"订阅规划路径话题: {path_topic}")
 
     def on_map(self, msg):
         self.map = msg
+
+    def on_path(self, msg):
+        self.path = msg
+        self.last_path_recv = time.time()
 
     def on_scan(self, msg):
         self.last_scan_recv = time.time()   # 收到即记, 不依赖后续 TF 是否成功
@@ -90,6 +107,13 @@ def _status_lines(mon):
     # /map 静态图, 不持续更新是正常的, 只标"已加载", 不判过期
     lines.append(("map: 已加载(静态)" if mon.map is not None else "map: 无",
                   "gray"))
+    # v3: 规划路径(仅当订阅了 path 话题才显示; 默认不订阅则不加此行, 与 v2 输出一致)
+    if mon.path_topic:
+        if mon.path is not None:
+            a = now - mon.last_path_recv
+            lines.append((f"plan: 已加载({a:.0f}s ago)", "gray"))
+        else:
+            lines.append(("plan: 无数据", "gray"))
     return lines
 
 
@@ -106,6 +130,10 @@ def render(mon):
         ox, oy = m.info.origin.position.x, m.info.origin.position.y
         ax.imshow(img, cmap="gray", origin="lower",
                   extent=[ox, ox + w * res, oy, oy + h * res])
+    if mon.path is not None:
+        px = [p.pose.position.x for p in mon.path.poses]
+        py = [p.pose.position.y for p in mon.path.poses]
+        ax.plot(px, py, "-c", lw=1.5, label="plan")
     if mon.trail:
         ax.plot([p[0] for p in mon.trail], [p[1] for p in mon.trail], "-b", lw=1, label="trail")
     if mon.scan_pts is not None:
@@ -128,8 +156,14 @@ def render(mon):
 
 
 def main():
-    rclpy.init()
-    mon = Monitor()
+    # 先剥离本脚本自有参数(--path-topic), 剩余参数(含 --ros-args)再交 rclpy;
+    # 直接让 rclpy.init() 吞掉未知 --path-topic 会报 unknown option 并退出。
+    parser = argparse.ArgumentParser(description="车机扫图监控渲染 (map+scan+TF+可选plan)")
+    parser.add_argument("--path-topic", default=None,
+                        help="规划路径话题名(如 /plan, 现场发现; 默认不订阅, 行为同 v2)")
+    args, unknown = parser.parse_known_args()
+    rclpy.init(args=[sys.argv[0]] + unknown)
+    mon = Monitor(path_topic=args.path_topic)
     running = {"v": True}
 
     def on_sig(sig, frame):

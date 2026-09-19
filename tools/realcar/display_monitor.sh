@@ -3,7 +3,8 @@
 # 2026-09-19 新增: 不借 slam_scan.sh / amcl_localize.sh, 避免定位阶段误启另一套 SLAM 链。
 # 启动边界: ①确认 ROS 环境已加载 ②确认输出目录存在 ③确认无已有 monitor 实例
 #          ④nohup 后台启动 + 记录本轮 PID, 关闭时只停本轮进程(读 PIDFILE 精确 kill, 不用 pkill -f)。
-# 用法: display_monitor.sh {start|stop|status}
+# 用法: display_monitor.sh {start [path-topic]|stop|status}
+#   start 可带规划路径话题名(如 /plan, 现场发现; 不带则只渲染 map+scan+TF, 同 v2)
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -42,6 +43,7 @@ existing_pid() {
 }
 
 start() {
+  local path_topic="${1:-}"
   ensure_ros || exit 1
   if [ ! -f "$MON_PY" ]; then
     echo "错误: 找不到 $MON_PY" >&2
@@ -56,8 +58,13 @@ start() {
     exit 3
   fi
 
-  # 启动(独立进程, 记录本轮 PID)
-  nohup python3 "$MON_PY" > "$LOG" 2>&1 < /dev/null &
+  # 启动(独立进程, 记录本轮 PID); 可选透传 --path-topic
+  if [ -n "$path_topic" ]; then
+    nohup python3 "$MON_PY" --path-topic "$path_topic" > "$LOG" 2>&1 < /dev/null &
+    echo "启动参数: --path-topic $path_topic"
+  else
+    nohup python3 "$MON_PY" > "$LOG" 2>&1 < /dev/null &
+  fi
   local pid=$!
   echo "$pid" > "$PIDFILE"
   sleep 1
@@ -105,8 +112,8 @@ status() {
 }
 
 case "${1:-}" in
-  start)  start ;;
+  start)  start "${2:-}" ;;
   stop)   stop ;;
   status) status ;;
-  *) echo "用法: $0 {start|stop|status}" >&2; exit 1 ;;
+  *) echo "用法: $0 {start [path-topic]|stop|status}" >&2; exit 1 ;;
 esac
