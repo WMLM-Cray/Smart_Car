@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'">
+<title>PGM 地图查看器 · 离线</title>
+<style>
+:root{--fg:#111;--dim:#666;--line:#e8e8e8;--act:#2f6fb0;--bg:#fff;--field:#f3f3f3}
+*{box-sizing:border-box}body{margin:0;color:var(--fg);background:var(--bg);font:16px/1.5 'Microsoft YaHei','PingFang SC',sans-serif}
+header{padding:24px 28px 16px;border-bottom:1px solid var(--line)}h1{font-size:24px;margin:0 0 4px}p{margin:0;color:var(--dim);font-size:13px}
+nav{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:18px}button{font:inherit;min-height:44px;padding:8px 16px;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;cursor:pointer}button.primary{background:var(--act);color:white;border-color:var(--act)}button:hover{filter:brightness(.94)}button:focus-visible,canvas:focus-visible{outline:3px solid var(--act);outline-offset:3px}button:disabled{opacity:.4;cursor:default}
+#status{padding:12px 28px;min-height:48px;overflow-wrap:anywhere;font-size:14px;color:var(--dim)}#status.error{color:#b3261e}
+#stage{position:relative;height:calc(100dvh - 235px);min-height:300px;margin:0 24px 16px;background:var(--field);border:1px solid var(--line);overflow:hidden}#stage.over{outline:3px solid var(--act)}canvas{width:100%;height:100%;display:block;touch-action:none;cursor:grab}canvas:active{cursor:grabbing}#empty{position:absolute;inset:0;display:grid;place-content:center;text-align:center;pointer-events:none;padding:24px}#empty[hidden]{display:none}#empty strong{font-size:22px;font-weight:500;margin-bottom:8px}footer{padding:0 28px 16px;font-size:12px;color:var(--dim)}#zoom{font-variant-numeric:tabular-nums;min-width:60px;text-align:center;font-size:14px}
+@media(max-width:600px){header{padding:16px}#stage{margin:0 12px 12px;height:55dvh}#status{padding:12px 16px}button{padding:8px 12px}}
+</style></head><body>
+<header><h1>PGM 地图查看器</h1><p>直接读取原文件 · 完全离线 · 不上传，也不连接小车</p>
+<nav aria-label="地图工具"><button class="primary" id="open">打开 PGM</button><input id="file" type="file" accept=".pgm" hidden>
+<button id="fit" disabled>适应窗口</button><button id="actual" disabled>原始大小</button><button id="minus" aria-label="缩小" disabled>−</button><span id="zoom">—</span><button id="plus" aria-label="放大" disabled>＋</button></nav></header>
+<div id="status" role="status">等待打开地图</div>
+<main id="stage"><canvas id="view" tabindex="0" aria-label="地图，滚轮缩放，拖动平移；键盘加减号缩放，方向键平移，0 适应窗口"></canvas><div id="empty"><strong>把 map.pgm 拖到这里</strong><p>或点击「打开 PGM」选择文件<br>支持 P2 / P5，8 位和 16 位灰度</p></div></main>
+<footer>滚轮缩放 · 拖动平移 · 本项目默认地图：黑色障碍 / 白色空地 / 灰色未知（其他文件以对应 YAML 为准）</footer>
+<script>
+'use strict';
+function parsePGM(bytes){
+  let pos=0;
+  const ws=b=>b===32||b===9||b===10||b===13||b===11||b===12;
+  function token(){
+    while(pos<bytes.length){if(ws(bytes[pos])){pos++;continue;}if(bytes[pos]===35){while(pos<bytes.length&&bytes[pos]!==10&&bytes[pos]!==13)pos++;continue;}break;}
+    const start=pos;while(pos<bytes.length&&!ws(bytes[pos])&&bytes[pos]!==35)pos++;
+    if(start===pos)throw Error('文件头或像素数据不完整');
+    return new TextDecoder('ascii').decode(bytes.subarray(start,pos));
+  }
+  function integer(t){if(!/^\d+$/.test(t))throw Error('无效的 PGM 数值');return Number(t);}
+  const magic=token();if(magic!=='P5'&&magic!=='P2')throw Error('不是 PGM 文件（需要 P2 或 P5）');
+  const width=integer(token()),height=integer(token()),max=integer(token()),count=width*height;
+  if(!width||!height||width>16384||height>16384||count>16000000||max<1||max>65535)throw Error('尺寸或灰度范围不支持（最多 1600 万像素）');
+  if(magic==='P5'){
+    if(!ws(bytes[pos]))throw Error('缺少二进制数据分隔符');
+    if(bytes[pos]===13&&bytes[pos+1]===10)pos+=2;else pos++;
+    // Do not skip raster bytes: whitespace and # are valid pixel values.
+    if(bytes.length-pos<count*(max<256?1:2))throw Error('文件截断，像素数据不足');
+  }
+  const rgba=new Uint8ClampedArray(count*4);
+  for(let i=0;i<count;i++){
+    let value=magic==='P2'?integer(token()):max<256?bytes[pos++]:bytes[pos++]*256+bytes[pos++];
+    if(value>max)throw Error('像素值超过声明的最大灰度');
+    const gray=Math.round(value/max*255);rgba[i*4]=rgba[i*4+1]=rgba[i*4+2]=gray;rgba[i*4+3]=255;
+  }
+  return {width,height,max,magic,rgba};
+}
+const canvas=document.getElementById('view'),ctx=canvas.getContext('2d'),stage=document.getElementById('stage');
+const status=document.getElementById('status'),file=document.getElementById('file'),empty=document.getElementById('empty');
+let raster=null,scale=1,offsetX=0,offsetY=0,drag=null,loadId=0;
+function draw(){
+  const w=stage.clientWidth,h=stage.clientHeight,dpr=window.devicePixelRatio||1;
+  canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);ctx.imageSmoothingEnabled=false;
+  if(raster)ctx.drawImage(raster,offsetX,offsetY,raster.width*scale,raster.height*scale);
+  document.getElementById('zoom').textContent=raster?Math.round(scale*100)+'%':'—';
+}
+function fit(){if(!raster)return;scale=Math.min((stage.clientWidth-32)/raster.width,(stage.clientHeight-32)/raster.height);center();}
+function center(){offsetX=(stage.clientWidth-raster.width*scale)/2;offsetY=(stage.clientHeight-raster.height*scale)/2;draw();}
+function zoom(factor,x=stage.clientWidth/2,y=stage.clientHeight/2){if(!raster)return;const next=Math.max(.01,Math.min(64,scale*factor)),ratio=next/scale;offsetX=x-(x-offsetX)*ratio;offsetY=y-(y-offsetY)*ratio;scale=next;draw();}
+async function load(f){
+  if(!f)return;const id=++loadId;status.className='';status.textContent='读取中…';
+  try{
+    if(f.size>128*1024*1024)throw Error('文件过大（上限 128 MB）');
+    const data=parsePGM(new Uint8Array(await f.arrayBuffer()));if(id!==loadId)return;
+    const next=document.createElement('canvas');next.width=data.width;next.height=data.height;
+    next.getContext('2d').putImageData(new ImageData(data.rgba,data.width,data.height),0,0);raster=next;
+    empty.hidden=true;for(const id of ['fit','actual','minus','plus'])document.getElementById(id).disabled=false;
+    status.textContent=f.name+' · '+data.width+' × '+data.height+' 像素 · '+data.magic+' · 最大灰度 '+data.max;fit();
+  }catch(err){if(id!==loadId)return;status.className='error';status.textContent='打开失败：'+err.message+(raster?'（保留上一张地图）':'');}
+}
+document.getElementById('open').onclick=()=>file.click();file.onchange=()=>{load(file.files[0]);file.value='';};
+document.getElementById('fit').onclick=fit;document.getElementById('actual').onclick=()=>{if(raster){scale=1;center();}};
+document.getElementById('minus').onclick=()=>zoom(1/1.25);document.getElementById('plus').onclick=()=>zoom(1.25);
+window.addEventListener('dragover',e=>e.preventDefault());window.addEventListener('drop',e=>{e.preventDefault();stage.classList.remove('over');load(e.dataTransfer.files[0]);});
+stage.addEventListener('dragenter',()=>stage.classList.add('over'));stage.addEventListener('dragleave',e=>{if(!stage.contains(e.relatedTarget))stage.classList.remove('over');});
+canvas.addEventListener('wheel',e=>{e.preventDefault();const r=canvas.getBoundingClientRect();zoom(Math.exp(-Math.max(-200,Math.min(200,e.deltaY))*.002),e.clientX-r.left,e.clientY-r.top);},{passive:false});
+canvas.addEventListener('pointerdown',e=>{if(e.button!==0||!raster||drag)return;canvas.setPointerCapture(e.pointerId);drag={id:e.pointerId,x:e.clientX,y:e.clientY};});
+canvas.addEventListener('pointermove',e=>{if(!drag||drag.id!==e.pointerId)return;offsetX+=e.clientX-drag.x;offsetY+=e.clientY-drag.y;drag.x=e.clientX;drag.y=e.clientY;draw();});
+for(const name of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(name,()=>drag=null);
+canvas.addEventListener('keydown',e=>{if(!raster)return;if(['+','=','-','0','ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))e.preventDefault();if(e.key==='+'||e.key==='=')zoom(1.25);if(e.key==='-')zoom(.8);if(e.key==='0')fit();if(e.key==='ArrowLeft')offsetX-=30;if(e.key==='ArrowRight')offsetX+=30;if(e.key==='ArrowUp')offsetY-=30;if(e.key==='ArrowDown')offsetY+=30;draw();});
+new ResizeObserver(draw).observe(stage);
+</script></body></html>
