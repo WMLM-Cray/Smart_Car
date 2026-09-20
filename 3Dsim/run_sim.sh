@@ -15,6 +15,12 @@ WORLD=${WORLD:-$HOME/worlds/track_s3_sim.world}
 # 圈速快 8 秒但在这条赛道上三次都没跑完一圈。
 POLICY=${POLICY:-runs/policy_s3.npz}
 
+# 仿真单独占一个 ROS 域,和实车(42)分开。默认的 0 是公共域:2026-09-20 车和
+# 笔记本同时挂在同一个热点上,局域网里另一台机器的 Gazebo 被 DDS 自动发现,
+# 实车 /scan 上凭空多出一个 2000 点的发布者,12.1Hz 的真帧里混进 8.1Hz 的假帧。
+# 不报错、不告警,策略照收 —— 只能靠数点数才看得出来。
+export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-43}
+
 source /opt/ros/humble/setup.bash
 source ~/hw_ws/install/setup.bash
 source /usr/share/gazebo/setup.sh

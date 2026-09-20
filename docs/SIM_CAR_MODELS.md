@@ -89,3 +89,39 @@ s3 种子 90000 出来是 63 个锥桶(左红 27 / 右蓝 36)、59 处候选挡�
 另注:`gazebo_ros` 的 `/clock` 固定 10 Hz,`publish_rate` 无论从命令行还是运行时
 设都不生效。所以 `policy_node.py --sim` 用墙钟而不是仿真时间 —— 否则定时器快不过
 10 Hz,而策略是按 20 Hz 训的。前提是 RTF≈1,跑之前 `gz stats -p` 看第一列。
+
+## ROS 域隔离(2026-09-20 踩坑后加)
+
+| 场合 | `ROS_DOMAIN_ID` | 在哪设 |
+|---|---|---|
+| 实车 | **42** | 车上 `~/.bashrc` + `systemctl set-environment` |
+| 仿真 | **43** | `3Dsim/run_sim.sh`、`sim_reset.bat` |
+| 默认 | 0 | 谁都能进来,别用 |
+
+起因:车和笔记本第一次同时挂在同一个 iPhone 热点上,局域网里另一台机器
+(`DESKTOP-8HRN3AF`)在跑 `racecar_sim`。ROS2 的 DDS 按多播自动发现,
+`ROS_DOMAIN_ID` 相同 + 同网段 = 同一个 ROS 图,两个世界的话题按名字合并:
+
+```
+/scan  pub=2   实车雷达 1667 点 12.1 Hz  +  仿真雷达 2000 点 8.1 Hz
+/IMU_data pub=2      /teleop_cmd_vel pub=2      /clock 车上 11 个订阅者
+```
+
+**不报错也不告警**。`ros2 topic hz` 只会显示 20.1 Hz,看着还挺健康 ——
+要靠数每帧点数才能把真假帧分开。这状态下跑策略,车收到的是真假交替的雷达,
+而对方的仿真车会执行发给实车的指令。
+
+排查时的两个弯路,记下来:
+
+1. 先怀疑本机 WSL 的 Gazebo,杀掉后假帧照旧。**WSL2 是 NAT 网络,车根本
+   发现不到 WSL 里的 DDS** —— 本机仿真反而是唯一安全的那个。
+2. `wsl -l -v` 有三个发行版,一开始只查了两个就下了"本机干净"的结论。
+
+另:车上 sudo 只有 `systemctl` 免密,改不了 unit 文件,所以用
+`systemctl set-environment`。**这个不跨重启**,要永久生效得写 drop-in:
+
+```
+sudo systemctl edit racecar-chassis   # 加 [Service] / Environment=ROS_DOMAIN_ID=42
+```
+
+三个服务都要:`racecar-chassis`、`racecar-web`、`racecar-watchdog`。
