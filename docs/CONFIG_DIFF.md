@@ -76,14 +76,16 @@
   **性质定性：这是一次"历史现场修改"，当前有效性待核，不是仓库已固化、经确认的修复。**
 - **scan 过滤脚本四要素**（`docs/validation/2026-09-17-nav-onepoint/tools/scan_filter.py`，归档）：
   - **来源**：0917 单点导航排障轮现场产物，在归档目录 `docs/validation/…/tools/`，**不在 `tools/realcar/` 主目录、不在 `safety_nav_one.sh` 启动链**。
-  - **处理逻辑**：订 `/scan` → 发 `/scan_filtered`；`MIN_R=0.25`，ranges 中 `<=0.25m` 的有限值改 `inf`（滤除车正后方 ~0.15m 等距天线回波），nan/inf 原样；QoS=SensorDataQoS（best_effort，与 /scan 一致）；每 600 帧打印 frames/filtered_pts_total。
+  - **处理逻辑**：订 `/scan` → 发 `/scan_filtered`；`MIN_R=0.25`，ranges 中 `<=0.25m` 的有限值改 `inf`，nan/inf 原样；QoS=SensorDataQoS（best_effort，与 /scan 一致）；每 600 帧打印 frames/filtered_pts_total。
+    **这是全角度近距离过滤**（对所有方位 `<=0.25m` 生效），**不是**局部天线遮挡过滤——脚本头注释写的"天线回波"是当时的猜想，实际**真实近障碍（<0.25m）也可能被一并隐藏**。
   - **启动方式**：独立 ROS2 节点，须单独 `python3 scan_filter.py` 拉起；**无任何仓库脚本把它纳入启动链**，0917 是手工/临时启动，车端当前是否还在跑**待取证**。
   - **消费者**：`/scan_filtered` 的消费者 = nav_safe.yaml 三处 scan 话题（AMCL + local costmap + global obstacle），**仅当它们被配成 `/scan_filtered` 时**。
 - **⚠️ 关键差异（待核，不预设结论）**：本地 nav_safe.yaml=scan `/scan`，车端可能仍 `/scan_filtered`。
   - 若车端仍用 `/scan_filtered` 而 `scan_filter.py` **已不在运行**，AMCL/costmap **吃不到任何 scan**（话题无人发布），比"吃到天线回波"更严重——两种后果都须现场核实，**不能凭话题名断言该保留还是该删除**。
   - 若车端已回 `/scan`，过滤脚本与配置脱钩，不产生效果。
 - **待取证**：车端 `~/racecar_team/nav_safe.yaml` 三处 scan 实际值 + `scan_filter.py` 是否在运行链（`ps` / 是否有 `python3 scan_filter.py` 进程）。
-- **决策留白**：scan 过滤是否仍需要、`scan_filter.py` 是否纳入 `tools/realcar/` 主链、scan 话题用哪个，**全部待现场取证后由用户裁决**，不自动改、不自动纳入、不自动删。
+- **决策（2026-09-20 补充）**：鉴于 scan_filter 是**全角度近距离过滤**（真实近障碍也可能被隐藏），
+  **暂不将其纳入默认启动链、不直接恢复 `/scan_filtered`**；是否启用、scan 话题用哪个，待现场取证后由用户裁决。
 
 ### 2.6 safety_nav_one.sh gate 默认（v2 ↔ v1）
 
@@ -124,6 +126,11 @@
 | `MAX_ANGULAR` | `0.35` | 透传 `cmd_vel_safety` `max_angular` | 同上 |
 
 > 启动时自动打印：`nav_params` 路径 + `md5` + `desired_linear_vel` + 安全层限幅，便于现场对账取证。
+>
+> ⚠️ **`NAV_PARAMS` 作用范围**：只切换 **Nav2**（`bringup_launch.py` 的 `params_file`），
+> **不**切换 EKF、SLAM、driver 或整条链其它节点配置——切了 `NAV_PARAMS` ≠ 整条链切配置。
+> ⚠️ **打印 ≠ 生效**：启动打印是**配置预检**（读 yaml 文本），实际生效参数须运行后
+> `ros2 param get` 核对（Nav2 内部可能二次覆写/忽略字段）。
 
 用法示例：
 

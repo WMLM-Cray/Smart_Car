@@ -63,14 +63,15 @@ if ! is_finite_positive "$MAX_LINEAR" || ! is_finite_positive "$MAX_ANGULAR"; th
 fi
 
 for f in "$TEAM/cmd_vel_safety.py" "$PARAMS" "$MAP"; do
-  [ -f "$f" ] || { echo "缺少 $f,中止"; exit 2; }
+  if [ ! -f "$f" ]; then echo "缺少 $f,中止"; exit 2; fi
+  if [ ! -r "$f" ]; then echo "不可读 $f,中止"; exit 2; fi
 done
-if [ ! -f "$GATE_PY" ]; then
+if [ ! -f "$GATE_PY" ] || [ ! -r "$GATE_PY" ]; then
   if [ "$GATE_VERSION" = v2 ]; then
-    echo "缺少 $GATE_PY —— v2 未部署车端。先部署 v2 做阶段 D 验证," \
+    echo "缺少或不可读 $GATE_PY —— v2 未部署车端。先部署 v2 做阶段 D 验证," \
          "或显式 GATE_VERSION=v1 隔离诊断(v1 有 B1 缺陷,禁动力演示)。中止"
   else
-    echo "缺少 $GATE_PY,中止"
+    echo "缺少或不可读 $GATE_PY,中止"
   fi
   exit 2
 fi
