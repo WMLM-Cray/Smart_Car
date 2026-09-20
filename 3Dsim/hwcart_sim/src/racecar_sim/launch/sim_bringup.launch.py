@@ -83,7 +83,7 @@ def generate_launch_description():
         cmd=['gzserver', '--verbose',
              '-s', 'libgazebo_ros_init.so',
              '-s', 'libgazebo_ros_factory.so',
-             world_file],
+             LaunchConfiguration('world')],
         output='screen',
     )
     gzclient = ExecuteProcess(
@@ -149,6 +149,11 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('use_gui', default_value='true',
                               description='启动 gzclient 图形界面(headless 测试传 false)'),
+        # 换赛道用。默认仍是自带的 racecar.world,原有行为不变。
+        # 自定义 world 要自己带 libgazebo_ros_state.so 插件(见 racecar.world 注释),
+        # track_generator 出的 world 可用 3Dsim/make_sim_world.py 补上。
+        DeclareLaunchArgument('world', default_value=world_file,
+                              description='gzserver 加载的 world 文件路径'),
         robot_state_publisher,
         gzserver,
         gzclient,
