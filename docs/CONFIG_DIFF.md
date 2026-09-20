@@ -29,7 +29,7 @@
 | 2 | driver 订阅话题 | node=`/car_cmd_vel`；node_one=`/cmd_vel`（两版） | 现役 node（待取证） | 待核对 | 待取证 |
 | 3 | ekf.yaml odom0 切源 | `odom0=encoder`（vendor_src 出厂） | `odom0=encoder_gate`（0918 改） | encoder ↔ encoder_gate | `.bak_pregate0918` |
 | 4 | nav_safe.yaml desired_linear_vel | `0.10`（本地已回退） | `0.55`（0918 事故试验残留） | 0.10 ↔ 0.55 | 本地已回 0.10 |
-| 5 | nav_safe.yaml scan 三处话题 | `/scan`（仓库从未含 filtered） | `/scan_filtered`（0917 现场改） | /scan ↔ /scan_filtered | `.bak_scanfilter` |
+| 5 | nav_safe.yaml scan 三处话题 | `/scan`（仓库从未含 filtered） | `/scan_filtered`（0917 现场改，**有效性待核**） | /scan ↔ /scan_filtered | `.bak_scanfilter` |
 | 6 | safety_nav_one.sh gate 默认 | `v2`（本地） | `v1`（车端现役） | v2 ↔ v1 | `GATE_VERSION=v1` |
 | 7 | cmd_vel_safety 限幅 | 默认 `0.10/0.35`（**本轮新增可选入口**） | `0.10`（启动未传参） | 本轮加入口 | 不传参=0.10 |
 | 8 | encoder_gate | v1（`encoder_gate.py`）+ v2（`encoder_fix/`） | v1 现役 | v2 未部署 | `GATE_VERSION=v1` |
@@ -72,13 +72,18 @@
 
 - **本地**：`tools/realcar/nav_safe.yaml` 三处均为 `/scan`（41 `scan_topic`、181 local voxel、217 global obstacle）。
   **仓库历史从未提交过 `/scan_filtered`**（`6bb97d8`/`318b3d8`/`c04c890` 里都是 `/scan`）。
-- **车端历史**：0917 现场把三处 sed 成 `/scan_filtered`（过滤雷达后侧天线 ~0.15m 等距双点回波），备份 `.bak_scanfilter`。
-- **⚠️ 关键差异**：`scan_filter.py` 源码只在 `docs/validation/2026-09-17-nav-onepoint/tools/scan_filter.py`（归档），
-  **不在 `tools/realcar/` 主目录，也不在 `safety_nav_one.sh` 启动链里**。
-  若队友现场用**本地 `nav_safe.yaml`（scan=/scan）直接覆盖车端**，会丢掉 scan_filtered 修复，AMCL/costmap 重新吃到天线回波。
-- **待取证**：车端 `~/racecar_team/nav_safe.yaml` 三处 scan 话题当前实际值 + `scan_filter.py` 是否还在车端运行链。
-- **决策留白**：scan 过滤是 0917 独立修复，是否仍需要、`scan_filter.py` 是否应纳入 `tools/realcar/` 主链，
-  **待现场取证后由用户裁决**，不自动改、不自动纳入。
+- **车端历史**：0917 现场把三处 sed 成 `/scan_filtered`，备份 `.bak_scanfilter`。
+  **性质定性：这是一次"历史现场修改"，当前有效性待核，不是仓库已固化、经确认的修复。**
+- **scan 过滤脚本四要素**（`docs/validation/2026-09-17-nav-onepoint/tools/scan_filter.py`，归档）：
+  - **来源**：0917 单点导航排障轮现场产物，在归档目录 `docs/validation/…/tools/`，**不在 `tools/realcar/` 主目录、不在 `safety_nav_one.sh` 启动链**。
+  - **处理逻辑**：订 `/scan` → 发 `/scan_filtered`；`MIN_R=0.25`，ranges 中 `<=0.25m` 的有限值改 `inf`（滤除车正后方 ~0.15m 等距天线回波），nan/inf 原样；QoS=SensorDataQoS（best_effort，与 /scan 一致）；每 600 帧打印 frames/filtered_pts_total。
+  - **启动方式**：独立 ROS2 节点，须单独 `python3 scan_filter.py` 拉起；**无任何仓库脚本把它纳入启动链**，0917 是手工/临时启动，车端当前是否还在跑**待取证**。
+  - **消费者**：`/scan_filtered` 的消费者 = nav_safe.yaml 三处 scan 话题（AMCL + local costmap + global obstacle），**仅当它们被配成 `/scan_filtered` 时**。
+- **⚠️ 关键差异（待核，不预设结论）**：本地 nav_safe.yaml=scan `/scan`，车端可能仍 `/scan_filtered`。
+  - 若车端仍用 `/scan_filtered` 而 `scan_filter.py` **已不在运行**，AMCL/costmap **吃不到任何 scan**（话题无人发布），比"吃到天线回波"更严重——两种后果都须现场核实，**不能凭话题名断言该保留还是该删除**。
+  - 若车端已回 `/scan`，过滤脚本与配置脱钩，不产生效果。
+- **待取证**：车端 `~/racecar_team/nav_safe.yaml` 三处 scan 实际值 + `scan_filter.py` 是否在运行链（`ps` / 是否有 `python3 scan_filter.py` 进程）。
+- **决策留白**：scan 过滤是否仍需要、`scan_filter.py` 是否纳入 `tools/realcar/` 主链、scan 话题用哪个，**全部待现场取证后由用户裁决**，不自动改、不自动纳入、不自动删。
 
 ### 2.6 safety_nav_one.sh gate 默认（v2 ↔ v1）
 
@@ -113,9 +118,12 @@
 
 | 环境变量 | 默认 | 作用 | 备注 |
 |---|---|---|---|
+| `NAV_PARAMS` | `$TEAM/nav_safe.yaml` | 显式选择 nav2 参数文件路径 | 取证/失效实验可指临时配置 |
 | `GATE_VERSION` | `v2` | 选 gate v1/v2 | v1 仅隔离诊断，禁动力演示 |
-| `MAX_LINEAR` | `0.10` | 透传 `cmd_vel_safety` `max_linear` | 放宽=用户安全决策 |
+| `MAX_LINEAR` | `0.10` | 透传 `cmd_vel_safety` `max_linear` | 放宽=用户安全决策；**非有限正数启动前退出** |
 | `MAX_ANGULAR` | `0.35` | 透传 `cmd_vel_safety` `max_angular` | 同上 |
+
+> 启动时自动打印：`nav_params` 路径 + `md5` + `desired_linear_vel` + 安全层限幅，便于现场对账取证。
 
 用法示例：
 
@@ -136,7 +144,7 @@ GATE_VERSION=v1 MAX_LINEAR=0.30 bash safety_nav_one.sh
 2. driver 订阅话题：`ps -ww -eo pid,args | grep "[r]acecar_driver"` 现役 node / node_one（§2.2）。
 3. ekf.yaml：`grep odom0 ~/racecar/install/racecar/share/racecar/config/ekf.yaml`（§2.3）。
 4. nav_safe.yaml 限幅：`grep desired_linear_vel ~/racecar_team/nav_safe.yaml`（§2.4）。
-5. nav_safe.yaml scan 三处 + `scan_filter.py` 是否在运行链（§2.5，**最高优先，本地与车端已确认不一致**）。
+5. nav_safe.yaml scan 三处 + `scan_filter.py` 是否在运行链（§2.5，**最高优先：本地 /scan vs 车端 /scan_filtered，过滤脚本是否还活着须现场核实**）。
 6. safety_nav_one.sh gate 默认 + encoder_fix 是否已部署（§2.6/2.8）。
 7. ±60µs 死区补偿 5 项（§2.9，见 `FACTS_CORRECTION_20260919.md`）。
 

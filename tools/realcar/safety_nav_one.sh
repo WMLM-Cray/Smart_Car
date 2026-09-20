@@ -19,7 +19,9 @@ set -u
 
 TEAM="$HOME/racecar_team"
 MAP="${1:-$HOME/racecar/src/racecar/map/map1.yaml}"
-PARAMS="$TEAM/nav_safe.yaml"
+# nav_safe 参数文件显式选择(2026-09-20 增):默认 $TEAM/nav_safe.yaml;
+#   现场可用 NAV_PARAMS=/path/to/xxx.yaml 显式指向其它 nav2 参数文件(取证/失效实验用临时配置)。
+PARAMS="${NAV_PARAMS:-$TEAM/nav_safe.yaml}"
 
 # gate 版本选择(2026-09-19 增, 2026-09-19 晚改默认 v1→v2):
 #   默认 v2 —— 关闭 v1 的缺陷(B1 重锁死锁 + 特定跳变输入下持续拒帧;
@@ -46,6 +48,19 @@ esac
 #      但放宽须现场确认电调/地面状态 + 用户明确授权,默认一律保守,不自动提速。
 MAX_LINEAR="${MAX_LINEAR:-0.10}"
 MAX_ANGULAR="${MAX_ANGULAR:-0.35}"
+
+# 数值校验(2026-09-20 增):MAX_LINEAR/MAX_ANGULAR 必须为有限正数,否则启动节点前退出。
+#   可配置 ≠ 授权提高限幅:默认 0.10/0.35 是保守基线,显式放宽是用户安全决策。
+is_finite_positive() {
+  python3 -c 'import math,sys
+v=float(sys.argv[1])
+sys.exit(0 if (math.isfinite(v) and v > 0) else 1)' "$1"
+}
+if ! is_finite_positive "$MAX_LINEAR" || ! is_finite_positive "$MAX_ANGULAR"; then
+  echo "错误: MAX_LINEAR=$MAX_LINEAR / MAX_ANGULAR=$MAX_ANGULAR 非有限正数,启动中止"
+  echo "  (可配置≠授权提高限幅,默认 0.10/0.35 保守;放宽须现场确认+用户授权)"
+  exit 2
+fi
 
 for f in "$TEAM/cmd_vel_safety.py" "$PARAMS" "$MAP"; do
   [ -f "$f" ] || { echo "缺少 $f,中止"; exit 2; }
@@ -85,6 +100,15 @@ trap terminate SIGINT SIGTERM
 
 echo "=== 安全链启动(地图: $MAP)==="
 echo "=== 前提自查:车辆按 POWERON 方案就位?区域清空?手边有电调开关? ==="
+
+# 启动前打印实际导航配置(2026-09-20 增):路径+哈希+目标速度+安全层限幅,便于对账取证。
+DESIRED_VEL=$(sed -n 's/^[[:space:]]*desired_linear_vel:[[:space:]]*//p' "$PARAMS" | head -1)
+echo "=== 导航配置核验 ==="
+echo "nav_params         = $PARAMS"
+echo "nav_params md5     = $(md5sum "$PARAMS" | awk '{print $1}')"
+echo "desired_linear_vel = ${DESIRED_VEL:-未找到}"
+echo "安全层限幅          = max_linear=$MAX_LINEAR max_angular=$MAX_ANGULAR"
+echo "===================="
 
 python3 "$TEAM/cmd_vel_safety.py" --ros-args -p max_linear:=$MAX_LINEAR -p max_angular:=$MAX_ANGULAR \
   > "$TEAM/safety_last.log" 2>&1 &

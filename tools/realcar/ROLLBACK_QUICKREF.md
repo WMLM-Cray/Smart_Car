@@ -106,6 +106,9 @@ GATE_VERSION=v1 MAX_LINEAR=0.30 bash safety_nav_one.sh    # gate + 限幅同时�
 >   电调/地面状态 + 用户明确授权，**不自动提速**。
 > - **与本卡 #3 的区别**：#3 `desired_linear_vel` 是 nav2 RPP 控制器**期望速度**；
 >   `MAX_LINEAR` 是安全层 `cmd_vel_safety` 的**硬限幅**（超过即截断）。两层各自独立，别混。
+> - **数值校验**：`MAX_LINEAR`/`MAX_ANGULAR` 非有限正数时脚本**启动前退出**（可配置≠授权提高限幅）。
+> - **导航配置显式选择**：`NAV_PARAMS=/path/to/xxx.yaml` 可显式指 nav2 参数文件（默认 `$TEAM/nav_safe.yaml`），
+>   启动时打印该文件路径 + md5 + `desired_linear_vel` + 限幅，便于对账取证。
 
 ---
 
