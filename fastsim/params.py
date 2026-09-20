@@ -21,6 +21,10 @@ class CarParams:
     # --- PWM 接口(与 racecar_teleop.py / web_teleop 一致) ---
     pwm_mid: int = 1550             # [代码] 电调中位
     pwm_fwd_start: int = 1600       # [代码] teleop 注释"can roll";真实起转点未测准
+    # PWM 低于 1600 电调会主动刹车、把车刹停(2026-09-19 用户在车上确认),
+    # 不是松油门滑行 —— 所以中位到 1600 这一段是制动区,不是空挡区。
+    # 减速能力因此不是只靠阻力,vehicle.py 用 accel_max 双向限幅是合理的;
+    # 具体制动减速度仍未实测。
     pwm_rev_start: int = 1360       # [代码] teleop 倒车起步
     pwm_fwd_full: int = 2000        # [代码] teleop 上限
     pwm_rev_full: int = 910         # [代码] teleop 倒车下限(1360-450)
@@ -28,6 +32,11 @@ class CarParams:
     v_rev_full: float = 1.5         # [假设]
     speed_tau: float = 0.35         # [假设] 电机+电调一阶响应时间常数 s
     accel_max: float = 3.0          # [假设] m/s²
+    # 横向加速度上限 = 摩擦系数 x g。超过这个值轮胎抓不住,车推头(实际转弯半径大于
+    # 指令值)。运动学模型本身没有这个约束 —— 不加的话 5m/s 也能过 1m 半径的弯,
+    # 那是 2.5g,物理上不可能,训出来的策略上车就飞。
+    # 0.8g:2026-09-19 按用户判断取的值(室内光滑地面小型 RC 车常见 0.8~1.2)。[假设]
+    a_lat_max: float = 7.85         # [假设] 0.8g m/s²
     turn_mid: int = 84              # [代码] 舵机中位
     turn_span: int = 60             # [代码] 左右各 60 = 满舵
 

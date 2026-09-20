@@ -87,7 +87,10 @@ def train_stage(stage: Stage, steps: int, n_envs: int, seed: int, out_dir: Path,
             model.set_env(vec)
         else:
             model = PPO("MlpPolicy", vec, learning_rate=3e-4, n_steps=512, batch_size=1024,
-                        n_epochs=10, gamma=0.995, gae_lambda=0.95, clip_range=0.2,
+                        # gamma 0.995 的有效视野只有 200 步 = 10s,一圈要 27s 看不到头:
+                        # 折现后"原地不动"值 -4 反而好过"冲出去摔"的 -10,策略就赖着不走了
+                        # (2026-09-18 实测速度压到 0.05m/s 磨满 120s)。0.999 = 1000 步 = 50s。
+                        n_epochs=10, gamma=0.999, gae_lambda=0.95, clip_range=0.2,
                         ent_coef=0.003, policy_kwargs=dict(net_arch=[128, 128]),
                         seed=seed, device="cpu", verbose=1)   # 小 MLP 在 CPU 上更快
         model.learn(total_timesteps=steps, reset_num_timesteps=init_model is None)

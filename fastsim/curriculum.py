@@ -22,11 +22,12 @@ class Stage:
     min_laps: int          # 20 个评估种子里至少几个跑完整圈
     min_coverage: float    # 每个完成的种子,锥桶建图覆盖率下限
     max_cone_hits: int
+    env_kw: dict = field(default_factory=dict)   # 额外的环境参数,做观测消融时用
 
     def make_env(self, car: CarParams = CarParams(), **kw) -> ConeTrackEnv:
         kw.setdefault("mapping", True)      # 训练时可关掉换速度,评估必须开(要看建图覆盖率)
         return ConeTrackEnv(car_params=car, track_params=self.track, v_cmd_fwd=self.v_cmd_fwd,
-                            noise=self.noise, budget=self.budget, **kw)
+                            noise=self.noise, budget=self.budget, **{**self.env_kw, **kw})
 
 
 STAGES: dict[str, Stage] = {
@@ -55,7 +56,8 @@ class StageResult:
     stage: str
     laps: int = 0
     coverage: list = field(default_factory=list)
-    cone_hits: int = 0
+    cone_hits: int = 0          # 全部局的总撞锥数
+    lap_cone_hits: int = 0      # 只算跑完整圈那些局的 —— 过关判据用这个,见下
     episodes: list = field(default_factory=list)
 
     @property
@@ -82,6 +84,7 @@ def evaluate(policy, stage: Stage, seeds=EVAL_SEEDS, car: CarParams = CarParams(
         result.laps += int(lap)
         result.cone_hits += info["cone_hits"]
         if lap:
+            result.lap_cone_hits += info["cone_hits"]
             result.coverage.append(info["cone_coverage"])
         result.episodes.append(dict(seed=seed, lap=lap, **{k: info[k] for k in
                                     ("time", "cone_hits", "cone_coverage", "termination_reason")}))
@@ -89,8 +92,15 @@ def evaluate(policy, stage: Stage, seeds=EVAL_SEEDS, car: CarParams = CarParams(
 
 
 def passed(result: StageResult, stage: Stage) -> bool:
+    """撞锥只数跑完整圈的局。
+
+    撞锥改成不终止之后(2026-09-18,见 env.py),冲出赛道的那一局会一路把沿途的锥桶
+    全犁一遍 —— 2026-09-19 实测 60 局总共 27 次撞锥,其中 24 次来自 3 局出界的,
+    完赛的 57 局里 54 局一个没碰。拿总数当判据,衡量的其实是"摔得多惨"而不是"开得多干净",
+    比赛关心的也只是完赛成绩上加罚多少秒。
+    """
     return (result.laps >= stage.min_laps
-            and result.cone_hits <= stage.max_cone_hits
+            and result.lap_cone_hits <= stage.max_cone_hits
             and all(c >= stage.min_coverage for c in result.coverage))
 
 

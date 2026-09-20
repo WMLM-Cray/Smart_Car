@@ -1,7 +1,11 @@
-"""阿克曼车(运动学自行车模型,参考点=后轴中心)。
+"""阿克曼车(运动学自行车模型 + 摩擦圆限幅,参考点=后轴中心)。
 
 输入是物理量:目标车速 m/s 与目标前轮转角 rad(左正)。
 与实车 PWM 的换算在 pwm.py,不进这一层。
+
+纯运动学模型只在低速可信:1.5m/s 过 1m 半径的弯只有 0.23g,横向力不成约束;
+到 3m/s 就是 0.92g,已经到摩擦极限。所以 step() 里按 a_lat_max 对横摆角速度限幅,
+超出部分表现为推头(self.slip 记录超了多少),否则高速训练学到的是物理上做不到的动作。
 """
 from __future__ import annotations
 
@@ -42,7 +46,17 @@ class Car:
         ds = max(-p.steer_rate * dt, min(p.steer_rate * dt, target_steer - self.steer))
         self.steer += ds
 
-        self.yaw_rate = self.v * math.tan(self.steer) / p.wheelbase
+        # 摩擦圆:指令转角要求的横向加速度 a = v²·tan(δ)/L,超过 a_lat_max 就抓不住,
+        # 实际横摆角速度按比例打折 —— 车听话地少转,也就是推头。纵向也占用抓地力,
+        # 所以可用的横向预算先扣掉纵向那一份(简化的摩擦圆,不做轮胎滑移)。
+        self.slip = 0.0
+        yaw_rate = self.v * math.tan(self.steer) / p.wheelbase
+        a_lat = abs(self.v * yaw_rate)
+        budget = math.sqrt(max(p.a_lat_max ** 2 - min(self.accel ** 2, p.a_lat_max ** 2), 0.0))
+        if a_lat > budget > 0.0:
+            self.slip = 1.0 - budget / a_lat        # 0=抓得住,接近 1=完全打滑
+            yaw_rate *= budget / a_lat
+        self.yaw_rate = yaw_rate
         yaw_mid = self.yaw + 0.5 * self.yaw_rate * dt   # 中点积分
         self.x += self.v * math.cos(yaw_mid) * dt
         self.y += self.v * math.sin(yaw_mid) * dt

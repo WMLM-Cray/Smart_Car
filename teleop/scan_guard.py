@@ -28,14 +28,16 @@ class ScanGuard:
     def update(self, msg):
         n = len(msg.ranges)
         inc = msg.angle_increment
-        lo = max(0, int((-FRONT_HALF_ANGLE - msg.angle_min) / inc))
-        hi = min(n, int((FRONT_HALF_ANGLE - msg.angle_min) / inc) + 1)
         best = float('inf')
-        for i in range(lo, hi):
+        for i in range(n):
+            # 折回 [-π, π):Gazebo 的雷达按 0..2π 发角度,右前方那半边落在数组末尾,
+            # 按 angle_min 直接切窗口会把它整段漏掉 —— 不报错,只是前方只看得见左半边。
+            ang = (msg.angle_min + i * inc + math.pi) % (2 * math.pi) - math.pi
+            if abs(ang) > FRONT_HALF_ANGLE:
+                continue
             r = msg.ranges[i]
             if r != r or r < msg.range_min or r > msg.range_max or math.isinf(r):
                 continue
-            ang = msg.angle_min + i * inc
             x, y = r * math.cos(ang), r * math.sin(ang)
             if x > 0 and abs(y) <= HALF_CORRIDOR and x < best:
                 best = x

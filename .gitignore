@@ -37,5 +37,10 @@ docs/IMPLEMENTATION_STATUS.md
 .pytest_cache/
 
 # --- 训练产物(模型/曲线/日志,不入库) ---
-runs/
+runs/*
 *.log
+
+# 例外:上过车的策略权重要入库。这是全项目最难复现的东西,只存在本机和车上,
+# 丢了要重训。单份 ~0.5MB,.npz 是二进制存不了增量,所以只提交真正跑过的版本,
+# 中间试验产物照旧留在 runs/ 里不管。
+!runs/policy_*.npz

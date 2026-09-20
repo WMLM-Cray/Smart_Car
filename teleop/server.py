@@ -15,8 +15,11 @@ from rclpy.signals import SignalHandlerOptions
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Imu, LaserScan
+from std_msgs.msg import Bool
 
 from scan_guard import ScanGuard
+from scan_view import scan_payload
+from mapping_control import MappingControl
 
 PORT = 8080
 HTML = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'index.html')
@@ -27,9 +30,8 @@ SPEED_MID, FWD_START, REV_START = 1550, 1600, 1500
 FWD_CAP = [1610, 1640, 1700]          # Sloth / Roaming / MAD MAX
 # ⚠️ 倒车:厂家 teleop 用 1360 起步,实车上会窜出去(2026-09-17)。
 # 电调没有渐进区(实测前进 1595->0、1600->470mm/s 一步到位),光调 PWM 保证不了速度,
-# 所以这里既把 PWM 收到贴近中位,又用编码器做闭环硬限速 REV_SPEED_CAP。
+# 倒车仅保留 PWM 上限；不根据编码器速度截断输出，不能保证实际车速上限。
 REV_CAP = 1470
-REV_SPEED_CAP = 0.40                  # m/s,倒车超过就立刻回中位
 # 低速靠占空比:电调解锁就是 470mm/s,1599->0、1600->470 中间没有值(2026-09-17 实测)。
 # 所以摇杆前 CREEP_SPAN 段不调 PWM,而是在起步 PWM 和中位之间按比例通断,
 # 平均速度 ≈ 占空比 x 最低速度。周期 0.3s:再快电调跟不上,再慢车会一顿一顿。
@@ -40,6 +42,7 @@ DEADMAN = 0.3                         # 这么久没收到 t 就回中位
 GUARD_STOP = 0.25                     # 保险杠前净空小于这个就不许再往前(米)
 GUARD_SLOW = 0.8                      # 小于这个就把前进档位压到最慢一档
 NEUTRAL_HOLD = 1.0                    # 回中位后续发这么久再静默,不跟导航的指令抢底盘
+POLICY_THR = 50                       # 策略模式下油门推过这个值(0..1000)才放行,松手即停
 REVERSE_PAUSE = 0.3                   # 前进<->倒车换向前先给中位,电调要求
 
 
@@ -52,9 +55,10 @@ class State:
         self.range = 1
         self.mode = 1
         self.guard = 1                # 防撞开关,雷达掉线可以在网页上关掉
+        self.policy = 0               # 策略模式:开了之后推着摇杆才让 policy_node 开车
         self.gap = None               # 保险杠前净空,None = 雷达没数据
         self.blocked = 0
-        self.rev_block = 0            # 1=倒车超速被截 2=编码器无数据不许倒车
+        self.rev_block = 0            # 2=编码器无数据不许倒车；不再做超速截断
         self.tick = 0                 # 20Hz 计数,占空比用
         self.last_dir = 0
         self.dir_change_t = 0.0
@@ -62,9 +66,12 @@ class State:
         self.spd = 0.0; self.enc_t = 0.0
         self.x = self.y = self.th = 0.0
         self.wz = self.ax = self.ay = 0.0
+        self.scan = None
+        self.scan_received = 0.0
 
 
 S = State()
+mapping = None
 
 
 def creep_or_pwm(t, start, cap):
@@ -73,6 +80,18 @@ def creep_or_pwm(t, start, cap):
         return start + (t - CREEP_SPAN) / (1 - CREEP_SPAN) * (cap - start)
     on = round(t / CREEP_SPAN * DUTY_TICKS)          # 这一周期里有几拍通电
     return start if S.tick % DUTY_TICKS < on else SPEED_MID
+
+
+def policy_held(now):
+    """策略模式下,现在该不该放行 policy_node 开车。
+
+    条件和人手上的动作一一对应:模式开着、没急停、摇杆数据是新的、油门确实推着。
+    任何一条断了就返回 False —— policy_node 那边把 /policy_enable 当心跳,
+    收不到就自己回中位,所以"松手即停"不依赖这里再补一条停车指令。
+    """
+    with S.lock:
+        return bool(S.policy and not S.estop
+                    and now - S.last_t <= DEADMAN and S.thr > POLICY_THR)
 
 
 def compute(now):
@@ -105,9 +124,9 @@ def compute(now):
             pwm = creep_or_pwm(t, FWD_START, cap)
         else:
             fresh = now - S.enc_t < 0.3
-            if not fresh or abs(S.spd) > REV_SPEED_CAP:
+            if not fresh:
                 # 编码器没数据就不知道倒多快,宁可不倒 —— 这车的 USB 掉过线
-                S.rev_block = 1 if fresh else 2
+                S.rev_block = 2
                 return SPEED_MID, turn, True
             S.rev_block = 0
             pwm = creep_or_pwm(-t, REV_START, REV_CAP)    # 倒车两端都比中位小
@@ -119,6 +138,7 @@ class Bridge(Node):
         super().__init__('web_teleop')
         topic = self.declare_parameter('cmd_topic', '/teleop_cmd_vel').value
         self.pub = self.create_publisher(Twist, topic, 5)
+        self.enable_pub = self.create_publisher(Bool, '/policy_enable', 1)
         self.create_subscription(Odometry, '/encoder', self.on_enc, 10)
         self.create_subscription(Odometry, '/odom_combined', self.on_odom, 10)
         self.create_subscription(Imu, '/IMU_data', self.on_imu, 10)
@@ -146,14 +166,31 @@ class Bridge(Node):
     def on_scan(self, m):
         self.guard.update(m)
         gap = self.guard.gap()
+        scan = scan_payload(m)
         with S.lock:
             S.gap = gap
+            S.scan = scan
+            S.scan_received = time.monotonic()
 
     def tick(self):
         now = time.time()
         with S.lock:
             if S.gap is not None and time.time() - self.guard.stamp > 1.0:
                 S.gap = None                      # 雷达掉线,别拿旧值当真
+
+        with S.lock:
+            policy_mode = bool(S.policy)
+        if policy_mode:
+            # 策略模式下这里一个字都不发。摇杆**只**是死人开关,不碰转向和油门。
+            #
+            # 2026-09-20 实车教训:原来写成"推着才不发、松手就接管",而网页摇杆
+            # 前后和左右是同一根 —— 往侧面推时油门分量掉到阈值以下,服务器立刻
+            # 按摇杆转向接管,松一点又切回策略。控制权在两者之间来回跳,现象是
+            # "推杆能扳动方向"和"车莫名其妙往墙上走"。
+            # 松手后的停车由 policy_node 的心跳超时负责,再不行还有 watchdog。
+            self.enable_pub.publish(Bool(data=policy_held(now)))
+            return
+
         pwm, turn, active = compute(now)
         if active:
             self.idle_since = 0.0
@@ -225,6 +262,10 @@ def handle_cmd(line):
             elif p[0] == 'g':
                 S.guard = 1 if int(p[1]) else 0
                 return '防撞已开' if S.guard else '⚠ 防撞已关,前进不再看雷达'
+            elif p[0] == 'p':
+                S.policy = 1 if int(p[1]) else 0
+                return ('⚠ 策略模式:推着摇杆车自己开,松手即停'
+                        if S.policy else '策略模式已关,回到手动遥控')
             elif p[0] == 'h':
                 return 'HW-Autocar web teleop 已连接'
     except (ValueError, IndexError):
@@ -240,6 +281,9 @@ def telemetry():
             'pwm': S.pwm, 'turn': S.turn, 'es': S.estop, 'rng': S.range, 'mode': S.mode,
             'enc': round(time.time() - S.enc_t, 1) if S.enc_t else -1,
             'guard': S.guard, 'blocked': S.blocked, 'revb': S.rev_block,
+            'pol': S.policy, 'polrun': int(bool(S.policy and not S.estop
+                                                and time.time() - S.last_t <= DEADMAN
+                                                and S.thr > POLICY_THR)),
             'gap': -1 if S.gap is None else round(min(S.gap, 9.99), 2),
         })
 
@@ -264,7 +308,43 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
+    def reply_json(self, value, code=200):
+        body = json.dumps(value).encode()
+        self.send_response(code)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Cache-Control', 'no-store')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_POST(self):
+        # Custom header + same-origin policy prevent cross-site form commands.
+        if self.headers.get('X-Mapping-Control') != '1':
+            self.reply_json({'error': 'Missing control header'}, 403); return
+        if self.headers.get('Origin') not in (None, 'http://' + self.headers.get('Host', '')):
+            self.reply_json({'error': 'Origin rejected'}, 403); return
+        if self.path not in ('/mapping/start', '/mapping/stop'):
+            self.reply_json({'error': 'Not found'}, 404); return
+        accepted = mapping.request(self.path.rsplit('/', 1)[-1])
+        self.reply_json({'accepted': accepted}, 202 if accepted else 409)
+
     def do_GET(self):
+        if self.path == '/mapping/status':
+            self.reply_json(mapping.status()); return
+        if self.path.split('?')[0] == '/scan.json':
+            # Separate HTTP polling: scan rendering never sends a driving command.
+            with S.lock:
+                scan = S.scan
+                age = time.monotonic() - S.scan_received if scan else None
+            body = json.dumps({'scan': scan if age is not None and age < 1.0 else None,
+                               'age': age}, allow_nan=False).encode()
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Cache-Control', 'no-store')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if self.path == '/ws' and self.headers.get('Upgrade', '').lower() == 'websocket':
             return self.websocket()
         if self.path.split('?')[0] not in ('/', '/index.html'):
@@ -315,9 +395,11 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    global mapping
     # ⚠️ 不用 rclpy 的信号处理:它收到 SIGTERM 只关 ROS,HTTP 线程照跑,进程停不下来。
     rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
     node = Bridge()
+    mapping = MappingControl(lambda: node.count_publishers('/map'))
 
     def stop(*_):
         # 退出前给底盘回中位 —— 不确定底盘收不到指令时会不会自己停

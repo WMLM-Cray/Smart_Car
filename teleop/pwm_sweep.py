@@ -66,6 +66,8 @@ def main():
         return float(argv[i + 1]), argv[:i] + argv[i + 2:]
 
     argv = sys.argv[1:]
+    no_guard = '--no-guard' in argv
+    argv = [a for a in argv if a != '--no-guard']       # 场地窄/雷达没起来时用,自己看着车
     pause, argv = opt(argv, '--pause', 2.5)
     max_dist, argv = opt(argv, '--max-dist', 4.0)
     duty_at, argv = opt(argv, '--duty-at', 0.0)
@@ -90,7 +92,7 @@ def main():
         end = time.time() + sec
         tick = 0
         while time.time() < end:
-            if watch:                                  # 前进时盯着雷达,不够净空就停
+            if watch and not no_guard:                 # 前进时盯着雷达,不够净空就停
                 gap = node.scan.gap()
                 if gap is None or gap < ABORT_GAP:
                     raise Blocked('雷达无数据' if gap is None else f'前方只剩 {gap:.2f}m')
@@ -104,13 +106,16 @@ def main():
     try:
         print('中位 2s(让电调解锁)...', flush=True)
         hold_pwm(SPEED_MID, 2)
-        # 等第一帧雷达:ROS 发现发布者要 1-3s,不等就会把"还没收到"误判成"雷达掉线"
-        wait_until = time.time() + 10
-        while node.scan.gap() is None and time.time() < wait_until:
-            node.send(SPEED_MID); time.sleep(0.1)
-        if node.scan.gap() is None:
-            print('等了 10s 还是没有 /scan —— 雷达节点没起来?(car.sh)', flush=True)
-            return
+        if no_guard:
+            print('⚠ 已关闭雷达防撞 —— 自己盯着车,随时 Ctrl+C', flush=True)
+        else:
+            # 等第一帧雷达:ROS 发现发布者要 1-3s,不等就会把"还没收到"误判成"雷达掉线"
+            wait_until = time.time() + 10
+            while node.scan.gap() is None and time.time() < wait_until:
+                node.send(SPEED_MID); time.sleep(0.1)
+            if node.scan.gap() is None:
+                print('等了 10s 还是没有 /scan —— 雷达节点没起来?(car.sh)', flush=True)
+                return
         node.take()
         if duty_at:
             print(f'占空比模式:在 {duty_at:.0f} 和中位之间通断,周期 {DUTY_TICKS * 0.05:.2f}s', flush=True)

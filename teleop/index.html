@@ -15,6 +15,10 @@ header{display:flex;align-items:center;gap:8px;padding:12px 14px}
 #hint{color:var(--dim);font-size:13px}
 main{max-width:760px;margin:0 auto}
 section{padding:14px}
+.scan-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.scan-head select{font:inherit;color:var(--fg);background:transparent;border:1px solid var(--line);padding:8px;min-height:44px}
+#scan-canvas{display:block;width:100%;height:300px;border:1px solid var(--line);margin-top:8px}
+#scan-status,.scan-note{font-size:12px;color:var(--dim);margin:6px 0}
 
 #stick{position:relative;width:220px;height:220px;margin:0 auto;touch-action:none;cursor:grab}
 /* ⚠️ 底色走 --kg 变量,由 place() 实时写(中心浅灰 -> 边缘纯黑)。 */
@@ -164,17 +168,27 @@ body.m-max #modesel button.on{color:#fff}
 </div>
 <button id="estop">急停</button>
 <button id="guard">防撞 开</button>
+<button id="policy">策略 关</button>
 <div id="pad">直接拖上面的摇杆就能开(手机/鼠标都行) · 手柄是可选的,插上后按任意键唤醒</div>
 </section>
 
 <section><div id="tel"></div></section>
+<section aria-label="实时雷达扫描">
+  <div class="scan-head"><strong>累计地图</strong><div><button id="map-start" disabled>开始建图</button> <button id="map-stop" disabled>停止并保存</button></div></div>
+  <p id="map-status" class="scan-note" role="status">正在查询建图状态…</p>
+  <p class="scan-note">停止前请停稳车辆。保存成功才停止建图；下次开始建立新地图。文件保存在车上 ~/maps/。</p>
+  <div class="scan-head"><strong>实时雷达</strong><label>半径 <select id="scan-radius"><option value="3">3 m</option><option value="6" selected>6 m</option><option value="12">12 m</option></select></label></div>
+  <div id="scan-status" role="status">等待雷达数据…</div>
+  <canvas id="scan-canvas" aria-label="雷达坐标系俯视扫描，X 正向朝上，Y 正向朝左"></canvas>
+  <p class="scan-note">当前帧扫描 · 不是累计地图 · 朝向按雷达坐标系，需与实车核对</p>
+</section>
 
 <!-- 地址栏加 #debug 展开日志 -->
 <div id="adv" hidden=""><section><div id="log"></div></section></div>
 
 </main><script>
 const $=s=>document.querySelector(s), dot=$('#dot'), log=$('#log');
-let ws, estop=0, nx=0, ny=0, active=false, dragging=false, stickPid=null;
+let ws, estop=0, nx=0, ny=0, active=false, dragging=false, stickPid=null, capOK=false;
 
 /* 发给服务端的都是"比例":油门/方向盘/刹车 -1000..1000。
    PWM 换算和顶速上限都在 server.py 里做 —— 限速不能交给浏览器。
@@ -215,7 +229,7 @@ setInterval(()=>{
     try{ws.close();}catch(e){}
   }
 },1000);
-let guardOn=1;
+let guardOn=1, policyOn=0;
 const F=[['速度','mm/s',x=>x.spd],['电调','PWM',x=>x.pwm],['舵机','',x=>x.turn],
          ['x','mm',x=>x.x],['y','mm',x=>x.y],['θ','°',x=>x.th],
          ['角速度','°/s',x=>x.wz],['加速度 x','m/s²',x=>x.ax],['加速度 y','m/s²',x=>x.ay],
@@ -235,6 +249,9 @@ function tel(d){
   guardOn = d.guard;
   $('#guard').classList.toggle('armed', !d.guard);
   $('#guard').textContent = d.guard ? '防撞 开' : '防撞 关';
+  policyOn = d.pol;
+  $('#policy').classList.toggle('armed', !!d.pol);
+  $('#policy').textContent = d.polrun ? '策略 运行中' : d.pol ? '策略 待推杆' : '策略 关';
   $('#hint').innerHTML=d.es?'<span class=bad>急停锁定</span>':
       (d.enc<0||d.enc>1)?'<span class=warn>没有传感器数据 —— car.sh 开了吗?</span>':
       (d.revb==1)?'<span class=warn>倒车已到限速 400mm/s —— 松一点</span>':
@@ -263,7 +280,11 @@ function setxy(e){
 }
 stick.addEventListener('pointerdown',e=>{
   dragging=true; active=true; stickPid=e.pointerId; stick.classList.add('on');
-  stick.setPointerCapture(e.pointerId); setxy(e);
+  stick.setPointerCapture(e.pointerId);
+  /* 当场验一下这浏览器认不认 hasPointerCapture:不认的话下面那道检查必须关掉,
+     否则它每帧都判成"手已经松了",按下去立刻被 release() 清零,摇杆直接变砖。 */
+  capOK = stick.hasPointerCapture(e.pointerId);
+  setxy(e);
 });
 stick.addEventListener('pointermove',e=>{ if(dragging) setxy(e); });
 for(const ev of ['pointerup','pointercancel','pointerleave'])
@@ -397,7 +418,7 @@ setInterval(padPoll,20);
 let beatT=0;
 function beat(ts){
   requestAnimationFrame(beat);
-  if(stickPid!==null && !stick.hasPointerCapture(stickPid)){ dragging=false; release(); return; }
+  if(capOK && stickPid!==null && !stick.hasPointerCapture(stickPid)){ dragging=false; release(); return; }
   if(ts-beatT<100) return;
   beatT=ts;
   if(!ws||ws.readyState!=1||!active) return;
@@ -429,10 +450,76 @@ addEventListener('keydown',e=>{
 addEventListener('keyup',e=>{ if(K[e.key]){held.delete(e.key);fromKeys();} });
 
 $('#guard').onclick=()=>send('g '+(guardOn?0:1));   /* guardOn 由遥测回来的值决定,不自己记状态 */
+$('#policy').onclick=()=>send('p '+(policyOn?0:1)); /* 开了之后推着摇杆车才自己开,松手即停 */
 $('#estop').onclick=()=>send('e '+(estop?0:1));
 
 if(/debug/.test(location.hash+location.search)) $('#adv').hidden=false;
 addEventListener('hashchange',()=>{ $('#adv').hidden = !/debug/.test(location.hash); });
 place(); applyMode(mode); connect();
+</script>
+<script>
+/* Isolated read-only viewer: no references to joystick or control WebSocket. */
+(()=>{
+  const canvas=document.getElementById('scan-canvas'), ctx=canvas.getContext('2d');
+  const status=document.getElementById('scan-status'), radius=document.getElementById('scan-radius');
+  let scan=null, received=0, age=0, failed=false;
+  function draw(){
+    const w=canvas.clientWidth,h=canvas.clientHeight,dpr=window.devicePixelRatio||1;
+    if(canvas.width!==Math.round(w*dpr)||canvas.height!==Math.round(h*dpr)){
+      canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);
+    }
+    ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
+    const css=getComputedStyle(document.body),cx=w/2,cy=h/2,r=+radius.value,s=(Math.min(w,h)/2-24)/r;
+    ctx.strokeStyle=css.getPropertyValue('--line');ctx.fillStyle=css.getPropertyValue('--dim');ctx.font='12px sans-serif';
+    for(let i=1;i<=3;i++){
+      ctx.beginPath();ctx.arc(cx,cy,r*s*i/3,0,Math.PI*2);ctx.stroke();
+      ctx.fillText((r*i/3)+' m',cx+4,cy-r*s*i/3+13);
+    }
+    ctx.beginPath();ctx.moveTo(cx,20);ctx.lineTo(cx,h-20);ctx.moveTo(20,cy);ctx.lineTo(w-20,cy);ctx.stroke();
+    ctx.fillText('+X / 前',cx+8,16);ctx.fillText('+Y / 左',8,cy-8);
+    const fresh=scan&&!failed&&age+(performance.now()-received)/1000<1;
+    if(fresh){
+      ctx.fillStyle=css.getPropertyValue('--act');
+      for(const [x,y] of scan.points){if(Math.hypot(x,y)<=r) ctx.fillRect(cx-y*s-1.5,cy-x*s-1.5,3,3);}
+      status.textContent=scan.points.length+' 个有效点 · '+scan.frame+' · '+Math.round((age+(performance.now()-received)/1000)*1000)+' ms 前';
+    }else status.textContent=failed?'扫描连接中断（已清除旧点）':'雷达无新数据（已清除旧点）';
+    ctx.fillStyle=css.getPropertyValue('--fg');ctx.beginPath();ctx.moveTo(cx,cy-8);ctx.lineTo(cx-5,cy+5);ctx.lineTo(cx+5,cy+5);ctx.closePath();ctx.fill();
+  }
+  async function poll(){
+    if(!document.hidden){
+      const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),1500);
+      try{
+        const res=await fetch('/scan.json',{cache:'no-store',signal:controller.signal});
+        if(!res.ok) throw new Error('HTTP '+res.status);
+        const data=await res.json();scan=data.scan;age=data.age||0;received=performance.now();failed=false;
+      }catch(_){scan=null;failed=true;}finally{clearTimeout(timeout);}
+    }
+    draw();setTimeout(poll,200);
+  }
+  new ResizeObserver(draw).observe(canvas);radius.addEventListener('change',draw);
+  setInterval(draw,250);poll();
+})();
+</script>
+<script>
+(()=>{
+ const start=document.getElementById('map-start'),stop=document.getElementById('map-stop'),status=document.getElementById('map-status');
+ let pending=false;
+ async function refresh(){
+  try{
+   const response=await fetch('/mapping/status',{cache:'no-store',signal:AbortSignal.timeout(4000)});
+   if(!response.ok)throw Error('状态读取失败');const d=await response.json();
+   start.disabled=pending||d.busy||d.running;stop.disabled=pending||d.busy||!d.running;
+   status.textContent=(d.running?'建图进程运行中':'建图已停止')+' · '+d.message+(d.saved?' · 最近保存：'+d.saved:'');
+  }catch(_){start.disabled=stop.disabled=true;status.textContent='建图服务未连接';}
+ }
+ async function act(action){
+  if(action==='stop'&&!confirm('确认车辆已停稳？将保存当前地图并停止建图，不会停止底盘或雷达。'))return;
+  pending=true;start.disabled=stop.disabled=true;
+  try{const r=await fetch('/mapping/'+action,{method:'POST',headers:{'X-Mapping-Control':'1'},signal:AbortSignal.timeout(5000)});if(!r.ok)throw Error('请求未接受，请查看状态');}
+  catch(e){status.textContent=e.message;}
+  finally{pending=false;await refresh();}
+ }
+ start.onclick=()=>act('start');stop.onclick=()=>act('stop');refresh();setInterval(refresh,2000);
+})();
 </script>
 </body></html>
