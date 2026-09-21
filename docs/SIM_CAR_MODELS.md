@@ -125,3 +125,59 @@ sudo systemctl edit racecar-chassis   # 加 [Service] / Environment=ROS_DOMAIN_I
 ```
 
 三个服务都要:`racecar-chassis`、`racecar-web`、`racecar-watchdog`。
+
+## WSL 环境重装(2026-09-21)
+
+`Ubuntu-22.04` 和 `Ubuntu-20.04` 两个发行版在 9-20 晚被删掉(只打算删 20)。
+上面"WSL 环境(已装好,2026-09-19)"那节描述的东西全没了,下面是重建后的状态。
+
+判断发行版是不是没了,看这三样,缺一不可 —— `wsl -l -v` 列表本身不够:
+
+```
+reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Lxss" /s   # 每个发行版一个 GUID 子键
+dir %LOCALAPPDATA%\Packages\CanonicalGroupLimited.*\LocalState\ext4.vhdx
+wsl -d <名字> -u root -- bash -c "dpkg -l | grep -c ros-"
+```
+
+重建后的布局(`run_sim.sh` 写死了前三个路径):
+
+| 路径 | 内容 | 怎么来的 |
+|---|---|---|
+| `/opt/ros/humble` | ROS2 Humble + Gazebo 11.10.2,384 个包 | `tools/wsl_setup_ros2.sh` |
+| `~/hw_ws/` | colcon 工作区,4 个包 | rsync 仓库 `3Dsim/hwcart_sim/src/` 后 `colcon build --symlink-install` |
+| `~/autocar/` | `fastsim` / `runs` / `teleop` | rsync 仓库 |
+| `~/worlds/track_s3_sim.world` | 赛道 | 仓库里 `runs/track_s3/track_s3_sim.world` 直接拷 |
+
+**不要把 `~/hw_ws` 软链到 `/mnt/c`**:colcon 在 9p 上编译慢一个数量级。代价是
+仓库改了代码要 rsync 一次。
+
+用户 `tozzy` 是 `--disabled-password` 建的,`/etc/sudoers.d/99-tozzy-nopasswd`
+给了 `NOPASSWD:ALL`,`/etc/wsl.conf` 里 `default=tozzy` + `systemd=true`。
+改完 `wsl.conf` 要 `wsl --terminate Ubuntu-22.04` 才生效。
+
+### 坑:nohup 撑不住仿真
+
+`wsl.exe -d ... -- bash -c 'nohup ros2 launch ... &'` 这种写法,`wsl.exe` 一退出
+WSL 就把这个会话里的进程全收掉 —— gzserver 没了,重定向的日志文件**一个字节都
+没有**,看上去像根本没启动过。要让仿真活着,就得有一个 `wsl.exe` 进程一直挂着
+(前台跑 launch),别的窗口再 `wsl -d Ubuntu-22.04` 进去查话题。
+
+顺带:`ros2 topic list` 报 `xmlrpc.client.Fault: <class 'RuntimeError'>:!rclpy.ok()`
+是 ros2 daemon 残留在坏状态,`ros2 daemon stop` 就好,和仿真本身无关。
+
+### 重装后的冒烟结果(headless,ROS_DOMAIN_ID=43)
+
+```
+/clock          9.72 Hz
+/joint_states  97.43 Hz
+/scan           9.77 Hz
+/IMU_data     195.61 Hz
+```
+
+话题齐全(`/scan` `/IMU_data` `/image_raw` `/cmd_vel` `/camera_info` `/tf`),
+控制器 `joint_state_broadcaster` 和 `ackermann_steering_controller` 都 configured
+and activated。`/clock` 还是固定 10 Hz,和 9-19 记录一致。
+
+`tools/verify_phase1.sh` 那 42 项**没跑** —— 它第 37 行写死
+`source ~/hwcart_sim/hwcart_sim/install/setup.bash`,要求工作区建在仓库目录里,
+和这次 `~/hw_ws` 的布局对不上。要跑得先改那一行或者在仓库里另编一份。

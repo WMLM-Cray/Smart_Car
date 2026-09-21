@@ -18,26 +18,47 @@ apt-get install -y curl gnupg2 lsb-release git cmake build-essential wget \
 echo "==> [3/6] 配置 ROS2 清华源(keyrings 方式)"
 install -d /usr/share/keyrings
 KEYRING=/usr/share/keyrings/ros-archive-keyring.gpg
-# 幂等:已有有效二进制密钥则跳过(注意 asc 文本直接存 .gpg 无效,必须二进制/dearmor)
-if ! gpg --no-default-keyring --keyring "$KEYRING" --list-keys >/dev/null 2>&1; then
-  echo "  密钥缺失/无效,开始获取(三级 fallback)..."
-  # ① 清华镜像 asc(常404) ② jsDelivr CDN(须 dearmor) ③ keyserver.ubuntu.com
-  if curl -fsSL --max-time 15 https://mirrors.tuna.tsinghua.edu.cn/ros2/ubuntu/ros.asc 2>/dev/null \
-       | gpg --dearmor -o "$KEYRING" 2>/dev/null \
-     && gpg --no-default-keyring --keyring "$KEYRING" --list-keys >/dev/null 2>&1; then
-    echo "  已从清华镜像获取并 dearmor"
-  elif curl -fsSL --max-time 15 https://cdn.jsdelivr.net/gh/ros/rosdistro@master/ros.asc 2>/dev/null \
-       | gpg --dearmor -o "$KEYRING" 2>/dev/null \
-     && gpg --no-default-keyring --keyring "$KEYRING" --list-keys >/dev/null 2>&1; then
-    echo "  已从 jsDelivr CDN 获取并 dearmor"
-  else
-    echo "  从 keyserver.ubuntu.com 收官方密钥 F42ED6FBAB17C654"
-    rm -f "$KEYRING"
-    gpg --no-default-keyring --keyring "$KEYRING" \
-      --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys F42ED6FBAB17C654
-  fi
+FPR=C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654
+# 2026-09-21 重装时踩的坑,旧写法三处都错,别改回去:
+#  ① 抓的是 .../ros2/ubuntu/ros.asc —— 清华和中科大现在都 404,只有 GitHub 的
+#     rosdistro/master/ros.key 还在(而且是二进制,不用 dearmor);
+#  ② `curl | gpg --dearmor` 里 curl 的失败被管道吞掉,gpg 照样生成一个空文件;
+#  ③ `gpg --list-keys` 对空 keyring 返回成功,所以守卫判定"密钥有效"直接放行。
+# 结果是 apt update 报 NO_PUBKEY F42ED6FBAB17C654、ROS 源整个没进索引,
+# 而 apt 的报错长得像包名写错(Unable to locate package ros-humble-xxx),极误导。
+# 所以下面一律**按指纹**验收,不看退出码。
+have_key() { gpg --no-default-keyring --keyring "$KEYRING" --fingerprint 2>/dev/null \
+             | tr -d ' ' | grep -q "$FPR"; }
+if ! have_key; then
+  for url in https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+             https://cdn.jsdelivr.net/gh/ros/rosdistro@master/ros.key; do
+    echo "  取密钥:$url"
+    curl -fsSL --max-time 20 -o /tmp/ros.key "$url" || continue
+    # 二进制直接用,ASCII armor 才 dearmor
+    if head -c 5 /tmp/ros.key | grep -q -- '-----'; then
+      gpg --dearmor -o "$KEYRING" < /tmp/ros.key
+    else
+      cp /tmp/ros.key "$KEYRING"
+    fi
+    have_key && break
+  done
 fi
+if ! have_key; then
+  echo "  网络取不到,退回 keyserver"
+  rm -f "$KEYRING"
+  gpg --no-default-keyring --keyring "$KEYRING" \
+    --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys F42ED6FBAB17C654
+fi
+have_key || { echo "密钥仍然不对,装不下去了(指纹应为 $FPR)"; exit 1; }
 chmod 644 "$KEYRING"
+
+# 镜像域名如果解析到 198.18.0.x,说明本机走代理的 fake-ip;apt 并发下载会随机
+# 掉连接(Unable to connect to mirrors.ustc.edu.cn:https)。单连接 + 重试能过。
+cat > /etc/apt/apt.conf.d/99-proxy-friendly <<'CONF'
+Acquire::Retries "8";
+Acquire::http::Pipeline-Depth "0";
+Acquire::Queue-Host-Limit "1";
+CONF
 echo "deb [arch=amd64 signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] https://mirrors.tuna.tsinghua.edu.cn/ros2/ubuntu jammy main" \
   > /etc/apt/sources.list.d/ros2-latest.list
 apt-get update
@@ -68,7 +89,9 @@ grep -q 'ros2_setup' "$BRC" || cat >> "$BRC" <<'EOF'
 
 # --- ros2_setup: 仿真工作区环境 ---
 source /opt/ros/humble/setup.bash
-export ROS_DOMAIN_ID=42
+# 43 = 仿真域。**别写 42** —— 那是实车的域,同网段下 DDS 会把两边的话题按名字
+# 合并,/scan 凭空多一个发布者,不报错不告警(2026-09-20 踩过,见 SIM_CAR_MODELS.md)。
+export ROS_DOMAIN_ID=43
 export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:~/hwcart_sim/models
 EOF
 
