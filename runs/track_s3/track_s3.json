@@ -1,0 +1,19 @@
+{
+  "seed": 0,
+  "selected_gaps": [
+    [
+      "r4",
+      "r5"
+    ],
+    [
+      "b29",
+      "b30"
+    ],
+    [
+      "r20",
+      "r21"
+    ]
+  ],
+  "board_thickness": 0.05,
+  "geometry_status": "prototype_box_cones_not_official_track"
+}

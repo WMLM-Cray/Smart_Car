@@ -1,0 +1,61 @@
+{
+  "model": "runs\\low_speed_a\\candidate_020.npz",
+  "sha256": "231393101b1a2aaa3783404fc1bef7e4bb253d4a425017f06976b615cbdad247",
+  "target_speed": 0.6,
+  "requested_episodes": 2,
+  "complete": true,
+  "elapsed_seconds": 7.936270400008652,
+  "summary": {
+    "episodes": 2,
+    "clean_laps": 2,
+    "clean_rate": 1.0,
+    "wilson_95": [
+      0.34237195288961925,
+      1.0
+    ],
+    "reasons": {
+      "lap": 2
+    },
+    "teacher_failed_on_student_failures": 0
+  },
+  "original_50": {
+    "episodes": 2,
+    "clean_laps": 2,
+    "clean_rate": 1.0,
+    "wilson_95": [
+      0.34237195288961925,
+      1.0
+    ],
+    "reasons": {
+      "lap": 2
+    },
+    "teacher_failed_on_student_failures": 0
+  },
+  "new_seeds": {},
+  "episodes": [
+    {
+      "seed": 30000000,
+      "target_speed": 0.6,
+      "steps": 1154,
+      "recovery_start": false,
+      "reason": "lap",
+      "cone_hits": 0,
+      "lap_fraction": 1.0000364572784373,
+      "time": 57.69999999999709,
+      "lateral_rmse": 0.07649785029392431,
+      "mean_speed": 0.5966664261553791
+    },
+    {
+      "seed": 30000001,
+      "target_speed": 0.6,
+      "steps": 1718,
+      "recovery_start": false,
+      "reason": "lap",
+      "cone_hits": 0,
+      "lap_fraction": 1.000095196004096,
+      "time": 85.90000000000704,
+      "lateral_rmse": 0.12370181421301081,
+      "mean_speed": 0.597760803740314
+    }
+  ]
+}

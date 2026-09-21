@@ -43,4 +43,23 @@ runs/*
 # 例外:上过车的策略权重要入库。这是全项目最难复现的东西,只存在本机和车上,
 # 丢了要重训。单份 ~0.5MB,.npz 是二进制存不了增量,所以只提交真正跑过的版本,
 # 中间试验产物照旧留在 runs/ 里不管。
+#
+# 写法上的坑:上面必须是 `runs/*` 不能是 `runs/`。带斜杠的目录规则会让 git
+# 根本不进这个目录,下面所有 ! 例外都不会触发(2026-09-20 踩过)。同理,要放行
+# 子目录里的文件,得先 ! 掉子目录本身,再把它的内容重新 ignore。
 !runs/policy_*.npz
+
+# 低速转向策略(phase A):留有 200 局以上验证报告的权重 + 每轮 eval 曲线。
+# latest.pt 是 1.4G 的训练检查点(replay buffer + RNG 状态,phase B 的 --init),
+# 本机留着但不入库 —— 不在下面的例外里,所以默认被 runs/low_speed_a/* 挡住。
+!runs/low_speed_a/
+runs/low_speed_a/*
+!runs/low_speed_a/candidate_*.npz
+!runs/low_speed_a/*.json
+
+# 仿真赛道:3Dsim 的 world 是从这两个文件生成的,丢了 Gazebo 里就没赛道。
+!runs/track_s3/
+runs/track_s3/*
+!runs/track_s3/cones.csv
+!runs/track_s3/gaps.json
+!runs/track_s3/track_s3.json

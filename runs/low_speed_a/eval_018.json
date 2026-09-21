@@ -1,0 +1,133 @@
+{
+  "round": 18,
+  "steps": 905071,
+  "loss": 0.0019483012147247791,
+  "clean_rates": {
+    "0.6": 0.6
+  },
+  "full_evaluation": false,
+  "episodes": [
+    {
+      "seed": 30000000,
+      "target_speed": 0.6,
+      "steps": 605,
+      "recovery_start": false,
+      "reason": "cone",
+      "cone_hits": 1,
+      "lap_fraction": 0.5097176876830118,
+      "time": 30.25000000000193,
+      "lateral_rmse": 0.03957222403352789,
+      "mean_speed": 0.5936414064047373
+    },
+    {
+      "seed": 30000001,
+      "target_speed": 0.6,
+      "steps": 709,
+      "recovery_start": false,
+      "reason": "cone",
+      "cone_hits": 1,
+      "lap_fraction": 0.408115831785805,
+      "time": 35.450000000001516,
+      "lateral_rmse": 0.08519052991480627,
+      "mean_speed": 0.5945741210221415
+    },
+    {
+      "seed": 30000002,
+      "target_speed": 0.6,
+      "steps": 1361,
+      "recovery_start": false,
+      "reason": "lap",
+      "cone_hits": 0,
+      "lap_fraction": 1.0004388608010963,
+      "time": 68.04999999999791,
+      "lateral_rmse": 0.08847279611465113,
+      "mean_speed": 0.5971734442571869
+    },
+    {
+      "seed": 30000003,
+      "target_speed": 0.6,
+      "steps": 1256,
+      "recovery_start": false,
+      "reason": "lap",
+      "cone_hits": 0,
+      "lap_fraction": 1.0004503903778592,
+      "time": 62.799999999996075,
+      "lateral_rmse": 0.07889173706202297,
+      "mean_speed": 0.596937147050365
+    },
+    {
+      "seed": 30000004,
+      "target_speed": 0.6,
+      "steps": 1174,
+      "recovery_start": false,
+      "reason": "cone",
+      "cone_hits": 1,
+      "lap_fraction": 0.7569786634776104,
+      "time": 58.69999999999689,
+      "lateral_rmse": 0.1225912094279393,
+      "mean_speed": 0.5967232163220795
+    },
+    {
+      "seed": 30000005,
+      "target_speed": 0.6,
+      "steps": 794,
+      "recovery_start": false,
+      "reason": "cone",
+      "cone_hits": 1,
+      "lap_fraction": 0.48267498726649904,
+      "time": 39.70000000000067,
+      "lateral_rmse": 0.06545870643635603,
+      "mean_speed": 0.5951549780411302
+    },
+    {
+      "seed": 30000006,
+      "target_speed": 0.6,
+      "steps": 1196,
+      "recovery_start": false,
+      "reason": "lap",
+      "cone_hits": 0,
+      "lap_fraction": 1.0002527108298214,
+      "time": 59.79999999999667,
+      "lateral_rmse": 0.09500542781614277,
+      "mean_speed": 0.5967834917715859
+    },
+    {
+      "seed": 30000007,
+      "target_speed": 0.6,
+      "steps": 1290,
+      "recovery_start": false,
+      "reason": "lap",
+      "cone_hits": 0,
+      "lap_fraction": 1.0002252157225042,
+      "time": 64.49999999999609,
+      "lateral_rmse": 0.10139039211502343,
+      "mean_speed": 0.5970178736428232
+    },
+    {
+      "seed": 30000008,
+      "target_speed": 0.6,
+      "steps": 1590,
+      "recovery_start": false,
+      "reason": "lap",
+      "cone_hits": 0,
+      "lap_fraction": 1.0003324995427938,
+      "time": 79.50000000000377,
+      "lateral_rmse": 0.11286479400223097,
+      "mean_speed": 0.5975805406801575
+    },
+    {
+      "seed": 30000009,
+      "target_speed": 0.6,
+      "steps": 1504,
+      "recovery_start": false,
+      "reason": "lap",
+      "cone_hits": 0,
+      "lap_fraction": 1.000134047610065,
+      "time": 75.20000000000157,
+      "lateral_rmse": 0.07489720865956376,
+      "mean_speed": 0.5974421934258981
+    }
+  ],
+  "elapsed_seconds": 1953.6233470999869,
+  "new_steps": 404883
+}
