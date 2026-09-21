@@ -122,7 +122,10 @@ def main():
         print(f'每档 {hold:.1f}s,档间回中位 {pause:.1f}s,累计 {max_dist:.1f}m 中止', flush=True)
         print(f'{"占空%" if duty_at else "PWM":>5} {"平均mm/s":>9} {"最小":>6} {"最大":>6} {"波动(std)":>9} {"累计m":>6}', flush=True)
         pwm = start
-        while pwm <= stop:
+        # step 给负数就往下扫:配 --pause 0 用,先用高 PWM 把车带动再逐档降,
+        # 测"维持速度"而不是"起步速度"。电调的启动死区比维持死区高,
+        # 每档都从静止起步的话,低档永远是 0,看不出它其实能维持慢速。
+        while (pwm <= stop if step > 0 else pwm >= stop):
             duty = pwm if duty_at else None
             try:
                 hold_pwm(pwm, hold / 2, watch=True, duty=duty)   # 前一半等速度稳定
