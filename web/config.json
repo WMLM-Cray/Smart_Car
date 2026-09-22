@@ -1,0 +1,15 @@
+{
+  "mode": "real",
+  "media_dir": "./media",
+  "capabilities": {
+    "mapView": true,
+    "camera": true,
+    "navigation": false,
+    "multipoint": false,
+    "slam": false,
+    "softwareStop": false,
+    "mapLayers": false,
+    "mapMetadata": false,
+    "videoKind": "png-poll"
+  }
+}
