@@ -99,6 +99,12 @@ def generate_launch_description():
         arguments=['-topic', 'robot_description',
                    '-entity', 'racecar',
                    '-z', '0.02',
+                   # 出生点。默认 0,0,0 是自带 racecar.world 的空地中心;固定赛道
+                   # 的起点不在原点(赛道 A 是 11.0, 0.75 朝 +x,见 trackA_layout.yaml
+                   # 的 start_pose),不给就会生在赛道外面。
+                   '-x', LaunchConfiguration('x'),
+                   '-y', LaunchConfiguration('y'),
+                   '-Y', LaunchConfiguration('yaw'),
                    # 2026-09-15 竞态修复:spawn_entity.py 对 /spawn_entity 服务
                    # 的 wait_for_service 默认只等 30s,WSL 下 gzserver 加载
                    # world+插件偶发超时(第2轮验证启动失败根因)。放宽到 60s;
@@ -154,6 +160,9 @@ def generate_launch_description():
         # track_generator 出的 world 可用 3Dsim/make_sim_world.py 补上。
         DeclareLaunchArgument('world', default_value=world_file,
                               description='gzserver 加载的 world 文件路径'),
+        DeclareLaunchArgument('x', default_value='0.0', description='出生点 x'),
+        DeclareLaunchArgument('y', default_value='0.0', description='出生点 y'),
+        DeclareLaunchArgument('yaw', default_value='0.0', description='出生点朝向 rad'),
         robot_state_publisher,
         gzserver,
         gzclient,

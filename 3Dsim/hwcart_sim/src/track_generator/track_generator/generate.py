@@ -20,7 +20,15 @@ def load_cones(path):
             raise ValueError('nonfinite coordinate')
     return rows
 
-def build(cones, candidates, seed, board_thickness):
+def build(cones, candidates, seed, board_thickness, boards=3):
+    """boards: how many blue boards to drop into vetted gaps.
+
+    0 is for fixed official layouts: track A's spec has no boards, and its cone
+    spacing (1.027 m on the straights, 0.917 m on E8) leaves only two gaps in
+    the [1.08, 1.5) window anyway, so the >=3 rule below cannot be met there.
+    """
+    if boards < 0:
+        raise ValueError('board count must not be negative')
     if not math.isfinite(board_thickness) or not 0 < board_thickness < .8:
         raise ValueError('explicit board thickness in (0, .8) metres required')
     by_id = {c['id']: c for c in cones}
@@ -40,9 +48,9 @@ def build(cones, candidates, seed, board_thickness):
         if key in pairs:
             raise ValueError('duplicate board candidate')
         pairs.add(key)
-    if len(pairs) < 3:
-        raise ValueError('at least three distinct vetted candidate gaps required')
-    chosen = random.Random(seed).sample(sorted(pairs), 3)
+    if len(pairs) < boards:
+        raise ValueError(f'at least {boards} distinct vetted candidate gaps required')
+    chosen = random.Random(seed).sample(sorted(pairs), boards)
     sdf = ET.Element('sdf', version='1.6')
     world = ET.SubElement(sdf, 'world', name='prototype')
     ET.SubElement(world, 'gravity').text = '0 0 -9.81'
@@ -88,9 +96,11 @@ def main():
     p.add_argument('--seed', required=True, type=int)
     p.add_argument('--board-thickness', required=True, type=float)
     p.add_argument('--output', required=True, type=Path)
+    p.add_argument('--boards', type=int, default=3,
+                   help='blue boards to place (0 for fixed official layouts)')
     args = p.parse_args()
     sdf, manifest = build(load_cones(args.cones), json.loads(args.gaps.read_text()),
-                          args.seed, args.board_thickness)
+                          args.seed, args.board_thickness, args.boards)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(sdf, encoding='utf-8')
     args.output.with_suffix('.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
