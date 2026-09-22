@@ -96,10 +96,14 @@ python3 3Dsim/tools/gen_trackA_cones.py 3Dsim/examples/trackA_layout.yaml \
 python3 3Dsim/hwcart_sim/src/track_generator/track_generator/generate.py \
     --cones work/trackA/cones.csv --gaps work/trackA/no_gaps.json \
     --seed 0 --board-thickness 0.05 --boards 0 --output work/trackA/trackA.world
-python3 3Dsim/make_sim_world.py work/trackA/trackA.world ~/worlds/trackA_sim.world
-# 3 起仿真(起点必须给,赛道A的起点不在原点)
-ros2 launch racecar_sim sim_bringup.launch.py world:=$HOME/worlds/trackA_sim.world \
-    x:=11.0 y:=0.75 yaw:=0.0
+python3 3Dsim/make_sim_world.py work/trackA/trackA.world \
+    "$WS/src/racecar_sim/worlds/trackA_dense.world"
+(cd "$WS" && colcon build --packages-select racecar_sim)
+# 3 起仿真。world 收的是**包内文件名**不是绝对路径(2026-09-22 合队友基线后改的);
+#   起点必须给,赛道A的起点不在原点。队友包里自带一份 trackA.world(63 锥,
+#   冻结 CSV 坐标),想跑那份就 world:=trackA.world
+ros2 launch racecar_sim sim_bringup.launch.py world:=trackA_dense.world \
+    spawn_x:=11.0 spawn_y:=0.75 spawn_yaw:=0.0
 # 4 策略 + 心跳 + 打分(三个终端)
 python3 teleop/steer_policy_node.py runs/low_speed_a/candidate_060.npz --sim --speed 0.45
 python3 teleop/hold_enable.py
@@ -110,7 +114,8 @@ python3 3Dsim/tools/track_eval.py 3Dsim/examples/trackA_layout.yaml \
 两个容易踩的:
 
 * **`/policy_enable` 是心跳不是开关**,`ros2 topic pub --once` 只能让车抖一下,
-  必须 `hold_enable.py` 持续发。`3Dsim/run_sim.sh` 里那行 `--once` 是个 bug,还没修。
+  必须 `hold_enable.py` 持续发。`3Dsim/run_sim.sh` 里那行 `--once` 是个 bug,已于
+  2026-09-22 修掉(改成起 `hold_enable.py`)。
 * **nohup 撑不住仿真** —— `wsl.exe` 一退出,WSL 把会话里的进程全收掉,gzserver 没了,
   重定向的日志文件一个字节都没有,看上去像根本没启动过。得有个 `wsl.exe` 前台挂着。
 
@@ -177,21 +182,44 @@ phase B 没开始。入口门槛写在 `low_speed_train.py` 的 `phase_a_validat
 **把舵机打到满舵量一下前轮角度,十分钟的事**,比任何训练改动都便宜。
 同一条链上 `turn_span = 60` 是 `[代码]`(舵机左右各 60 算满舵),所以量了就能定。
 
-### 6.4 `params.py` 的 PWM 常数和实测冲突
+### 6.4 PWM→速度随电量平移,写死的映射都不可靠
 
-2026-09-21 在车上实测(编码器尺度已用雷达校过,系数 0.9678):
+同一台车、同一个电调,两次实测差了 95 个 PWM:
+
+| | 2026-09-21 落地(电量偏低) | 2026-09-22 架空(电量足) |
+|---|---|---|
+| 起转 PWM | 1650 | **1555** |
+| 1600 | 读数 0,带不动 | 转得很快 |
+| 1610 | — | 目测 ≈2 m/s |
+
+负载差异解释不了 95 —— 空载少了静摩擦和滚阻,起转点最多差 20~30。**厂商确认**是
+电量低时同样 PWM 扭矩不够,不是电调有固定死区,并建议改用编码器速度 PID 闭环。
+
+所以 `fastsim/params.py` 里 `pwm_mid 1550 [代码]`、`pwm_fwd_start 1600 [代码]`、
+`v_fwd_full 3.0 [假设]` 全都不可靠,那里"低于 1600 会主动刹车"的注释是**错的**。
+目标 0.6 m/s 大概在 1565~1575(起转点往上十几个),不是现在配的 1600。
+
+这条不影响 fastsim 训练(训练里用物理量),但影响任何 PWM 映射和上车。
+车上 `teleop/steer_policy_node.py` 的 `--pwm` 默认 1600、`PWM_HARD_MAX = 1620`
+都要按落地实测重定。
+
+### 6.6 轴距是 0.36 不是 0.305
+
+2026-09-22 合入队友基线时发现,他们 2026-09-16 **卷尺量过**:
 
 ```
-< ~1505      倒车
-1515-1560    读数 0,自由滑行(脚本退出后车还往前爬了一段)
-1560-1640    读数 0,带不动(破静死区)
-1650         491 mm/s
-1660         521 mm/s
+hwcart_sim/src/racecar_sim/config/params.yaml
+  wheel_base: 0.36    # [实测 2026-09-16] 出厂源码 0.305 与本车不符,已关闭
 ```
 
-`params.py` 里 `pwm_mid 1550 [代码]`、`pwm_fwd_start 1600 [代码]`、`v_fwd_full 3.0 [假设]`
-和上表对不上,那里"低于 1600 会主动刹车"的注释是**错的**(中位附近是自由滑行的死区)。
-还没订正。这条不影响 fastsim 训练(训练里用物理量),但影响任何 PWM 映射和上车。
+而我们这边 `fastsim/params.py` 的 `wheelbase = 0.305 [假设]`、
+`teleop/scan_guard.py` 的 `WHEELBASE = 0.305` 还是抄的出厂值 —— **差 18%**。
+轴距进阿克曼几何:`angular.z = v·tanδ/L`(`fastsim/interop.py`)、防撞的扫掠
+路径半径 `R = L/tan δ`、最小转弯半径,全都跟着错。
+
+同一份 params.yaml 里 `lidar_samples 1667`、`lidar_hz 12` 和我们独立测到的一致,
+所以那份实测是可信的。**订正 0.305→0.36 之前,训出来的策略在实车上的转向半径
+就是偏的。** 这条应该排在 6.3(max_steer)前面一起做。
 
 ### 6.5 黄 V 是能力缺口不是调参问题
 
