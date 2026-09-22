@@ -24,8 +24,11 @@
 另注:启动这套栈时仿真不能是暂停的。控制器若在暂停状态下 configure+activate,
 硬件接口接不上,之后解暂停也没用(现象和第 2 条一样),同样只能重启。
 
-用法:python3 teleop/sim_reset.py
+用法:python3 teleop/sim_reset.py [--x 11.0 --y 0.75 --yaw 0]
+     不给坐标就回原点(s3 那条赛道的起点)。
 """
+import argparse
+import math
 import time
 
 import rclpy
@@ -39,8 +42,9 @@ SPAWN_Z = 0.02          # 同 launch 的 -z,略抬防穿模
 
 
 class Resetter(Node):
-    def __init__(self):
+    def __init__(self, x=0.0, y=0.0, yaw=0.0):
         super().__init__('sim_reset')
+        self.x, self.y, self.yaw = float(x), float(y), float(yaw)
         self.enable = self.create_publisher(Bool, '/policy_enable', 1)
         self.cli = self.create_client(SetEntityState, '/set_entity_state')
 
@@ -53,8 +57,12 @@ class Resetter(Node):
 
         state = EntityState()
         state.name = ENTITY
+        state.pose.position.x = self.x
+        state.pose.position.y = self.y
         state.pose.position.z = SPAWN_Z
-        state.pose.orientation.w = 1.0              # 朝 +x,和赛道起点一致
+        # 固定赛道的起点不在原点(赛道 A 是 11.0, 0.75,见 trackA_layout.yaml)
+        state.pose.orientation.z = math.sin(self.yaw / 2)
+        state.pose.orientation.w = math.cos(self.yaw / 2)
         req = SetEntityState.Request()
         req.state = state
         fut = self.cli.call_async(req)
@@ -69,8 +77,13 @@ class Resetter(Node):
 
 
 def main():
+    ap = argparse.ArgumentParser(description='把仿真里的车传送回起点')
+    ap.add_argument('--x', type=float, default=0.0)
+    ap.add_argument('--y', type=float, default=0.0)
+    ap.add_argument('--yaw', type=float, default=0.0, help='rad')
+    a = ap.parse_args()
     rclpy.init()
-    node = Resetter()
+    node = Resetter(a.x, a.y, a.yaw)
     try:
         node.run()
     finally:
