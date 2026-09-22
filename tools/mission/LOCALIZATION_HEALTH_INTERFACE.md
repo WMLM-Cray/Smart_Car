@@ -3,6 +3,10 @@
 > 对象:racecar_mission 两点任务器订阅的 `localization_status_topic`(默认 `/localization_ok`,
 > `std_msgs/Bool`)。本文定义「主线应如何产生这个 Bool」,供落地发布者 + 现场标定阈值。
 > **本轮回不交付发布者节点**(见 §4),先定义判据与接口,避免"恒 True"伪安全。
+> **当前状态(2026-09-20 更新):任务器就绪,健康发布端已实现(本机离线,未部署未标定)。** 发布端 =
+> `tools/realcar/localization_health.py`(ROS 节点) + `loc_health_core.py`(纯 Python 状态机,离线 19/19 单测),
+> 详见 `tools/realcar/LOCALIZATION_HEALTH.md`。**待现场影子运行 + 标定阈值 + 接两点任务器验证**;
+> 阈值未标定前 `verified=false` 不发 True,不宣称实车定位健康已验证。
 
 ---
 
@@ -31,6 +35,23 @@
    但定位已漂移"的伪健康。
 
 三条任一不满足 → 发 `False`;恢复满足后重新发 `True`(不锁死)。
+
+### 判据局限(2026-09-20 补,实现发布者前必须消化)
+
+三条判据落地前须注意以下陷阱,否则会得到"看似健康实则失效"或"假失效":
+
+1. **amcl_pose 静止不更新 ≠ 失效**:AMCL 在机器人静止、无新 scan 输入时**可能不持续发布新估计**。
+   判据 1「新鲜度」不能简单用「`/amcl_pose` 多久没更新」判失效,应区分:
+   - 有 scan 输入、有 TF 查询,AMCL 仍长时间不更新 → 真异常;
+   - 机器人静止、无新观测,AMCL 自然不更新 → 不是失效。
+   `T_fresh` 须与"有无新观测"联动,不能只看裸时间戳 age。
+2. **AMCL↔odom 一致 ≠ 独立证明定位正确**:AMCL 以 odom 为运动模型输入,**两者共享里程计信息**。
+   判据 3「一致性」只能证明"AMCL 没比 odom 多漂",**不能**证明"odom 本身没漂/定位确实正确"——
+   里程计漂移时两者会**一起漂**,一致性照常成立,却是伪健康。
+   一致性是"AMCL 内部自洽"的兜底,不是定位真值的独立旁证;真值只能靠 scan 匹配/回环/人工核对。
+3. **保留 UNKNOWN/False/STALE + watchdog,不绕过**:无发布者时 `UNKNOWN`、收到 `False`、watchdog 超时 `STALE`
+   三种都须拒绝 start/resume/dispatch(消费端已实现)。**不得**为演示恒发 True、禁用 watchdog
+   (`localization_watchdog=0`)、或把"AMCL 有消息/协方差小"当健康。
 
 ---
 
@@ -63,5 +84,6 @@
 
 1. 单点地面通过 → 用真实坐标生成两点 `mission_realcar_first.yaml`(`enabled:true`)。
 2. 标定健康判据阈值(现场采集 AMCL pose/odom/TF 的时间戳与协方差)。
-3. 实现发布者节点(按 §2 三条 AND,2Hz,严格不恒 True)。
+3. ~~实现发布者节点~~ **已实现** → `tools/realcar/localization_health.py` + `loc_health_core.py`
+   (离线单测 19/19,阈值外置 `verified=false` 未标定不发 True),详见 `tools/realcar/LOCALIZATION_HEALTH.md`。
 4. 起 mission(`localization_watchdog:=2.0`),验证:停发→STALE→拒绝派发;恢复→resume→续跑。
