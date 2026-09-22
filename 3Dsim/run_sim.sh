@@ -14,15 +14,12 @@
 # 写死哪个另一边都跑不起来(2026-09-22 队友反馈)。域也在那里统一成 43。
 source "$(dirname "$0")/tools/_env.sh"
 
-# 赛道 world 是生成出来的,不入库(runs/* 被 .gitignore 挡着,只有生成它用的
-# cones.csv + gaps.json 在库里)。先找仓库里生成的位置,再退回 ~/worlds。
-# 都没有就照 docs/SIM_CAR_MODELS.md「把 fastsim 的赛道喂给 racecar_sim」那三步生成。
-if [ -z "${WORLD:-}" ]; then
-  for _w in "$REPO/runs/track_s3/track_s3_sim.world" "$HOME/worlds/track_s3_sim.world"; do
-    [ -f "$_w" ] && WORLD=$_w && break
-  done
-fi
-[ -n "${WORLD:-}" ] || { echo "找不到赛道 world,用 WORLD=<路径> 指定" >&2; exit 1; }
+# 赛道 world:2026-09-22 合入队友基线后,launch 的 world 参数收的是**包内文件名**
+# (相对 share/racecar_sim/worlds/),不再是绝对路径 —— 他们把 trackA.world 做进了
+# 包里,锥桶资产走 racecar_test_assets 的 env-hook。所以这里默认直接给文件名。
+# 想跑自己生成的 world(track_generator + make_sim_world 出的那种),先拷进
+# $WS/src/racecar_sim/worlds/ 再 colcon build,然后 WORLD=<文件名>。
+WORLD=${WORLD:-trackA.world}
 # 低速 1.5m/s(s3):完赛率最高、几乎不撞锥。2.5m/s 的是 runs/policy_v25.npz,
 # 圈速快 8 秒但在这条赛道上三次都没跑完一圈。
 POLICY=${POLICY:-runs/policy_s3.npz}
@@ -38,7 +35,7 @@ pkill -9 -f policy_node.py 2>/dev/null
 sleep 4
 
 echo "启动仿真:$WORLD"
-ros2 launch racecar_sim sim_bringup.launch.py world:="$WORLD" &
+ros2 launch racecar_sim sim_bringup.launch.py world:="$WORLD" \n    spawn_x:="${SPAWN_X:-11.0}" spawn_y:="${SPAWN_Y:-0.75}" spawn_yaw:="${SPAWN_YAW:-0}" &
 launch_pid=$!
 
 # 等 /joint_states 有数 —— 这是 gazebo_ros2_control 的 update 循环真的活着的唯一

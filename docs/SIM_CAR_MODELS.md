@@ -67,7 +67,9 @@ README 自标"原型,官方 A-D 坐标待做",示例 `3Dsim/examples/cones.csv` 
    python 3Dsim/make_sim_world.py runs/track_s3/track_s3.world runs/track_s3/track_s3_sim.world
    ```
 
-   然后 `ros2 launch racecar_sim sim_bringup.launch.py world:=<绝对路径>`。
+   然后把它拷进 `$WS/src/racecar_sim/worlds/` 再 `colcon build`,用
+   `ros2 launch racecar_sim sim_bringup.launch.py world:=<文件名>` 起。
+   (2026-09-22 合入队友基线后 `world` 收的是包内文件名,不再是绝对路径。)
    不带 world 参数时行为和以前完全一样(仍是自带的 racecar.world)。
 
 s3 种子 90000 出来是 63 个锥桶(左红 27 / 右蓝 36)、59 处候选挡板位、
