@@ -1,0 +1,25 @@
+[Unit]
+# 车上有两条默认路由,eth1 那条没有 metric(等于 0)会压过 wlan0 的 600:
+#
+#   default via 192.168.5.1 dev eth1              <- 有线口上那台设备,不通外网
+#   default via 192.168.1.1 dev wlan0 metric 600  <- 真正能上网的
+#
+# 后果是 apt、NTP、任何要出网的东西全走死路:ping 公网 100% 丢包,443 连不上,
+# 80 端口 0.4s 回一个 307(那是 192.168.5.1 自己拦下来应答的)。车上时钟一直
+# 同步不了也是因为这个 —— 2026-09-22 发现时慢了 1 天 14 小时,apt 报
+# "Release file is not valid yet"。
+#
+# eth1 是 unmanaged(NetworkManager 和 systemd-networkd 都不管它),租约由别处
+# 下发,改配置文件堵不住,所以用一个幂等的定时任务保证那条默认路由不在。
+# **只删默认路由**,192.168.5.0/24 的直连路由不动 —— 有线口上那台设备照常访问。
+#
+# 不要了就:sudo systemctl disable --now racecar-netfix.timer
+Description=HW-Autocar route fix (drop eth1 default route so wlan0 is the way out)
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'ip route del default dev eth1 2>/dev/null; exit 0'
+
+[Install]
+WantedBy=multi-user.target
