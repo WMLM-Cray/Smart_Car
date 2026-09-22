@@ -7,5 +7,6 @@ rem that rewinds sim time and permanently breaks gazebo_ros2_control.
 title Reset run
 rem ROS_DOMAIN_ID must match run_sim.sh (43), or this talks to an empty graph
 rem and silently teleports nothing.
-wsl -d Ubuntu-22.04 -e bash -lc "export ROS_DOMAIN_ID=43 && source /opt/ros/humble/setup.bash && cd ~/autocar && python3 teleop/sim_reset.py"
+for /f "usebackq delims=" %%p in (`wsl -d Ubuntu-22.04 -e wslpath -a "%~dp0"`) do set "DIR=%%p"
+wsl -d Ubuntu-22.04 -e bash -lc "source '%DIR%/tools/_env.sh' && python3 \"$AUTOCAR/teleop/sim_reset.py\" %*"
 timeout /t 3 >nul

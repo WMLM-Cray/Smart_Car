@@ -3,10 +3,8 @@
 # 驱动实测(验收第5步的独立版):/cmd_vel 直行 → TF 位移;转向 → 关节角
 # 前提:仿真已在跑且 cmd_vel_relay 已启动(bash tools/restart_sim.sh 先行)
 # =============================================================================
-export ROS_DOMAIN_ID=42
 export ROS2CLI_NO_DAEMON=1
-source /opt/ros/humble/setup.bash
-source ~/hwcart_sim/hwcart_sim/install/setup.bash
+source "$(dirname "$0")/_env.sh"
 
 echo "===== 直行 0.5 m/s × 3s ====="
 timeout 3 ros2 topic pub -r 20 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.5}}" >/dev/null 2>&1

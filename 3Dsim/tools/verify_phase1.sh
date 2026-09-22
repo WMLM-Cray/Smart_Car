@@ -31,10 +31,8 @@
 #     ②gz_pose 逐次尝试留痕(次数/失败类型),3 次皆败明确 FAIL
 #   - 阈值集中在 THR_* 变量(负例 tools/verify_negative.sh 用 sed 注入)
 # =============================================================================
-export ROS_DOMAIN_ID=42
 export ROS2CLI_NO_DAEMON=1
-source /opt/ros/humble/setup.bash
-source ~/hwcart_sim/hwcart_sim/install/setup.bash
+source "$(dirname "$0")/_env.sh"
 PASS=0; FAIL=0
 ok()  { echo "[PASS] $1"; PASS=$((PASS+1)); }
 bad() { echo "[FAIL] $1"; FAIL=$((FAIL+1)); }

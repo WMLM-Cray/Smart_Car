@@ -3,10 +3,8 @@
 # 仿真运行时侦查脚本(非验收):查控制器订阅话题/传感器数据流/TF/IMU加载情况
 # 用法(WSL 内,仿真已在跑): bash probe_sim.sh
 # =============================================================================
-export ROS_DOMAIN_ID=42
 export ROS2CLI_NO_DAEMON=1
-source /opt/ros/humble/setup.bash
-source ~/hwcart_sim/hwcart_sim/install/setup.bash
+source "$(dirname "$0")/_env.sh"
 
 echo "===== 1. ackermann 控制器相关话题 ====="
 timeout 10 ros2 topic list | grep -i ackermann

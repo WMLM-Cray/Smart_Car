@@ -4,9 +4,7 @@
 # 用法(WSL 内,先 cd ~/hwcart_sim): bash tools/restart_sim.sh
 # 流程:优雅停 daemon → 清残留 → 启动(headless) → 35s 后输出体检报告
 # =============================================================================
-export ROS_DOMAIN_ID=42
-source /opt/ros/humble/setup.bash
-source ~/hwcart_sim/hwcart_sim/install/setup.bash
+source "$(dirname "$0")/_env.sh"
 
 # 优雅停 daemon(绝不 pkill -9 daemon:强杀留脏 socket,后续 ros2 CLI 报
 # xmlrpc Fault !rclpy.ok(),2026-09-14 实测)

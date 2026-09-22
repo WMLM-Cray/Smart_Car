@@ -5,10 +5,8 @@
 # 注意:Humble 的 ros2 topic echo 无 -n 参数(参数错误会静默退出),取一条
 #       消息用 timeout+head
 # =============================================================================
-export ROS_DOMAIN_ID=42
 export ROS2CLI_NO_DAEMON=1
-source /opt/ros/humble/setup.bash
-source ~/hwcart_sim/hwcart_sim/install/setup.bash
+source "$(dirname "$0")/_env.sh"
 
 echo "== [A] joint_states 裸 echo(基础可用性) =="
 timeout 6 ros2 topic echo /joint_states 2>/dev/null | head -8

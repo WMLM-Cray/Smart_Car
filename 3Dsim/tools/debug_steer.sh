@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 # 转向判定调试:pub 转向指令 → 取 joint_states → 逐步展示 awk/python 解析
-export ROS_DOMAIN_ID=42
 export ROS2CLI_NO_DAEMON=1
-source /opt/ros/humble/setup.bash
-source ~/hwcart_sim/hwcart_sim/install/setup.bash
+source "$(dirname "$0")/_env.sh"
 
 echo "== 发布转向指令 3s =="
 timeout 3 ros2 topic pub -r 20 /cmd_vel geometry_msgs/msg/Twist \

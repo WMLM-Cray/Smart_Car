@@ -81,10 +81,19 @@ if ! rosdep init 2>/dev/null; then
   pip3 install -i https://pypi.tuna.tsinghua.edu.cn/simple rosdepc
   rosdepc init
 fi
-su - "${SUDO_USER:-lzx}" -c 'rosdep update 2>/dev/null || rosdepc update'
+# 目标用户:sudo 跑的时候是 $SUDO_USER。原来这里写死 `${SUDO_USER:-lzx}` ——
+# lzx 是另一个人的用户名,在别人机器上会往一个不存在的家目录写东西,
+# 而且静默失败(2026-09-22 排查硬编码路径时发现)。宁可报错也别猜。
+TARGET_USER=${TARGET_USER:-${SUDO_USER:-}}
+if [ -z "$TARGET_USER" ] || ! getent passwd "$TARGET_USER" >/dev/null; then
+  echo "认不出要给哪个用户配环境。用 sudo 跑(会带 \$SUDO_USER),或者 TARGET_USER=<用户名> 指定。" >&2
+  exit 1
+fi
+BRC=$(getent passwd "$TARGET_USER" | cut -d: -f6)/.bashrc
 
-echo "==> [6/6] 写入 ~/.bashrc 环境注入"
-BRC="/home/${SUDO_USER:-lzx}/.bashrc"
+su - "$TARGET_USER" -c 'rosdep update 2>/dev/null || rosdepc update'
+
+echo "==> [6/6] 写入 $BRC 环境注入"
 grep -q 'ros2_setup' "$BRC" || cat >> "$BRC" <<'EOF'
 
 # --- ros2_setup: 仿真工作区环境 ---
@@ -92,7 +101,11 @@ source /opt/ros/humble/setup.bash
 # 43 = 仿真域。**别写 42** —— 那是实车的域,同网段下 DDS 会把两边的话题按名字
 # 合并,/scan 凭空多一个发布者,不报错不告警(2026-09-20 踩过,见 SIM_CAR_MODELS.md)。
 export ROS_DOMAIN_ID=43
-export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:~/hwcart_sim/models
+# 模型目录跟着工作区走,布局两边不一样(见 3Dsim/tools/_env.sh)。
+# 不存在就不加,免得 Gazebo 报一堆找不到的警告。
+for _m in ~/hwcart_sim/models ~/hw_ws/models; do
+  [ -d "$_m" ] && export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:$_m
+done
 EOF
 
 echo "================ 完成 ================"
