@@ -1,0 +1,18 @@
+// "B" sign face material (self-generated texture, no external asset).
+// Texture sign_b.png lives next to this script in ../textures/.
+material sign_b/face
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.70 0.70 0.70 1.0
+      diffuse 0.90 0.90 0.90 1.0
+      specular 0.05 0.05 0.05 1.0 12.5
+      texture_unit
+      {
+        texture sign_b.png
+      }
+    }
+  }
+}

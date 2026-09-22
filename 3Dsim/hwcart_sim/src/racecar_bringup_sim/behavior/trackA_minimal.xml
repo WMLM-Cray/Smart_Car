@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<!--
+  阶段3 第四步:trackA 极简导航行为树(阿克曼,不原地转向)
+  与 nav2 默认 navigate_to_pose_w_replanning_and_recovery 的区别:
+    恢复分支只保留 清代价地图 + 等待 —— 删去 Spin(原地转向)与
+    BackUp(倒车),阿克曼底盘不执行原地旋转。
+  主链:RateController 1Hz 重规划 → FollowPath(RPP 跟踪)。
+-->
+<root main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <RecoveryNode number_of_retries="6" name="NavigateRecovery">
+      <PipelineSequence name="NavigateWithReplanning">
+        <RateController hz="1.0">
+          <RecoveryNode number_of_retries="1" name="ComputePathToPose">
+            <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
+            <ClearEntireCostmap name="ClearGlobalCostmap"
+                                service_name="global_costmap/clear_entirely_global_costmap"/>
+          </RecoveryNode>
+        </RateController>
+        <RecoveryNode number_of_retries="1" name="FollowPath">
+          <FollowPath path="{path}" controller_id="FollowPath"/>
+          <ClearEntireCostmap name="ClearLocalCostmap"
+                              service_name="local_costmap/clear_entirely_local_costmap"/>
+        </RecoveryNode>
+      </PipelineSequence>
+      <Wait wait_duration="2.0" name="WaitAfterFailure"/>
+    </RecoveryNode>
+  </BehaviorTree>
+</root>

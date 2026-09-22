@@ -1,0 +1,6 @@
+$ ls -l /dev/ttyUSB0 /dev/ttyUSB1 /dev/ttyUSB2 /dev/ttyACM0
+crw-rw-rw- 1 root dialout 166, 0 Apr  4 15:17 /dev/ttyACM0
+crw-rw-rw- 1 root dialout 188, 0 Apr  4 15:17 /dev/ttyUSB0
+crw-rw-rw- 1 root dialout 188, 1 Apr  4 15:42 /dev/ttyUSB1
+crw-rw-rw- 1 root dialout 188, 2 Apr  4 15:26 /dev/ttyUSB2
+[rc=0]

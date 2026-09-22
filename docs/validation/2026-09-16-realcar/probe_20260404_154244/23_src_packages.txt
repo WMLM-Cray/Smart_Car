@@ -1,0 +1,13 @@
+$ ls /home/orange-pi/racecar/src/
+encoder
+hipnuc_imu
+lidar_tracking
+lslidar_driver
+lslidar_msgs
+nav2_waypoint_cycle
+openslam_gmapping
+racecar
+racecar_driver
+serial-foxy
+slam_gmapping
+[rc=0]

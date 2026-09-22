@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0d1117">
+<title>小车监视与操作台</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<!-- 演示模式全局横幅(仅演示数据时显示) -->
+<div id="demo-banner" class="demo-banner hidden">演示模式 —— 下列画面与状态为模拟数据，不含真实车机信息，不连接任何控制接口</div>
+
+<!-- 顶栏 -->
+<header class="topbar">
+  <div class="topbar-title">小车监视与操作台</div>
+  <div class="topbar-meta">
+    <span id="mode-badge" class="badge badge-unknown">未知</span>
+    <span id="conn-pill" class="pill pill-offline">未连接</span>
+  </div>
+</header>
+
+<!-- 主区 -->
+<main class="main">
+
+  <!-- 总览 -->
+  <section id="view-overview" class="view">
+    <div class="card">
+      <div class="card-title">连接</div>
+      <div class="kv"><span class="k">后端地址</span><span id="ov-addr" class="v mono">—</span></div>
+      <div class="kv"><span class="k">运行模式</span><span id="ov-mode" class="v">未知</span></div>
+      <button id="ov-goto-settings" class="btn btn-secondary btn-block">打开连接设置</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">数据源可用性</div>
+      <div id="ov-sources" class="sources"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">任务</div>
+      <div class="kv"><span class="k">当前任务</span><span id="ov-task" class="v">无</span></div>
+      <div class="kv"><span class="k">最近结果</span><span id="ov-result" class="v">无</span></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">异常 / 事件</div>
+      <div id="ov-anomalies" class="anomalies">无</div>
+    </div>
+
+    <details class="card diagnostics">
+      <summary>详细诊断（展开）</summary>
+      <div id="ov-diag" class="diag-body"></div>
+    </details>
+  </section>
+
+  <!-- 地图 -->
+  <section id="view-map" class="view hidden">
+    <div class="map-toolbar">
+      <button id="map-zoom-out" class="btn btn-icon" title="缩小">−</button>
+      <button id="map-zoom-in" class="btn btn-icon" title="放大">＋</button>
+      <button id="map-fit" class="btn btn-icon" title="适应屏幕">⤢</button>
+      <button id="map-fullscreen" class="btn btn-icon" title="全屏">⛶</button>
+      <button id="map-legend-toggle" class="btn btn-icon" title="图例">☰</button>
+    </div>
+    <div id="map-stage" class="map-stage">
+      <img id="map-img" class="map-img" alt="地图(车机渲染PNG)" draggable="false">
+      <div id="map-empty" class="empty-state hidden">
+        <div class="empty-icon">🗺️</div>
+        <div class="empty-title">暂无地图画面</div>
+        <div class="empty-desc">需在车机运行 display_monitor.sh start 并由 pull.sh 拉图；或在“设置”切换演示模式预览。</div>
+      </div>
+      <div id="map-stale" class="stale-banner hidden">画面可能已过期 —— 最近一次获取失败，正在显示旧图</div>
+    </div>
+    <div id="map-legend" class="legend hidden">
+      <span><i class="sw sw-wall"></i>占据(墙)</span>
+      <span><i class="sw sw-free"></i>自由</span>
+      <span><i class="sw sw-unknown"></i>未知</span>
+      <span><i class="sw sw-scan"></i>实时激光</span>
+      <span><i class="sw sw-trail"></i>轨迹</span>
+      <span><i class="sw sw-car"></i>车</span>
+      <span><i class="sw sw-plan"></i>路径(如有)</span>
+    </div>
+    <div class="meta-bar">
+      <div>最后获取：<span id="map-lastfetch" class="mono">—</span></div>
+      <div>源图生成时间：<span id="map-gentime">未知（以画面左上角 scan/tf 戳为准）</span></div>
+    </div>
+  </section>
+
+  <!-- 视频 -->
+  <section id="view-video" class="view hidden">
+    <div class="video-toolbar">
+      <button id="vid-start" class="btn btn-primary">开始观看</button>
+      <button id="vid-stop" class="btn btn-secondary hidden">停止观看</button>
+      <button id="vid-reconnect" class="btn btn-secondary hidden">重连</button>
+      <button id="vid-fullscreen" class="btn btn-icon">⛶</button>
+    </div>
+    <div id="vid-stage" class="video-stage">
+      <img id="vid-img" class="video-img" alt="相机画面" draggable="false">
+      <div id="vid-empty" class="empty-state">
+        <div class="empty-icon">🎥</div>
+        <div class="empty-title">相机未接入</div>
+        <div class="empty-desc">尚未确认相机是否稳定出帧；点击“开始观看”后仅显示车机渲染的 camera.png，不保证实时直播。</div>
+      </div>
+    </div>
+    <div id="vid-status" class="vid-status">未开始观看</div>
+    <div class="meta-bar">
+      <div>帧率/分辨率/延迟：<span id="vid-metrics">不可测（PNG 轮询，无流参数）</span></div>
+    </div>
+  </section>
+
+  <!-- 任务 -->
+  <section id="view-task" class="view hidden">
+    <div class="card">
+      <div class="card-title">当前任务</div>
+      <div class="kv"><span class="k">任务</span><span id="task-current" class="v">无</span></div>
+      <div class="kv"><span class="k">最近结果</span><span id="task-result" class="v">无</span></div>
+    </div>
+
+    <div class="card disabled-card">
+      <div class="card-title">单点导航 <span class="tag">未接入</span></div>
+      <p class="muted">需要 HTTP 后端提供地图元数据（分辨率/原点/坐标系）与目标提交接口；当前未提供，仅可查看地图，不可点图导航。</p>
+    </div>
+
+    <div class="card disabled-card">
+      <div class="card-title">多点导航 <span class="tag">未接入</span></div>
+      <p class="muted">复用任务器后端（当前无 HTTP 通路），断线/刷新后从后端查询状态，不自动重发。未接路由不启用。</p>
+    </div>
+
+    <div class="card disabled-card">
+      <div class="card-title">建图与地图管理 <span class="tag">未接入</span></div>
+      <p class="muted">开始/停止建图、保存/加载地图需后端明确支持；当前建图还是定位由后端确认，页面不擅自同时启动 SLAM 与 AMCL。</p>
+    </div>
+
+    <div class="card disabled-card">
+      <div class="card-title">软件停止 <span class="tag">未接入</span></div>
+      <p class="muted">未绑定任何已核实的后端停止接口，故不提供红色急停按钮。取消导航≠停车，页面断线也不保证停车；现场须依靠物理停止装置与车端安全链。</p>
+    </div>
+  </section>
+
+  <!-- 设置 -->
+  <section id="view-settings" class="view hidden">
+    <div class="card">
+      <div class="card-title">连接设置</div>
+      <label class="field-label" for="backend-addr">后端地址（HTTP 源，不是 SSH）</label>
+      <div class="row">
+        <input id="backend-addr" class="input mono" type="text" inputmode="url"
+               placeholder="留空=本机服务；或 http://192.168.1.5:8123">
+      </div>
+      <div class="row btns">
+        <button id="conn-connect" class="btn btn-primary">连接</button>
+        <button id="conn-disconnect" class="btn btn-secondary">断开</button>
+        <button id="conn-retry" class="btn btn-secondary">重试</button>
+      </div>
+      <div class="kv"><span class="k">状态</span><span id="conn-state" class="v">未连接</span></div>
+      <div class="kv"><span class="k">说明</span><span class="v muted">不保存 SSH 密码、不执行 SSH 命令。默认同源部署；跨域时后端需允许 CORS（本服务已放开，仅只读无凭证）。</span></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">最近地址</div>
+      <div id="recent-list" class="recent-list">（无）</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">模式与数据边界</div>
+      <div class="kv"><span class="k">运行模式</span><span id="set-mode" class="v">实车</span></div>
+      <p class="muted">模式由后端状态声明，页面不自行推断。演示模式为纯前端模拟，全页常亮标识，且不连接任何控制接口。</p>
+      <div class="row btns">
+        <button id="demo-on" class="btn btn-secondary">进入演示模式</button>
+        <button id="demo-off" class="btn btn-secondary hidden">退出演示模式</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">关于</div>
+      <div class="kv"><span class="k">版本</span><span class="v">v0.1（第一轮：连接/地图/视频/状态）</span></div>
+      <div class="kv"><span class="k">工程</span><span class="v">华为智能车 07-仿真系统 / web</span></div>
+    </div>
+  </section>
+
+</main>
+
+<!-- 底部导航 -->
+<nav class="bottom-nav">
+  <button class="nav-item active" data-view="overview"><span class="nav-ico">▦</span><span>总览</span></button>
+  <button class="nav-item" data-view="map"><span class="nav-ico">🗺</span><span>地图</span></button>
+  <button class="nav-item" data-view="video"><span class="nav-ico">🎥</span><span>视频</span></button>
+  <button class="nav-item" data-view="task"><span class="nav-ico">☰</span><span>任务</span></button>
+  <button class="nav-item" data-view="settings"><span class="nav-ico">⚙</span><span>设置</span></button>
+</nav>
+
+<div id="confirm-backdrop" class="backdrop hidden">
+  <div class="dialog">
+    <div id="confirm-msg" class="dialog-msg"></div>
+    <div class="dialog-btns">
+      <button id="confirm-cancel" class="btn btn-secondary">取消</button>
+      <button id="confirm-ok" class="btn btn-primary">确认</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/adapter.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

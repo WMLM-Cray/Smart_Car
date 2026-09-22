@@ -1,0 +1,13 @@
+# racecar_test_assets - demo_world layout (single source of truth)
+# Units: metres / radians. World frame, Z up, ground top surface at z=0.
+# Demo scene: shows all five model families (traffic light, A/B signs,
+# lane lines, cones, board) in one view. NOT an official A/B/C/D track.
+id,model,x,y,z,yaw
+traffic_01,traffic_light,0.0,0.0,0,0
+sign_a_01,sign_a,1.5,1.5,0,0
+sign_b_01,sign_b,1.5,-1.5,0,0
+lane_01,lane_line,3.5,0.75,0,0
+lane_02,lane_line,3.5,-0.75,0,0
+cone_red_01,cone_red,6.0,1.0,0,0
+cone_blue_01,cone_blue,6.0,-1.0,0,0
+board_01,blue_board,7.5,0.0,0,0

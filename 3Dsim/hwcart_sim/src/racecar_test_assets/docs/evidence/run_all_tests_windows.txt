@@ -1,0 +1,449 @@
+using python: python (Python 3.13.2)
+
+===== model dimension check =====
+== model dimension check (params from asset_params.py, tol 1e-06 m) ==
+[PASS] cone_red/model.config: name + sdf entry valid
+[PASS] cone_blue/model.config: name + sdf entry valid
+[PASS] blue_board/model.config: name + sdf entry valid
+[PASS] reference_box/model.config: name + sdf entry valid
+[PASS] cone_red: <static> = true (test-only, no push/displacement validation)
+[PASS] cone_red/base_collision: base box 0.28x0.28x0.05  (0.280 0.280 0.050)
+[PASS] cone_red/base_collision: base pose z = 0.025 (ground contact at z=0)
+[PASS] cone_red/base_visual: base box 0.28x0.28x0.05  (0.280 0.280 0.050)
+[PASS] cone_red/base_visual: base pose z = 0.025 (ground contact at z=0)
+[PASS] cone_red: base visual size == collision size
+[PASS] cone_red/frustum_collision: mesh mounted at z = 0.05
+[PASS] cone_red/frustum_collision: mesh uri model://cone_red/meshes/cone_frustum.stl  (model://cone_red/meshes/cone_frustum.stl)
+[PASS] cone_red/frustum_visual: mesh mounted at z = 0.05
+[PASS] cone_red/frustum_visual: mesh uri model://cone_red/meshes/cone_frustum.stl  (model://cone_red/meshes/cone_frustum.stl)
+[PASS] cone_red: STL parses as binary STL  (96 triangles)
+[PASS] cone_red: STL triangle count == 4 x 24 segments
+[PASS] cone_red: STL bbox x/y in [-0.12, 0.12] m (frustum bottom within 0.28 m base)  (x[-0.1200,0.1200] y[-0.1200,0.1200])
+[PASS] cone_red: STL bbox z in [0, 0.58] m  (z[0.0000,0.5800])
+[PASS] cone_red: total height 0.63 m (rule) = base 0.05 + frustum 0.5800  (0.6300)
+[PASS] cone_red: diffuse is red and identical on both visuals  (0.85 0.10 0.10 1.00)
+[PASS] cone_blue: <static> = true (test-only, no push/displacement validation)
+[PASS] cone_blue/base_collision: base box 0.28x0.28x0.05  (0.280 0.280 0.050)
+[PASS] cone_blue/base_collision: base pose z = 0.025 (ground contact at z=0)
+[PASS] cone_blue/base_visual: base box 0.28x0.28x0.05  (0.280 0.280 0.050)
+[PASS] cone_blue/base_visual: base pose z = 0.025 (ground contact at z=0)
+[PASS] cone_blue: base visual size == collision size
+[PASS] cone_blue/frustum_collision: mesh mounted at z = 0.05
+[PASS] cone_blue/frustum_collision: mesh uri model://cone_blue/meshes/cone_frustum.stl  (model://cone_blue/meshes/cone_frustum.stl)
+[PASS] cone_blue/frustum_visual: mesh mounted at z = 0.05
+[PASS] cone_blue/frustum_visual: mesh uri model://cone_blue/meshes/cone_frustum.stl  (model://cone_blue/meshes/cone_frustum.stl)
+[PASS] cone_blue: STL parses as binary STL  (96 triangles)
+[PASS] cone_blue: STL triangle count == 4 x 24 segments
+[PASS] cone_blue: STL bbox x/y in [-0.12, 0.12] m (frustum bottom within 0.28 m base)  (x[-0.1200,0.1200] y[-0.1200,0.1200])
+[PASS] cone_blue: STL bbox z in [0, 0.58] m  (z[0.0000,0.5800])
+[PASS] cone_blue: total height 0.63 m (rule) = base 0.05 + frustum 0.5800  (0.6300)
+[PASS] cone_blue: diffuse is blue and identical on both visuals  (0.05 0.15 0.85 1.00)
+[PASS] cone_red/cone_blue: STLs byte-identical (shared geometry)
+[PASS] blue_board: <static> = true
+[PASS] blue_board/collision: box 0.8 x 0.02 x 0.5  (0.800 0.020 0.500)
+[PASS] blue_board/collision: pose z = 0.250 (bottom edge/face at z=0)
+[PASS] blue_board/visual: box 0.8 x 0.02 x 0.5  (0.800 0.020 0.500)
+[PASS] blue_board/visual: pose z = 0.250 (bottom edge/face at z=0)
+[PASS] blue_board: diffuse blue  (0.05 0.15 0.85 1.00)
+[PASS] reference_box: <static> = true
+[PASS] reference_box/collision: box 0.5 x 1.0 x 1.0  (0.500 1.000 1.000)
+[PASS] reference_box/collision: pose z = 0.500 (bottom edge/face at z=0)
+[PASS] reference_box/visual: box 0.5 x 1.0 x 1.0  (0.500 1.000 1.000)
+[PASS] reference_box/visual: pose z = 0.500 (bottom edge/face at z=0)
+[PASS] reference_box: diffuse grey (achromatic)  (0.60 0.60 0.60 1.00)
+== 49 checks: 49 passed, 0 failed ==
+PASS: model dimension check
+
+===== world/csv consistency =====
+[PASS] config/sensor_test.csv valid  (12 objects)
+[PASS] world parses as XML, root <sdf>
+[PASS] sdf version 1.6 (Gazebo Classic 11)
+[PASS] world name = sensor_test
+[PASS] inline ground_plane model present (top surface z=0)
+[PASS] sun directional light present
+[PASS] no duplicate object names in world
+[PASS] world object count == CSV object count  (12 vs 12)
+[PASS] red_01: model+pose match CSV  (model://cone_red @ (1.2, 0.75, 0, yaw 0))
+[PASS] red_01: model dir shipped in package
+[PASS] red_02: model+pose match CSV  (model://cone_red @ (2.4, 0.75, 0, yaw 0))
+[PASS] red_02: model dir shipped in package
+[PASS] red_03: model+pose match CSV  (model://cone_red @ (3.6, 0.75, 0, yaw 0))
+[PASS] red_03: model dir shipped in package
+[PASS] red_04: model+pose match CSV  (model://cone_red @ (4.8, 0.75, 0, yaw 0))
+[PASS] red_04: model dir shipped in package
+[PASS] red_05: model+pose match CSV  (model://cone_red @ (6, 0.75, 0, yaw 0))
+[PASS] red_05: model dir shipped in package
+[PASS] blue_01: model+pose match CSV  (model://cone_blue @ (1.2, -0.75, 0, yaw 0))
+[PASS] blue_01: model dir shipped in package
+[PASS] blue_02: model+pose match CSV  (model://cone_blue @ (2.4, -0.75, 0, yaw 0))
+[PASS] blue_02: model dir shipped in package
+[PASS] blue_03: model+pose match CSV  (model://cone_blue @ (3.6, -0.75, 0, yaw 0))
+[PASS] blue_03: model dir shipped in package
+[PASS] blue_04: model+pose match CSV  (model://cone_blue @ (4.8, -0.75, 0, yaw 0))
+[PASS] blue_04: model dir shipped in package
+[PASS] blue_05: model+pose match CSV  (model://cone_blue @ (6, -0.75, 0, yaw 0))
+[PASS] blue_05: model dir shipped in package
+[PASS] board_01: model+pose match CSV  (model://blue_board @ (3, -0.75, 0, yaw 0))
+[PASS] board_01: model dir shipped in package
+[PASS] reference_box: model+pose match CSV  (model://reference_box @ (8, 0, 0, yaw 0))
+[PASS] reference_box: model dir shipped in package
+[PASS] every CSV object present in world  (all present)
+== PASSED: world matches CSV ==
+PASS: world/csv consistency
+
+===== layout spec (task book) =====
+[PASS] exactly the 12 expected object ids  (12 objects)
+[PASS] red row: 5 cones present
+[PASS] red row: x = [1.2, 2.4, 3.6, 4.8, 6.0] (pitch 1.2 m)  ([1.2, 2.4, 3.6, 4.8, 6.0])
+[PASS] red row: y = +0.75, z = 0, yaw = 0
+[PASS] red row: model = cone_red
+[PASS] blue row: 5 cones present
+[PASS] blue row: x = [1.2, 2.4, 3.6, 4.8, 6.0] (pitch 1.2 m)  ([1.2, 2.4, 3.6, 4.8, 6.0])
+[PASS] blue row: y = -0.75, z = 0, yaw = 0
+[PASS] blue row: model = cone_blue
+[PASS] row separation = 1.50 m (y +0.75 / -0.75)
+[PASS] board_01: blue_board at (3.0, -0.75, 0), yaw=0
+[PASS] board does not overlap blue_02/blue_03 bases (x-direction)  (gaps 0.06 m / 0.06 m)
+[PASS] reference_box: model at (8.0, 0, 0), yaw=0
+[PASS] reference_box front (+X) surface at x = 7.75 m  (x=7.75)
+== PASSED: layout matches the task-book C2/C3 test-fixture spec ==
+PASS: layout spec (task book)
+
+===== input validation errors =====
+[PASS] reject: duplicate id
+[PASS] reject: unknown model type
+[PASS] reject: non-finite x (nan)
+[PASS] reject: non-finite y (inf)
+[PASS] reject: non-numeric coordinate
+[PASS] reject: malformed header
+[PASS] reject: wrong field count
+[PASS] reject: empty file
+[PASS] reject: invalid id characters
+[PASS] accept: valid config (control)
+== PASSED: validation rejects all invalid inputs, accepts valid ==
+PASS: input validation errors
+
+===== determinism =====
+[PASS] world: two runs byte-identical
+[PASS] world: checked-in file matches regeneration
+[PASS] svg: two runs identical
+[PASS] svg: checked-in file matches regeneration
+[PASS] stl: mesh regeneration byte-identical (generator stable)
+[PASS] stl: cone_red and cone_blue meshes are identical
+PASS: determinism
+
+===== acceptance validator =====
+== validate_assets: acceptance check on the DELIVERED files ==
+== package root: C:\Users\25029\Astrahuaweicar\hwcart_sim\src\racecar_test_assets ==
+
+== [A] resource references resolve inside the package ==
+[PASS] models/blue_board: model.config + model.sdf shipped
+[PASS] models/blue_board: model.config name + sdf entry
+[PASS] blue_board: box model (no meshes, nothing to resolve)
+[PASS] models/cone_blue: model.config + model.sdf shipped
+[PASS] models/cone_blue: model.config name + sdf entry
+[PASS] cone_blue: mesh uri resolves + STL parses: model://cone_blue/meshes/cone_frustum.stl  (96 triangles)
+[PASS] cone_blue: mesh uri resolves + STL parses: model://cone_blue/meshes/cone_frustum.stl  (96 triangles)
+[PASS] models/cone_red: model.config + model.sdf shipped
+[PASS] models/cone_red: model.config name + sdf entry
+[PASS] cone_red: mesh uri resolves + STL parses: model://cone_red/meshes/cone_frustum.stl  (96 triangles)
+[PASS] cone_red: mesh uri resolves + STL parses: model://cone_red/meshes/cone_frustum.stl  (96 triangles)
+[PASS] models/reference_box: model.config + model.sdf shipped
+[PASS] models/reference_box: model.config name + sdf entry
+[PASS] reference_box: box model (no meshes, nothing to resolve)
+[PASS] world include resolves: model://cone_red
+[PASS] world include resolves: model://cone_red
+[PASS] world include resolves: model://cone_red
+[PASS] world include resolves: model://cone_red
+[PASS] world include resolves: model://cone_red
+[PASS] world include resolves: model://cone_blue
+[PASS] world include resolves: model://cone_blue
+[PASS] world include resolves: model://cone_blue
+[PASS] world include resolves: model://cone_blue
+[PASS] world include resolves: model://cone_blue
+[PASS] world include resolves: model://blue_board
+[PASS] world include resolves: model://reference_box
+[PASS] no network URIs in shipped resources (no runtime downloads)  ([])
+[PASS] no absolute machine paths in shipped resources  ([])
+
+== [B] cone cone_red: rule envelope, measured on delivered files ==
+[PASS] cone_red: <static> = true
+[PASS] cone_red/collision: base outer envelope 0.28 x 0.28 m (rule)  (0.2800 x 0.2800 m)
+[PASS] cone_red/collision: base thickness == 0.05 (assumption, on record)  (0.0500 m)
+[PASS] cone_red/collision: origin = bottom-face centre, pose z = size_z/2 (grounded at world z=0)  (pose z 0.0250 vs size_z/2 0.0250)
+[PASS] cone_red/visual: base outer envelope 0.28 x 0.28 m (rule)  (0.2800 x 0.2800 m)
+[PASS] cone_red/visual: base thickness == 0.05 (assumption, on record)  (0.0500 m)
+[PASS] cone_red/visual: origin = bottom-face centre, pose z = size_z/2 (grounded at world z=0)  (pose z 0.0250 vs size_z/2 0.0250)
+[PASS] cone_red: base visual == collision (size + pose)
+[PASS] cone_red: frustum visual == collision (uri + scale + pose)
+[PASS] cone_red: mesh triangle count == 4 x 24  (96)
+[PASS] cone_red: frustum bottom diameter (mesh x scale) <= base 0.28 m  (0.2400 m)
+[PASS] cone_red: frustum sits on the base (mesh bottom == base top)  (0.0500 vs 0.0500 m)
+[PASS] cone_red: total height 0.63 m (rule; measured incl. scale + pose)  (0.6300 m)
+[PASS] cone_red: no geometry below z=0 (no ground penetration)  (base bottom 0.0000, mesh bottom 0.0500 m)
+
+== [B] cone cone_blue: rule envelope, measured on delivered files ==
+[PASS] cone_blue: <static> = true
+[PASS] cone_blue/collision: base outer envelope 0.28 x 0.28 m (rule)  (0.2800 x 0.2800 m)
+[PASS] cone_blue/collision: base thickness == 0.05 (assumption, on record)  (0.0500 m)
+[PASS] cone_blue/collision: origin = bottom-face centre, pose z = size_z/2 (grounded at world z=0)  (pose z 0.0250 vs size_z/2 0.0250)
+[PASS] cone_blue/visual: base outer envelope 0.28 x 0.28 m (rule)  (0.2800 x 0.2800 m)
+[PASS] cone_blue/visual: base thickness == 0.05 (assumption, on record)  (0.0500 m)
+[PASS] cone_blue/visual: origin = bottom-face centre, pose z = size_z/2 (grounded at world z=0)  (pose z 0.0250 vs size_z/2 0.0250)
+[PASS] cone_blue: base visual == collision (size + pose)
+[PASS] cone_blue: frustum visual == collision (uri + scale + pose)
+[PASS] cone_blue: mesh triangle count == 4 x 24  (96)
+[PASS] cone_blue: frustum bottom diameter (mesh x scale) <= base 0.28 m  (0.2400 m)
+[PASS] cone_blue: frustum sits on the base (mesh bottom == base top)  (0.0500 vs 0.0500 m)
+[PASS] cone_blue: total height 0.63 m (rule; measured incl. scale + pose)  (0.6300 m)
+[PASS] cone_blue: no geometry below z=0 (no ground penetration)  (base bottom 0.0000, mesh bottom 0.0500 m)
+
+== [C] red/blue cones: identical geometry, colour only ==
+[PASS] cone_red/cone_blue: STL files byte-identical
+[PASS] cone_red/cone_blue: SDF geometry identical (box size/pose, mesh pose/scale/uri)
+[PASS] cone_red: diffuse is red (R dominant)  (0.85 0.10 0.10 1.00)
+[PASS] cone_blue: diffuse is blue (B dominant)  (0.05 0.15 0.85 1.00)
+[PASS] cone_red/cone_blue: diffuse colours differ (colour is the only difference)
+
+== [D/E] blue_board: dimensions measured on delivered SDF ==
+[PASS] blue_board: <static> = true
+[PASS] blue_board: visual == collision (size + pose)
+[PASS] blue_board: size 0.8 x 0.02 x 0.5 m (x=length, y=thickness, z=height)  (0.800 0.020 0.500)
+[PASS] blue_board: thickness recorded (assumption, on record in docs/assumptions.md)  (thickness = 0.020 m)
+[PASS] blue_board: origin = bottom-face centre, pose z = size_z/2 (grounded at world z=0)  (pose z 0.2500 vs size_z/2 0.2500)
+[PASS] blue_board: no geometry below z=0  (bottom 0.0000 m)
+
+== [D/E] reference_box: dimensions measured on delivered SDF ==
+[PASS] reference_box: <static> = true
+[PASS] reference_box: visual == collision (size + pose)
+[PASS] reference_box: size 0.5 x 1.0 x 1.0 m (x=length, y=thickness, z=height)  (0.500 1.000 1.000)
+[PASS] reference_box: origin = bottom-face centre, pose z = size_z/2 (grounded at world z=0)  (pose z 0.5000 vs size_z/2 0.5000)
+[PASS] reference_box: no geometry below z=0  (bottom 0.0000 m)
+
+== [F] world layout vs task-book coordinate table ==
+[PASS] sdf version 1.6 (Gazebo Classic 11)
+[PASS] world name = sensor_test
+[PASS] inline ground_plane present (top surface z=0)
+[PASS] sun directional light present
+[PASS] no duplicate object ids in world  (12 unique ids)
+[PASS] object counts: 10 cones + 1 board + 1 reference_box (12 includes)  (cones 10, boards 1, refboxes 1, total 12)
+[PASS] every task-book object present in world (and nothing extra)  (exact id set match)
+[PASS] red_01: pose matches task book (cone_red @ 1.2, 0.75, yaw 0)  (model://cone_red @ (1.2, 0.75, 0, yaw 0))
+[PASS] red_02: pose matches task book (cone_red @ 2.4, 0.75, yaw 0)  (model://cone_red @ (2.4, 0.75, 0, yaw 0))
+[PASS] red_03: pose matches task book (cone_red @ 3.6, 0.75, yaw 0)  (model://cone_red @ (3.6, 0.75, 0, yaw 0))
+[PASS] red_04: pose matches task book (cone_red @ 4.8, 0.75, yaw 0)  (model://cone_red @ (4.8, 0.75, 0, yaw 0))
+[PASS] red_05: pose matches task book (cone_red @ 6, 0.75, yaw 0)  (model://cone_red @ (6, 0.75, 0, yaw 0))
+[PASS] blue_01: pose matches task book (cone_blue @ 1.2, -0.75, yaw 0)  (model://cone_blue @ (1.2, -0.75, 0, yaw 0))
+[PASS] blue_02: pose matches task book (cone_blue @ 2.4, -0.75, yaw 0)  (model://cone_blue @ (2.4, -0.75, 0, yaw 0))
+[PASS] blue_03: pose matches task book (cone_blue @ 3.6, -0.75, yaw 0)  (model://cone_blue @ (3.6, -0.75, 0, yaw 0))
+[PASS] blue_04: pose matches task book (cone_blue @ 4.8, -0.75, yaw 0)  (model://cone_blue @ (4.8, -0.75, 0, yaw 0))
+[PASS] blue_05: pose matches task book (cone_blue @ 6, -0.75, yaw 0)  (model://cone_blue @ (6, -0.75, 0, yaw 0))
+[PASS] board_01: pose matches task book (blue_board @ 3, -0.75, yaw 0)  (model://blue_board @ (3, -0.75, 0, yaw 0))
+[PASS] reference_box: pose matches task book (reference_box @ 8, 0, yaw 0)  (model://reference_box @ (8, 0, 0, yaw 0))
+[PASS] board_01 does not intrude into blue_02/blue_03 bases  (gaps 0.06 m / 0.06 m)
+[PASS] reference_box front (+X) surface at x = 7.75 m, facing the start  (x = 7.750 m (centre 8.0 - size_x/2 0.25))
+[PASS] config/sensor_test.csv header  (['id', 'model', 'x', 'y', 'z', 'yaw'])
+[PASS] world == CSV (single source of truth)
+
+== [G] z = 0.21 m collision cross-section, sliced from the ACTUAL mesh ==
+[PASS] z=0.21 lies in the frustum part (0.05 <= z <= 0.63 m)
+[PASS] mesh slice @ local z=0.160: exactly 24 polygon vertices at the theoretical radius  (24 found, r_measured=0.09793 vs r_theory=0.09793 m)
+[PASS] slice vertices evenly spaced (regular polygon)  (max spacing deviation 3.21e-09 rad)
+[PASS] mesh slice: exactly 24 on-edge crossing points (diagonal edges)  (24 found)
+[PASS] all other slice points lie on the polygon edges (section is the exact 24-gon)  (max deviation 6.67e-10 m)
+[PASS] measured circumdiameter 0.1959 m matches theory  (measured 0.1959 vs theory 0.1959 m)
+[PASS] measured inradius == r * cos(pi/24) (regular 24-gon)  (measured 0.09709 vs theory 0.09709 m)
+  截面参数（全部实测自交付文件）:
+  底座厚度      : 0.050 m（SDF 实测）
+  圆台高度      : 0.580 m（STL bbox 实测）
+  底/顶部半径   : 0.1200 / 0.0400 m（STL 环顶点实测）
+  理论半径 @z=0.21: 0.0979 m（线性插值） -> 外接圆直径 0.1959 m
+  实测网格截面  : 外接圆直径 0.1959 m（24 顶点），内切圆直径 0.1942 m
+  多边形近似误差: 0.86 %（24 棱外接 vs 内切）
+
+== validate_assets: 102 checks: 102 passed, 0 failed ==
+RESULT: PASSED
+PASS: acceptance validator
+
+===== negative acceptance test =====
+== negative acceptance test: validator must catch broken assets ==
+== (defects are introduced in a throwaway copy only) ==
+[PASS] baseline: unmodified copy passes (exit 0)
+[PASS] negative (broken cone height (cone_red total 0.66 m)): validator exit code 1 (non-zero)
+[PASS] negative (broken cone height (cone_red total 0.66 m)): validator names the defect:
+        [FAIL] cone_red: total height 0.63 m (rule; measured incl. scale + pose)  (0.6600 m)
+[PASS] negative (deleted required mesh (cone_blue STL)): validator exit code 1 (non-zero)
+[PASS] negative (deleted required mesh (cone_blue STL)): validator names the defect:
+        [FAIL] cone_blue: mesh uri resolves + STL parses: model://cone_blue/meshes/cone_frustum.stl  (model://cone_blue/meshes/cone_frustum.stl -> models\cone_blue\meshes\cone_frustum.stl: not shipped)
+[PASS] negative (wrong cone coordinate (red_01 x=1.9)): validator exit code 1 (non-zero)
+[PASS] negative (wrong cone coordinate (red_01 x=1.9)): validator names the defect:
+        [FAIL] red_01: pose matches task book (cone_red @ 1.2, 0.75, yaw 0)  (model://cone_red @ (1.9, 0.75, 0, yaw 0))
+[PASS] negative (duplicate id (blue_02 twice)): validator exit code 1 (non-zero)
+[PASS] negative (duplicate id (blue_02 twice)): validator names the defect:
+        [FAIL] no duplicate object ids in world  (duplicates: ['blue_02'])
+[PASS] restore: pristine copy passes again (nothing left broken)
+
+RESULT: PASSED
+PASS: negative acceptance test
+
+===== clean-room install check =====
+== clean-room install check ==
+== source   : git archive HEAD @ db44d37 (committed delivery state) ==
+== copy at  : $TMP (throwaway) ==
+[PASS] no absolute machine paths in shipped resources
+[PASS] no network URIs in shipped resources (no runtime downloads)
+[PASS] no references to main-project code (racecar_sim)
+-- tools/validate_assets.py on the extracted copy --
+== validate_assets: acceptance check on the DELIVERED files ==
+== package root: C:\Users\25029\AppData\Local\Temp\tmp.7dYqCW2TOv\extract\hwcart_sim\src\racecar_test_assets ==
+
+== [A] resource references resolve inside the package ==
+[PASS] models/blue_board: model.config + model.sdf shipped
+[PASS] models/blue_board: model.config name + sdf entry
+[PASS] blue_board: box model (no meshes, nothing to resolve)
+[PASS] models/cone_blue: model.config + model.sdf shipped
+[PASS] models/cone_blue: model.config name + sdf entry
+[PASS] cone_blue: mesh uri resolves + STL parses: model://cone_blue/meshes/cone_frustum.stl  (96 triangles)
+[PASS] cone_blue: mesh uri resolves + STL parses: model://cone_blue/meshes/cone_frustum.stl  (96 triangles)
+[PASS] models/cone_red: model.config + model.sdf shipped
+[PASS] models/cone_red: model.config name + sdf entry
+[PASS] cone_red: mesh uri resolves + STL parses: model://cone_red/meshes/cone_frustum.stl  (96 triangles)
+[PASS] cone_red: mesh uri resolves + STL parses: model://cone_red/meshes/cone_frustum.stl  (96 triangles)
+[PASS] models/reference_box: model.config + model.sdf shipped
+[PASS] models/reference_box: model.config name + sdf entry
+[PASS] reference_box: box model (no meshes, nothing to resolve)
+[PASS] world include resolves: model://cone_red
+[PASS] world include resolves: model://cone_red
+[PASS] world include resolves: model://cone_red
+[PASS] world include resolves: model://cone_red
+[PASS] world include resolves: model://cone_red
+[PASS] world include resolves: model://cone_blue
+[PASS] world include resolves: model://cone_blue
+[PASS] world include resolves: model://cone_blue
+[PASS] world include resolves: model://cone_blue
+[PASS] world include resolves: model://cone_blue
+[PASS] world include resolves: model://blue_board
+[PASS] world include resolves: model://reference_box
+[PASS] no network URIs in shipped resources (no runtime downloads)  ([])
+[PASS] no absolute machine paths in shipped resources  ([])
+
+== [B] cone cone_red: rule envelope, measured on delivered files ==
+[PASS] cone_red: <static> = true
+[PASS] cone_red/collision: base outer envelope 0.28 x 0.28 m (rule)  (0.2800 x 0.2800 m)
+[PASS] cone_red/collision: base thickness == 0.05 (assumption, on record)  (0.0500 m)
+[PASS] cone_red/collision: origin = bottom-face centre, pose z = size_z/2 (grounded at world z=0)  (pose z 0.0250 vs size_z/2 0.0250)
+[PASS] cone_red/visual: base outer envelope 0.28 x 0.28 m (rule)  (0.2800 x 0.2800 m)
+[PASS] cone_red/visual: base thickness == 0.05 (assumption, on record)  (0.0500 m)
+[PASS] cone_red/visual: origin = bottom-face centre, pose z = size_z/2 (grounded at world z=0)  (pose z 0.0250 vs size_z/2 0.0250)
+[PASS] cone_red: base visual == collision (size + pose)
+[PASS] cone_red: frustum visual == collision (uri + scale + pose)
+[PASS] cone_red: mesh triangle count == 4 x 24  (96)
+[PASS] cone_red: frustum bottom diameter (mesh x scale) <= base 0.28 m  (0.2400 m)
+[PASS] cone_red: frustum sits on the base (mesh bottom == base top)  (0.0500 vs 0.0500 m)
+[PASS] cone_red: total height 0.63 m (rule; measured incl. scale + pose)  (0.6300 m)
+[PASS] cone_red: no geometry below z=0 (no ground penetration)  (base bottom 0.0000, mesh bottom 0.0500 m)
+
+== [B] cone cone_blue: rule envelope, measured on delivered files ==
+[PASS] cone_blue: <static> = true
+[PASS] cone_blue/collision: base outer envelope 0.28 x 0.28 m (rule)  (0.2800 x 0.2800 m)
+[PASS] cone_blue/collision: base thickness == 0.05 (assumption, on record)  (0.0500 m)
+[PASS] cone_blue/collision: origin = bottom-face centre, pose z = size_z/2 (grounded at world z=0)  (pose z 0.0250 vs size_z/2 0.0250)
+[PASS] cone_blue/visual: base outer envelope 0.28 x 0.28 m (rule)  (0.2800 x 0.2800 m)
+[PASS] cone_blue/visual: base thickness == 0.05 (assumption, on record)  (0.0500 m)
+[PASS] cone_blue/visual: origin = bottom-face centre, pose z = size_z/2 (grounded at world z=0)  (pose z 0.0250 vs size_z/2 0.0250)
+[PASS] cone_blue: base visual == collision (size + pose)
+[PASS] cone_blue: frustum visual == collision (uri + scale + pose)
+[PASS] cone_blue: mesh triangle count == 4 x 24  (96)
+[PASS] cone_blue: frustum bottom diameter (mesh x scale) <= base 0.28 m  (0.2400 m)
+[PASS] cone_blue: frustum sits on the base (mesh bottom == base top)  (0.0500 vs 0.0500 m)
+[PASS] cone_blue: total height 0.63 m (rule; measured incl. scale + pose)  (0.6300 m)
+[PASS] cone_blue: no geometry below z=0 (no ground penetration)  (base bottom 0.0000, mesh bottom 0.0500 m)
+
+== [C] red/blue cones: identical geometry, colour only ==
+[PASS] cone_red/cone_blue: STL files byte-identical
+[PASS] cone_red/cone_blue: SDF geometry identical (box size/pose, mesh pose/scale/uri)
+[PASS] cone_red: diffuse is red (R dominant)  (0.85 0.10 0.10 1.00)
+[PASS] cone_blue: diffuse is blue (B dominant)  (0.05 0.15 0.85 1.00)
+[PASS] cone_red/cone_blue: diffuse colours differ (colour is the only difference)
+
+== [D/E] blue_board: dimensions measured on delivered SDF ==
+[PASS] blue_board: <static> = true
+[PASS] blue_board: visual == collision (size + pose)
+[PASS] blue_board: size 0.8 x 0.02 x 0.5 m (x=length, y=thickness, z=height)  (0.800 0.020 0.500)
+[PASS] blue_board: thickness recorded (assumption, on record in docs/assumptions.md)  (thickness = 0.020 m)
+[PASS] blue_board: origin = bottom-face centre, pose z = size_z/2 (grounded at world z=0)  (pose z 0.2500 vs size_z/2 0.2500)
+[PASS] blue_board: no geometry below z=0  (bottom 0.0000 m)
+
+== [D/E] reference_box: dimensions measured on delivered SDF ==
+[PASS] reference_box: <static> = true
+[PASS] reference_box: visual == collision (size + pose)
+[PASS] reference_box: size 0.5 x 1.0 x 1.0 m (x=length, y=thickness, z=height)  (0.500 1.000 1.000)
+[PASS] reference_box: origin = bottom-face centre, pose z = size_z/2 (grounded at world z=0)  (pose z 0.5000 vs size_z/2 0.5000)
+[PASS] reference_box: no geometry below z=0  (bottom 0.0000 m)
+
+== [F] world layout vs task-book coordinate table ==
+[PASS] sdf version 1.6 (Gazebo Classic 11)
+[PASS] world name = sensor_test
+[PASS] inline ground_plane present (top surface z=0)
+[PASS] sun directional light present
+[PASS] no duplicate object ids in world  (12 unique ids)
+[PASS] object counts: 10 cones + 1 board + 1 reference_box (12 includes)  (cones 10, boards 1, refboxes 1, total 12)
+[PASS] every task-book object present in world (and nothing extra)  (exact id set match)
+[PASS] red_01: pose matches task book (cone_red @ 1.2, 0.75, yaw 0)  (model://cone_red @ (1.2, 0.75, 0, yaw 0))
+[PASS] red_02: pose matches task book (cone_red @ 2.4, 0.75, yaw 0)  (model://cone_red @ (2.4, 0.75, 0, yaw 0))
+[PASS] red_03: pose matches task book (cone_red @ 3.6, 0.75, yaw 0)  (model://cone_red @ (3.6, 0.75, 0, yaw 0))
+[PASS] red_04: pose matches task book (cone_red @ 4.8, 0.75, yaw 0)  (model://cone_red @ (4.8, 0.75, 0, yaw 0))
+[PASS] red_05: pose matches task book (cone_red @ 6, 0.75, yaw 0)  (model://cone_red @ (6, 0.75, 0, yaw 0))
+[PASS] blue_01: pose matches task book (cone_blue @ 1.2, -0.75, yaw 0)  (model://cone_blue @ (1.2, -0.75, 0, yaw 0))
+[PASS] blue_02: pose matches task book (cone_blue @ 2.4, -0.75, yaw 0)  (model://cone_blue @ (2.4, -0.75, 0, yaw 0))
+[PASS] blue_03: pose matches task book (cone_blue @ 3.6, -0.75, yaw 0)  (model://cone_blue @ (3.6, -0.75, 0, yaw 0))
+[PASS] blue_04: pose matches task book (cone_blue @ 4.8, -0.75, yaw 0)  (model://cone_blue @ (4.8, -0.75, 0, yaw 0))
+[PASS] blue_05: pose matches task book (cone_blue @ 6, -0.75, yaw 0)  (model://cone_blue @ (6, -0.75, 0, yaw 0))
+[PASS] board_01: pose matches task book (blue_board @ 3, -0.75, yaw 0)  (model://blue_board @ (3, -0.75, 0, yaw 0))
+[PASS] reference_box: pose matches task book (reference_box @ 8, 0, yaw 0)  (model://reference_box @ (8, 0, 0, yaw 0))
+[PASS] board_01 does not intrude into blue_02/blue_03 bases  (gaps 0.06 m / 0.06 m)
+[PASS] reference_box front (+X) surface at x = 7.75 m, facing the start  (x = 7.750 m (centre 8.0 - size_x/2 0.25))
+[PASS] config/sensor_test.csv header  (['id', 'model', 'x', 'y', 'z', 'yaw'])
+[PASS] world == CSV (single source of truth)
+
+== [G] z = 0.21 m collision cross-section, sliced from the ACTUAL mesh ==
+[PASS] z=0.21 lies in the frustum part (0.05 <= z <= 0.63 m)
+[PASS] mesh slice @ local z=0.160: exactly 24 polygon vertices at the theoretical radius  (24 found, r_measured=0.09793 vs r_theory=0.09793 m)
+[PASS] slice vertices evenly spaced (regular polygon)  (max spacing deviation 3.21e-09 rad)
+[PASS] mesh slice: exactly 24 on-edge crossing points (diagonal edges)  (24 found)
+[PASS] all other slice points lie on the polygon edges (section is the exact 24-gon)  (max deviation 6.67e-10 m)
+[PASS] measured circumdiameter 0.1959 m matches theory  (measured 0.1959 vs theory 0.1959 m)
+[PASS] measured inradius == r * cos(pi/24) (regular 24-gon)  (measured 0.09709 vs theory 0.09709 m)
+  截面参数（全部实测自交付文件）:
+  底座厚度      : 0.050 m（SDF 实测）
+  圆台高度      : 0.580 m（STL bbox 实测）
+  底/顶部半径   : 0.1200 / 0.0400 m（STL 环顶点实测）
+  理论半径 @z=0.21: 0.0979 m（线性插值） -> 外接圆直径 0.1959 m
+  实测网格截面  : 外接圆直径 0.1959 m（24 顶点），内切圆直径 0.1942 m
+  多边形近似误差: 0.86 %（24 棱外接 vs 内切）
+
+== validate_assets: 102 checks: 102 passed, 0 failed ==
+RESULT: PASSED
+[PASS] validate_assets passes on the extracted copy (resources resolve in-package)
+-- install-rule coverage of every shipped file --
+[PASS] every shipped file is covered by an install rule (or a known meta file)
+[PASS] env hook prepends share/racecar_test_assets/models to GAZEBO_MODEL_PATH
+
+RESULT: PASSED
+PASS: clean-room install check
+
+===== gazebo load smoke (positive + negative) =====
+SKIP: gzserver not found in PATH
+SKIP: gazebo not available on this machine
+SKIP: gazebo load smoke (gzserver not available on this machine)
+
+===== z=0.21 cone cross-section (informational) =====
+锥桶碰撞截面 @ z = 0.210 m （地面 z=0，锥桶总高 0.63 m）
+  部件        : 圆台段 (0.05 <= z <= 0.63 m)
+  截面外接圆直径: 0.1959 m   <- 2D 雷达可见最大宽度
+  圆等效截面面积: 0.0301 m^2
+  24 棱多边形近似的内切圆直径: 0.1942 m (比外接圆小 0.86%)
+说明: 数值由 asset_params.py 解析计算，与 STL 网格同源；
+      视觉网格与碰撞网格为同一份 STL，两者截面一致。
+
+RESULT: PASSED

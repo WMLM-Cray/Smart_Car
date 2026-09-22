@@ -1,0 +1,40 @@
+$ ls -la /home/orange-pi
+total 131832
+drwxr-x--- 20 orange-pi orange-pi     4096 Apr  4 15:42 .
+drwxr-xr-x 10 root      root          4096 Sep 23  2025 ..
+-rw-------  1 orange-pi orange-pi        0 Sep 23  2025 .ICEauthority
+-rw-------  1 orange-pi orange-pi      252 Apr  4 15:24 .Xauthority
+-rw-------  1 orange-pi orange-pi     3139 Apr  4 14:39 .bash_history
+-rw-r--r--  1 orange-pi orange-pi      220 Sep 23  2025 .bash_logout
+-rw-r--r--  1 orange-pi orange-pi     3900 Sep 23  2025 .bashrc
+drwx------  8 orange-pi orange-pi     4096 Sep 23  2025 .cache
+drwx------ 10 orange-pi orange-pi     4096 Apr  4 10:35 .config
+-rw-r--r--  1 orange-pi orange-pi       23 Sep 23  2025 .dmrc
+drwx------  3 orange-pi orange-pi     4096 Sep 23  2025 .gnupg
+drwxrwxr-x  3 orange-pi orange-pi     4096 Sep 23  2025 .local
+-rw-r--r--  1 orange-pi orange-pi      807 Sep 23  2025 .profile
+drwxrwxr-x  3 orange-pi orange-pi     4096 Sep 23  2025 .ros
+drwxrwxr-x  2 orange-pi orange-pi     4096 Sep 23  2025 .rviz2
+drwxrwxr-x  2 orange-pi orange-pi     4096 Apr  4 15:41 .ssh
+-rw-r--r--  1 orange-pi orange-pi        0 Sep 23  2025 .sudo_as_admin_successful
+-rw-------  1 orange-pi orange-pi     3169 Apr  4 10:26 .viminfo
+-rw-------  1 orange-pi orange-pi     8928 Apr  4 10:05 .xsession-errors
+-rw-------  1 orange-pi orange-pi     8737 Sep 23  2025 .xsession-errors.old
+drwxr-xr-x  2 orange-pi orange-pi     4096 Sep 23  2025 Desktop
+drwxr-xr-x  2 orange-pi orange-pi     4096 Sep 23  2025 Documents
+drwxr-xr-x  2 orange-pi orange-pi     4096 Sep 23  2025 Downloads
+drwxr-xr-x  2 orange-pi orange-pi     4096 Sep 23  2025 Music
+drwxr-xr-x  2 orange-pi orange-pi     4096 Sep 23  2025 Pictures
+drwxr-xr-x  2 orange-pi orange-pi     4096 Sep 23  2025 Public
+drwxr-xr-x  2 orange-pi orange-pi     4096 Sep 23  2025 Templates
+drwxr-xr-x  2 orange-pi orange-pi     4096 Sep 23  2025 Videos
+-rwx------  1 orange-pi orange-pi     2581 Apr  4 15:42 backup_vendor.sh
+-rwx------  1 orange-pi orange-pi     3188 Apr  4 15:42 capture_sensors.sh
+-rw-------  1 orange-pi orange-pi     2082 Apr  4 12:18 find_throttle_mid.py
+drwxrwxr-x  2 orange-pi orange-pi     4096 Apr  4 15:42 probe_20260404_154244
+-rwx------  1 orange-pi orange-pi     3216 Apr  4 15:42 probe_readonly.sh
+drwxrwxr-x  8 orange-pi orange-pi     4096 Apr  4 11:26 racecar
+-rw-------  1 orange-pi orange-pi 89375957 Apr  4 10:08 racecar_0403.zip
+-rw-------  1 orange-pi orange-pi 45464712 Apr  4 11:23 racecar_05_27.tar.gz
+drwxrwxr-x  3 orange-pi orange-pi     4096 Apr  4 15:42 var
+[rc=0]

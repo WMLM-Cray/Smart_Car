@@ -1,0 +1,212 @@
+trackA 资产接入轮 成果目录清单(f1ede59,integration/trackA-sdf)
+====================================================================
+按 CLAUDE.md 硬性规则1,本清单供外部 AI(如 GPT)独立测试验收。
+对应提交:f1ede59《接入队友测试资产包racecar_test_assets(7582feb整套),
+63锥坐标零改动》。验证证据全文见同目录《trackA_资产接入验证日志.txt》。
+
+路径约定:Windows git 主副本在 F 盘,WSL 构建/运行侧为 git 同源副本,
+两者路径前缀如下(下文清单均给出相对路径,两侧拼接各自前缀即可):
+- Windows: F:\影音\BaiduSyncdisk\programss\华为小车\07-仿真系统\
+- WSL    : /home/lzx/hwcart_sim/
+
+一、本轮新增/修改的成果(相对路径,双份同构)
+--------------------------------------------------------------------
+[1] 队友资产包整包检出(新增,70 文件)
+    hwcart_sim/src/racecar_test_assets/
+      ├─ models/            8 类模型(cone_blue/cone_red/lane_line/
+      │                     reference_box/sign_a/sign_b/traffic_light 等,
+      │                     含 STL mesh + 材质脚本 + 贴图)
+      ├─ worlds/            demo_world.world / sensor_test.world(包内保留,
+      │                     不接入 trackA,防演示布局覆盖 A 赛道)
+      ├─ config/            demo_world.csv / sensor_test.csv(同上,不接入)
+      ├─ env-hooks/         自动导出 GAZEBO_MODEL_PATH(实测生效)
+      ├─ tools/             check_models.py / validate_assets.py 等 12 件
+      ├─ test/              6 项包内自测脚本
+      ├─ delivery/          队友交付证据(DELIVERY.md / acceptance.md / 截图)
+      ├─ docs/              assumptions.md(残余 asmp 披露)/ models.md /
+      │                     validation.md / evidence/
+      └─ CMakeLists.txt / package.xml / README.md
+
+[2] 主线接线改造(修改)
+    hwcart_sim/src/racecar_sim/worlds/trackA.world   重新生成:63 锥改
+        model://cone_{blue,red} include,坐标与冻结 CSV 逐位一致
+    hwcart_sim/src/racecar_sim/launch/sim_bringup.launch.py
+        去掉手工 models 路径追加(env-hook 接管)
+    hwcart_sim/src/racecar_sim/setup.py               去 models 数据装载
+    hwcart_sim/src/racecar_sim/package.xml            增 exec_depend
+                                                      racecar_test_assets
+
+[3] 生成器/检查器(修改)
+    tools/trackA/trackA_sdf.py        world-only 转换(CSV→include;
+                                      坑:模板注释 {blue,red} 撞 .format())
+    tools/trackA/check_trackA_sdf.py  16项→26项,按资产契约断言:
+                                      官方0.63/0.28包络+base box+锥台STL
+                                      (96三角)独立解析+visual==collision
+                                      同mesh+蓝红STL字节相同+static=true
+
+[4] 冻结坐标单源(本轮未动,对账基准)
+    docs/track/trackA_cones.csv       63 锥唯一坐标源(37蓝26红)
+
+[5] 验证证据(新增)
+    docs/track/trackA_资产接入验证日志.txt   静态26项FAIL=0+两负例CAUGHT
+                                            +冒烟+车辆四项ALL PASS 全记录
+    docs/track/trackA_SDF生成与检查日志.txt  本轮生成/检查流水(更新)
+
+二、退役(删除,git 历史可查)
+--------------------------------------------------------------------
+    hwcart_sim/src/racecar_sim/models/trackA_cone_blue/   40d0e7b 引入、
+    hwcart_sim/src/racecar_sim/models/trackA_cone_red/    098c3f0 改尺寸,
+                                                           f1ede59 退役
+    动态低速碰撞基线记录保留于 872c87d 日志(静态锥不可复现撞倒/推移)
+
+三、外部 AI 验收入口(WSL 侧,headless 无 GUI)
+--------------------------------------------------------------------
+    # 静态检查(26 项 + 负例,预期 FAIL=0 / EXIT 0)
+    python3 tools/trackA/check_trackA_sdf.py
+
+    # 构建(须在 ~/hwcart_sim/hwcart_sim/ colcon 工作区,禁 /mnt/f)
+    colcon build --packages-select racecar_test_assets racecar_sim
+
+    # 车辆四项(启动/扫描/成像/碰撞,预期 ALL PASS)
+    ros2 launch racecar_sim sim_bringup.launch.py use_gui:=false \
+        world:=trackA.world spawn_x:=11.0 spawn_y:=0.75 spawn_yaw:=0.0
+
+四、遗留边界(非本轮缺陷,验收时知悉)
+--------------------------------------------------------------------
+    - 静态锥撞倒/推移表现不可验证(GPT 回执已确认)
+    - 红绿灯模型三灯常亮无切换接口:包内保留,视觉阶段再议
+    - 发车点 (11.0,0.75) 为 asmp(规则未定发车点)
+    - 手柄包(01a3374)待队友修超时恢复缺陷后另行审查提交
+
+==================== 阶段3 追加(2026-09-16 起)====================
+
+五、阶段3 第一步:可见二维建图演示(详见同目录
+    《trackA_阶段3_1_二维建图演示.md》)
+--------------------------------------------------------------------
+[6] 演示层新包(新增)
+    hwcart_sim/src/racecar_bringup_sim/
+      ├─ launch/slam_bringup.launch.py  一键:仿真+slam_toolbox+RViz
+      ├─ rviz/slam.rviz                 同屏 Map/Laser/Robot/TF/Odom轨迹
+      └─ setup.py / package.xml 等      share 安装 launch+rviz
+
+[7] 演示编排(新增)
+    tools/trackA/slam_demo_run.sh       Xvfb 截图+驱动+map_saver 一键演示
+
+[8] 证据(新增)
+    docs/track/slam_demo_rviz_0_start.png   行驶前 RViz 截图
+    docs/track/slam_demo_rviz_1_after.png   行驶后截图(同屏四要素齐)
+    docs/track/trackA_map.pgm/.yaml         map_saver 正式地图
+                                            (335×113@0.05m)
+
+[9] 复验入口(WSL,预期三 PASS + map_saved)
+    bash tools/trackA/slam_demo_run.sh
+
+六、阶段3 第二步:仿真测试驾驶器(详见同目录
+    《trackA_阶段3_2_测试驾驶器.md》)
+--------------------------------------------------------------------
+[10] 驾驶器与编排(新增)
+    tools/trackA/test_driver.py           仿真测试驾驶器节点(纯追踪
+                                          +整车矩形余量预检+三监控即停
+                                          +/cmd_vel 独占检查;真值仅用于
+                                          跟踪/验收,SLAM 无真值注入)
+    tools/trackA/test_driver_run.sh       无头分段验证编排
+    tools/trackA/test_driver_map_run.sh   整圈+SLAM+RViz 截图+map_saver
+
+[11] 证据(新增)
+    docs/track/test_driver_{short,u_right,half,full}_report.json
+                                          四段报告(short→full 全 PASS,
+                                          整圈实驶 35.46m/偏差≤0.10m/
+                                          最小间隙 0.359m/|ω|≤0.364)
+    docs/track/test_driver_rviz_full.png 整圈 RViz 截图(AI 复核:闭合环
+                                          +顶部V凹+激光+轨迹)
+    docs/track/trackA_map_full.pgm/.yaml 整圈地图 338×114@0.05m
+                                          (第三步 AMCL 载入用)
+
+[12] 复验入口(WSL,预期各段 PASS,rc=0)
+    bash tools/trackA/test_driver_run.sh short   # 先短段
+    bash tools/trackA/test_driver_run.sh full    # 整圈(无头)
+    bash tools/trackA/test_driver_map_run.sh full # 整圈+建图+截图
+
+七、阶段3 第三步:载入已存地图+AMCL 定位(详见同目录
+    《trackA_阶段3_3_AMCL定位.md》)
+--------------------------------------------------------------------
+[13] 定位启动与参数(新增)
+    hwcart_sim/src/racecar_bringup_sim/launch/localization_bringup.launch.py
+                                          一键:重启场景(无SLAM/无测试
+                                          驾驶器)+map_server+amcl+
+                                          lifecycle+RViz
+    hwcart_sim/src/racecar_bringup_sim/config/amcl.yaml
+                                          AMCL 参数(关键:Humble 的
+                                          robot_model_type 须写插件类名
+                                          nav2_amcl::DifferentialMotionModel;
+                                          max_beams 非 laser_max_beams)
+    hwcart_sim/src/racecar_bringup_sim/rviz/localization.rviz
+                                          定位视图(粒子云显示须用
+                                          nav2_rviz_plugins/ParticleCloud)
+    hwcart_sim/src/racecar_bringup_sim/maps/trackA_map_full.pgm/.yaml
+                                          包内地图副本(launch 默认载入)
+
+[14] 证据(新增)
+    tools/trackA/amcl_check.py            定位验收器(开环轻推 5m 往返,
+                                          真值仅误差统计不进 AMCL)
+    tools/trackA/amcl_demo_run.sh         无头编排(Xvfb+截图+验收)
+    docs/track/amcl_check_report.json     PASS:初始0.013/最大0.066/
+                                          RMS0.036/末段0.041 m(判据
+                                          0.25/0.25/0.15),43 样本
+    docs/track/amcl_rviz_0_initial.png    初始:地图+激光+粒子云收敛
+    docs/track/amcl_rviz_1_after.png      运动后:AMCL 箭头贴合车体
+
+[15] 复验入口(WSL,预期 rc=0 / PASS)
+    ros2 launch racecar_bringup_sim localization_bringup.launch.py \
+        use_gui:=false   # 交互(RViz 2D Pose Estimate 可重给初值)
+    bash tools/trackA/amcl_demo_run.sh    # 无人值守全流程
+
+八、阶段3 第四步:Nav2 单点导航(详见同目录
+    《trackA_阶段3_4_Nav2导航.md》)
+--------------------------------------------------------------------
+[16] 导航启动与参数(新增)
+    hwcart_sim/src/racecar_bringup_sim/launch/navigation_bringup.launch.py
+                                          一键:localization_bringup(仿真+
+                                          map_server+AMCL)+Nav2 五节点
+                                          (controller/velocity_smoother/
+                                          planner/behavior/bt_navigator)
+    hwcart_sim/src/racecar_bringup_sim/config/nav2.yaml
+                                          Nav2 参数(阿克曼"不原地转向"三重
+                                          落实:RPP 禁 rotate_to_heading+
+                                          行为器只装 Wait+行为树无 Spin;
+                                          Smac DUBIN R0.60;v0.25/L0.45-0.5;
+                                          pad0.08;xy 0.15/yaw 0.50)
+    hwcart_sim/src/racecar_bringup_sim/behavior/trackA_minimal.xml
+                                          极简行为树(恢复=清代价地图+等待)
+    hwcart_sim/src/racecar_bringup_sim/rviz/navigation.rviz
+                                          导航视图(话题全部实际存在)
+
+[17] 证据(新增)
+    tools/trackA/nav_check.py            11 目标验收器(短直道→右U→顶道
+                                          →S弯→发卡→回出生点整圈;五判据:
+                                          全SUCCEEDED/到达≤0.30/AMCL≤0.25/
+                                          间隙≥0.05/车辆ω违规=0;真值仅统计
+                                          不进导航栈)
+    tools/trackA/goal_footprint_audit.py 离线代价地图合成+足印审计(修复
+                                          行向量乘法=−yaw 旋转的镜像 bug)
+    tools/trackA/nav_demo_run.sh         无头一键编排(预检→Xvfb→导航→
+                                          验收→清理,每轮冷启动)
+    docs/track/nav_check_report.json     R12 终验:11/11 SUCCEEDED/到达
+                                          0.185/AMCL 0.125/ω违规0 全过;
+                                          最小间隙 0.041<0.05 未达 → 按原
+                                          判据 FAIL 归档(用户终审原文:
+                                          "阶段3仿真导航功能通过;最小间隙
+                                          0.041m,未达到0.05m验收要求,间隙
+                                          鲁棒性待改进。仅作为仿真开发检查
+                                          点,不作为真车自主驾驶放行依据")
+    docs/track/nav_r12_全程日志.txt      R12 完整运行日志(预检→启动→
+                                          逐阶段 5s 状态行→终报)
+    docs/track/nav_rviz_0_initial.png    初始:地图+代价地图+足迹
+    docs/track/nav_rviz_1_after.png      终态:整圈闭合轨迹+膨胀层着色
+                                          (AI 视觉复核通过)
+
+[18] 复验入口(WSL;注意 R12 同类结果=rc=1,间隙判据 0.041<0.05 属
+    预期 FAIL,功能判据全过;斜缝处方差带 0.033~0.076,4 采样全无接触)
+    ros2 launch racecar_bringup_sim navigation_bringup.launch.py \
+        use_gui:=false   # 交互(RViz 2D Goal Pose 单发目标)
+    bash tools/trackA/nav_demo_run.sh    # 无人值守全流程(~6 分钟)

@@ -1,0 +1,9 @@
+$ ip -brief addr
+lo               UNKNOWN        127.0.0.1/8 ::1/128 
+eth0             DOWN           
+eth1             UP             192.168.5.100/24 fe80::c274:2bff:fef8:169f/64 
+bond0            DOWN           
+usb0             DOWN           
+docker0          DOWN           172.17.0.1/16 
+wlan0            DOWN           
+[rc=0]

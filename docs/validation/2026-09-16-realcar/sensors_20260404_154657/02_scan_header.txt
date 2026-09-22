@@ -1,0 +1,5 @@
+stamp:
+  sec: 1775288825
+  nanosec: 506208768
+frame_id: laser_link
+---

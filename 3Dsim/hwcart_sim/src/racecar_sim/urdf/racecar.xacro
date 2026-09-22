@@ -14,6 +14,11 @@
 
  驱动: ros2_control + ackermann_steering_controller 2.53.3(本机已装,已核对接口:
    front_wheels_names ×2 转向 / rear_wheels_names ×2 驱动 / wheelbase / *_wheel_track)
+
+ 与实车契约的已知差异(2026-09-14 记录,阶段3 接 EKF 前处理):
+   里程计 frame 仿真用 odom(控制器默认),厂家契约用 odom_combined;
+   阶段1 定位为仿真差异不宣称对齐;阶段3 需确定唯一 TF 发布者并关闭
+   控制器 TF 桥(sim_wiring 的 /tf 桥接)避免双发
 ============================================================================= -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="racecar_sim">
 
@@ -351,17 +356,6 @@
           <format>R8G8B8</format>
         </image>
         <clip><near>0.05</near><far>30</far></clip>
-        <!-- [出厂标定 2026-09-15] plumb_bob 畸变注入(camera_info.yaml
-             k1/k2/p1/p2,k3=0),center 取标定主点归一化;
-             /camera_info 的 D 由 Gazebo 据此生成 -->
-        <distortion>
-          <k1>${cfg['cam_k1']}</k1>
-          <k2>${cfg['cam_k2']}</k2>
-          <k3>0.0</k3>
-          <p1>${cfg['cam_p1']}</p1>
-          <p2>${cfg['cam_p2']}</p2>
-          <center>${cfg['cam_cx']/cfg['cam_width']} ${cfg['cam_cy']/cfg['cam_height']}</center>
-        </distortion>
       </camera>
       <plugin name="camera_plugin" filename="libgazebo_ros_camera.so">
         <ros>

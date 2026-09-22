@@ -1,0 +1,34 @@
+trackA 车辆入场景验证日志(2026-09-15,integration/trackA-sdf)
+====================================================================
+范围声明:本轮 = 阶段1车辆在 trackA.world 的装载 + 传感器(扫描/成像)
++ 低速碰撞运行时验证。静态检查通过 + Gazebo 加载成功 + 本四项通过,
+均不代表传感器标定精度验收与驾驶/循迹验收完成(发车点为 asmp)。
+
+启动方式(headless):
+$ ros2 launch racecar_sim sim_bringup.launch.py use_gui:=false \
+    world:=trackA.world spawn_x:=11.0 spawn_y:=0.75 spawn_yaw:=0.0
+launch 变更:新增 world/spawn_x/spawn_y/spawn_yaw 四参数(默认
+racecar.world + 0/0/0,阶段1空场验收行为不变);GAZEBO_MODEL_PATH 追加
+pkg models(trackA_cone_* 解析);spawn_entity 增 -x/-y/-Y。
+
+四项验证器 /tmp/validate_trackA.py(只读运行时;/model_states 世界系
+真值对账,不信任里程计账面):
+[启动] joint_states 87.0 msg/s OK(控制器链激活)
+[启动] racecar 初始 (11.000,0.750,-0.000) vs spawn 偏差 0.000m OK
+[扫描] /scan 有效点 1083 min=0.601m OK
+  ← 独立印证:理论=底道半宽0.75 − 锥碰撞半径0.14 = 0.61m,实测0.601,
+    雷达确实打在官方尺寸(630×280)锥桶碰撞圆柱面上
+[成像] /image_raw 640x480 rgb8 蓝像素=637 红像素=811 OK(两色锥桶均入画;
+  headless gzserver 离屏渲染可用)
+[碰撞] cmd_vel v=0.4m/s ω=-0.9rad/s 6s 右转曲线 → 1 锥被撞动 OK
+  cone_b09(blue) CSV(10.968,0.000) → 撞后(10.699,0.002) 位移≈0.27m
+  racecar 终位姿(10.519,-0.278,-0.000),行驶1.13m,z 正常未翻车/穿地;
+  停车后 sim_wiring 0.5s 看门狗零速生效(观察期内无继续移动)
+launch log: "Successfully spawned entity [racecar]",无 error。
+validator_rc=0(ALL PASS)。
+
+已知边界(下一步处理):
+- 队友测试资产包(879f3e1)锥桶为静态模型:接入后撞倒/推移表现不可验证,
+  本轮动态锥碰撞记录即为此前提下的低速碰撞基线;接入须整套替换
+  visual/collision/mesh 并更新检查器"圆柱碰撞"断言为实际资产契约。
+- 发车点 (11.0,0.75) 为 asmp(规则未定发车点)。

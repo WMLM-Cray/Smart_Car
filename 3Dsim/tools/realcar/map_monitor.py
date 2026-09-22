@@ -1,0 +1,204 @@
+#!/usr/bin/env python3
+# 车机本机扫图监控渲染: /map + /scan + 轨迹 -> PNG (SSH 拉取显示用)
+# 2026-09-17 阶段1; 与 slam_scan.sh 同用; 只读订阅, 不动控制链
+# 2026-09-19 v2: 顶部新增 /scan 最后接收时间 + TF 数据时间新鲜度标注(过期红色 STALE);
+#                 /map 为静态图不持续更新, 只标"已加载"不判过期(静态地图停更≠故障)。
+# 2026-09-19 v3: 可选订阅规划路径话题(--path-topic 指定), 话题名不写死、默认不订阅(行为与 v2 一致);
+#                 路径按需更新不持续, 不判 STALE, 状态行标"最近收到 Ns ago"(非当前有效性判定);
+#                 路径 frame 与地图 frame 不一致走 TF 转换, 无 TF 则拒绝绘制(绝不直接套坐标);
+#                 空路径清空旧线(render 每帧重建, 天然清除)。frame 对齐/状态行纯逻辑在 path_display.py。
+# 退出: SIGINT/SIGTERM (自接管, 避免 rclpy 默认 handler 先 shutdown 的坑 6bb97d8)
+import argparse, os, signal, sys, time
+import numpy as np
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import rclpy
+from rclpy.node import Node
+from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy, HistoryPolicy
+from nav_msgs.msg import OccupancyGrid, Path
+from sensor_msgs.msg import LaserScan
+import tf2_ros
+import path_display   # 路径 frame 对齐 + 状态行纯逻辑(无 ROS 依赖, 可离线单测)
+
+OUT = os.path.expanduser("~/racecar_team/logs/slam/monitor.png")
+TMP = OUT + ".tmp.png"
+
+# 新鲜度阈值(秒): 超过即判输入冻结。scan 约 12Hz / TF 约 20Hz, 正常 age 恒 < 0.5s。
+SCAN_STALE = 2.0
+TF_STALE = 2.0
+
+
+class Monitor(Node):
+    def __init__(self, path_topic=None):
+        super().__init__("slam_map_monitor")
+        map_qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
+                             durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                             history=HistoryPolicy.KEEP_LAST)
+        scan_qos = QoSProfile(depth=5, reliability=ReliabilityPolicy.BEST_EFFORT,
+                              durability=DurabilityPolicy.VOLATILE,
+                              history=HistoryPolicy.KEEP_LAST)
+        self.create_subscription(OccupancyGrid, "/map", self.on_map, map_qos)
+        self.create_subscription(LaserScan, "/scan", self.on_scan, scan_qos)
+        self.tf = tf2_ros.Buffer()
+        tf2_ros.TransformListener(self.tf, self)
+        self.map = None
+        self.scan_pts = None
+        self.trail = []
+        # v2: 新鲜度时间戳(墙钟相对刻度, 车机钟慢5个月但相对差值可用)
+        self.last_scan_recv = None   # 最后收到 /scan 的墙钟时刻
+        self.last_tf_ok = None       # 最后一次 TF lookup 成功的墙钟时刻
+        # v3: 可选规划路径订阅(默认 None = 不订阅, 行为与 v2 完全一致)
+        self.path_topic = path_topic
+        self.path = None
+        self.last_path_recv = None
+        if path_topic:
+            # Nav2 规划路径惯例 transient_local+reliable; 现场若 QoS 不匹配收不到, 加参数或改此处
+            path_qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
+                                  durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                                  history=HistoryPolicy.KEEP_LAST)
+            self.create_subscription(Path, path_topic, self.on_path, path_qos)
+            self.get_logger().info(f"订阅规划路径话题: {path_topic}")
+
+    def on_map(self, msg):
+        self.map = msg
+
+    def on_path(self, msg):
+        self.path = msg
+        self.last_path_recv = time.time()
+
+    def _tf_lookup(self, target, source):
+        """给 path_display 用的 TF 查询: target<-source, 返回 (tx, ty, yaw 弧度); 查不到抛异常。"""
+        t = self.tf.lookup_transform(target, source, rclpy.time.Time())
+        tx = t.transform.translation.x
+        ty = t.transform.translation.y
+        yaw = 2.0 * np.arctan2(t.transform.rotation.z, t.transform.rotation.w)
+        return tx, ty, yaw
+
+    def on_scan(self, msg):
+        self.last_scan_recv = time.time()   # 收到即记, 不依赖后续 TF 是否成功
+        r = np.array(msg.ranges)
+        a = np.arange(len(r)) * msg.angle_increment + msg.angle_min
+        m = np.isfinite(r) & (r > msg.range_min) & (r < 8.0)
+        try:
+            t = self.tf.lookup_transform("map", "base_footprint", rclpy.time.Time())
+            tx = t.transform.translation.x
+            ty = t.transform.translation.y
+            tyaw = 2.0 * np.arctan2(t.transform.rotation.z, t.transform.rotation.w)
+        except Exception:
+            return  # TF 未就绪跳过本帧
+        self.last_tf_ok = time.time()   # TF 成功才记
+        x = r[m] * np.cos(a[m])
+        y = r[m] * np.sin(a[m])
+        self.scan_pts = (tx + x * np.cos(tyaw) - y * np.sin(tyaw),
+                         ty + x * np.sin(tyaw) + y * np.cos(tyaw))
+        self.trail.append((tx, ty))
+
+
+def _status_lines(mon):
+    """返回 [(文本, 颜色)] 列表, 供 render 在左上角绘制。"""
+    now = time.time()
+    lines = []
+    # /scan 新鲜度(实时数据, 应持续更新)
+    if mon.last_scan_recv is not None:
+        a = now - mon.last_scan_recv
+        stale = a > SCAN_STALE
+        lines.append((f"scan: {a:.1f}s ago {'[STALE]' if stale else '[ok]'}",
+                      "red" if stale else "green"))
+    else:
+        lines.append(("scan: 无数据 [STALE]", "red"))
+    # TF 数据时间(实时, 应持续更新)
+    if mon.last_tf_ok is not None:
+        a = now - mon.last_tf_ok
+        stale = a > TF_STALE
+        lines.append((f"tf: {a:.1f}s ago {'[STALE]' if stale else '[ok]'}",
+                      "red" if stale else "green"))
+    else:
+        lines.append(("tf: 无数据 [STALE]", "red"))
+    # /map 静态图, 不持续更新是正常的, 只标"已加载", 不判过期
+    lines.append(("map: 已加载(静态)" if mon.map is not None else "map: 无",
+                  "gray"))
+    # v3: 规划路径(仅当订阅了 path 话题才显示; 默认不订阅则不加此行, 与 v2 输出一致)
+    #     只标"最近收到+年龄", 不判 STALE, 不暗示是当前有效路径(见 path_display.path_status_text)
+    st = path_display.path_status_text(mon, now)
+    if st is not None:
+        lines.append(st)
+    return lines
+
+
+def render(mon):
+    fig, ax = plt.subplots(figsize=(8, 8), dpi=100)
+    if mon.map is not None:
+        m = mon.map
+        w, h = m.info.width, m.info.height
+        grid = np.array(m.data, dtype=np.int16).reshape(h, w)
+        img = np.full((h, w), 205, dtype=np.uint8)          # 未知 浅灰
+        img[grid > 50] = 0                                  # 占据 黑
+        img[(grid >= 0) & (grid <= 50)] = 254               # 自由 白
+        res = m.info.resolution
+        ox, oy = m.info.origin.position.x, m.info.origin.position.y
+        ax.imshow(img, cmap="gray", origin="lower",
+                  extent=[ox, ox + w * res, oy, oy + h * res])
+    if mon.path is not None:
+        xy, err = path_display.transform_path_poses(
+            mon.path.poses, mon.path.header.frame_id, mon._tf_lookup)
+        if err:
+            ax.text(0.02, 0.02, err, transform=ax.transAxes, color="red",
+                    fontsize=9, va="bottom",
+                    bbox=dict(facecolor="white", alpha=0.7, edgecolor="none"))
+        elif xy:
+            ax.plot([p[0] for p in xy], [p[1] for p in xy], "-c", lw=1.5, label="plan")
+        # xy 为空(空路径)则不画, 旧线随本帧 fig 重建自然消失
+    if mon.trail:
+        ax.plot([p[0] for p in mon.trail], [p[1] for p in mon.trail], "-b", lw=1, label="trail")
+    if mon.scan_pts is not None:
+        ax.plot(mon.scan_pts[0], mon.scan_pts[1], ".r", ms=2, label="scan")
+    if mon.trail:
+        ax.plot(mon.trail[-1][0], mon.trail[-1][1], "^g", ms=12, label="car")
+    ax.set_xlabel("x [m]")
+    ax.set_ylabel("y [m]")
+    ax.set_title("SLAM map monitor  (map + scan + trail)")
+    ax.legend(loc="upper right")
+    ax.set_aspect("equal")
+    # v2: 左上角新鲜度状态(transform=ax.transAxes, 不因 bbox_inches=tight 被裁)
+    for i, (txt, color) in enumerate(_status_lines(mon)):
+        ax.text(0.02, 0.98 - i * 0.05, txt, transform=ax.transAxes, fontsize=9,
+                color=color, va="top", fontweight="bold",
+                bbox=dict(facecolor="white", alpha=0.65, edgecolor="none"))
+    fig.savefig(TMP, bbox_inches="tight")
+    plt.close(fig)
+    os.replace(TMP, OUT)   # 原子替换, 拉图不会拉到半张
+
+
+def main():
+    # 先剥离本脚本自有参数(--path-topic), 剩余参数(含 --ros-args)再交 rclpy;
+    # 直接让 rclpy.init() 吞掉未知 --path-topic 会报 unknown option 并退出。
+    parser = argparse.ArgumentParser(description="车机扫图监控渲染 (map+scan+TF+可选plan)")
+    parser.add_argument("--path-topic", default=None,
+                        help="规划路径话题名(如 /plan, 现场发现; 默认不订阅, 行为同 v2)")
+    args, unknown = parser.parse_known_args()
+    rclpy.init(args=[sys.argv[0]] + unknown)
+    mon = Monitor(path_topic=args.path_topic)
+    running = {"v": True}
+
+    def on_sig(sig, frame):
+        running["v"] = False
+
+    signal.signal(signal.SIGINT, on_sig)
+    signal.signal(signal.SIGTERM, on_sig)
+    last = 0.0
+    while running["v"]:
+        rclpy.spin_once(mon, timeout_sec=0.2)
+        now = time.time()
+        if now - last > 2.0:
+            try:
+                render(mon)
+            except Exception as e:
+                print("render err:", e, file=sys.stderr)
+            last = now
+    mon.destroy_node()
+    rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()

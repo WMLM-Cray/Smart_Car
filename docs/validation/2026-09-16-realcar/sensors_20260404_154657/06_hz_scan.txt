@@ -1,0 +1,25 @@
+WARNING: topic [/scan] does not appear to be published yet
+average rate: 12.031
+	min: 0.077s max: 0.086s std dev: 0.00216s window: 13
+average rate: 12.015
+	min: 0.077s max: 0.087s std dev: 0.00205s window: 25
+average rate: 12.005
+	min: 0.077s max: 0.087s std dev: 0.00187s window: 37
+average rate: 12.021
+	min: 0.077s max: 0.087s std dev: 0.00198s window: 50
+average rate: 12.010
+	min: 0.077s max: 0.087s std dev: 0.00190s window: 62
+average rate: 11.997
+	min: 0.077s max: 0.087s std dev: 0.00180s window: 74
+average rate: 11.997
+	min: 0.077s max: 0.087s std dev: 0.00177s window: 86
+average rate: 12.002
+	min: 0.077s max: 0.087s std dev: 0.00168s window: 99
+average rate: 11.997
+	min: 0.077s max: 0.087s std dev: 0.00169s window: 111
+average rate: 12.000
+	min: 0.077s max: 0.087s std dev: 0.00166s window: 124
+average rate: 12.003
+	min: 0.077s max: 0.087s std dev: 0.00160s window: 137
+average rate: 11.997
+	min: 0.077s max: 0.087s std dev: 0.00157s window: 149

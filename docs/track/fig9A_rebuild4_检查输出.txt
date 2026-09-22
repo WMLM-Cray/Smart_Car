@@ -1,0 +1,174 @@
+========================================================================================================
+[OUTER] 1) connection gaps:
+  OK   E1 bottom      -> E2 RE-semi     gap=0.0000
+  OK   E2 RE-semi     -> E3 top-R       gap=0.0000
+  OK   E3 top-R       -> E4 V-arm-Ro    gap=0.0000
+  OK   E4 V-arm-Ro    -> E5 V-arm-Lo    gap=0.0000
+  OK   E5 V-arm-Lo    -> E6 conn-Wtop   gap=0.0000
+  OK   E6 conn-Wtop   -> E7 W-trans-o   gap=0.0000
+  OK   E7 W-trans-o   -> E8 V-dent-o    gap=0.0000
+  OK   E8 V-dent-o    -> E9 LL-trans-o  gap=0.0000
+  OK   E9 LL-trans-o  -> E10 top-L      gap=0.0000
+  OK   E10 top-L      -> E11 left-edge  gap=0.0000
+  OK   E11 left-edge  -> E12 LL-main    gap=0.0000
+  OK   E12 LL-main    -> E1 bottom      gap=0.0000
+[OUTER] 2) DIRECTED tangent breaks (0=smooth, 180=backtrack):
+  E1 bottom      -> E2 RE-semi     break=   0.00 deg
+  E2 RE-semi     -> E3 top-R       break=  43.64 deg  (corner)
+  E3 top-R       -> E4 V-arm-Ro    break=  66.14 deg  (corner)
+  E4 V-arm-Ro    -> E5 V-arm-Lo    break=  45.00 deg  (corner)
+  E5 V-arm-Lo    -> E6 conn-Wtop   break= 161.25 deg  (corner)
+  E6 conn-Wtop   -> E7 W-trans-o   break= 138.75 deg  (corner)
+  E7 W-trans-o   -> E8 V-dent-o    break=   0.00 deg
+  E8 V-dent-o    -> E9 LL-trans-o  break=   0.00 deg
+  E9 LL-trans-o  -> E10 top-L      break=   0.00 deg
+  E10 top-L      -> E11 left-edge  break=  90.00 deg  (corner)
+  E11 left-edge  -> E12 LL-main    break=   0.00 deg
+  E12 LL-main    -> E1 bottom      break=   0.00 deg
+[OUTER] 3) proximity screen (non-adjacent min sampled distance; SCREEN ONLY,
+            cannot prove absence of self-intersection):
+  none (all non-adjacent pairs keep >= 0.03 m)
+[OUTER] 4) self-intersection test (segment crossing on sampled polylines):
+  none (no strict crossings among non-adjacent sampled segments)
+  ==> total FAIL(s): 0
+
+========================================================================================================
+[INNER] 1) connection gaps:
+  OK   I1 bottom-I    -> I2 RE-semi-I   gap=0.0000
+  OK   I2 RE-semi-I   -> I3 top-R-I     gap=0.0000
+  OK   I3 top-R-I     -> I4 V-arm-Ri    gap=0.0000
+  OK   I4 V-arm-Ri    -> I5 V-arm-Li    gap=0.0000
+  OK   I5 V-arm-Li    -> I6 conn-WtopI  gap=0.0000
+  OK   I6 conn-WtopI  -> I7 W-trans-i   gap=0.0000
+  OK   I7 W-trans-i   -> I8 V-dent-i    gap=0.0000
+  OK   I8 V-dent-i    -> I9 LL-trans-i  gap=0.0000
+  OK   I9 LL-trans-i  -> I10 top-L-I    gap=0.0000
+  OK   I10 top-L-I    -> I11 left-I     gap=0.0000
+  OK   I11 left-I     -> I12 LL-main-I  gap=0.0000
+  OK   I12 LL-main-I  -> I1 bottom-I    gap=0.0000
+[INNER] 2) DIRECTED tangent breaks (0=smooth, 180=backtrack):
+  I1 bottom-I    -> I2 RE-semi-I   break=   0.00 deg
+  I2 RE-semi-I   -> I3 top-R-I     break=  43.64 deg  (corner)
+  I3 top-R-I     -> I4 V-arm-Ri    break=  66.14 deg  (corner)
+  I4 V-arm-Ri    -> I5 V-arm-Li    break=  45.00 deg  (corner)
+  I5 V-arm-Li    -> I6 conn-WtopI  break= 161.25 deg  (corner)
+  I6 conn-WtopI  -> I7 W-trans-i   break= 138.75 deg  (corner)
+  I7 W-trans-i   -> I8 V-dent-i    break=   0.00 deg
+  I8 V-dent-i    -> I9 LL-trans-i  break=   0.00 deg
+  I9 LL-trans-i  -> I10 top-L-I    break=   0.00 deg
+  I10 top-L-I    -> I11 left-I     break=  90.00 deg  (corner)
+  I11 left-I     -> I12 LL-main-I  break=   0.00 deg
+  I12 LL-main-I  -> I1 bottom-I    break=   0.00 deg
+[INNER] 3) proximity screen (non-adjacent min sampled distance; SCREEN ONLY,
+            cannot prove absence of self-intersection):
+  none (all non-adjacent pairs keep >= 0.03 m)
+[INNER] 4) self-intersection test (segment crossing on sampled polylines):
+  none (no strict crossings among non-adjacent sampled segments)
+  ==> total FAIL(s): 0
+
+========================================================================================================
+[SELFTEST 1] v2 backtrack ring through the REAL check_ring:
+========================================================================================================
+[SELFTEST1-backtrack] 1) connection gaps:
+  OK   B1             -> B2             gap=0.0000
+  FAIL B2             -> B1             gap=14.0500
+[SELFTEST1-backtrack] 2) DIRECTED tangent breaks (0=smooth, 180=backtrack):
+  B1             -> B2             break= 180.00 deg  <-- BACKTRACK/REVERSAL
+  B2             -> B1             break= 180.00 deg  <-- BACKTRACK/REVERSAL
+[SELFTEST1-backtrack] 3) proximity screen (non-adjacent min sampled distance; SCREEN ONLY,
+            cannot prove absence of self-intersection):
+  none (all non-adjacent pairs keep >= 0.03 m)
+[SELFTEST1-backtrack] 4) self-intersection test (segment crossing on sampled polylines):
+  none (no strict crossings among non-adjacent sampled segments)
+  ==> total FAIL(s): 3
+
+  SELFTEST1 CAUGHT (fails=3, expect >0: 180deg backtrack counted)
+
+[SELFTEST 2] crossed ring through the REAL check_ring:
+========================================================================================================
+[SELFTEST2-crossing] 1) connection gaps:
+  OK   X1             -> X2             gap=0.0000
+  OK   X2             -> X3             gap=0.0000
+  OK   X3             -> X4             gap=0.0000
+  OK   X4             -> X1             gap=0.0000
+[SELFTEST2-crossing] 2) DIRECTED tangent breaks (0=smooth, 180=backtrack):
+  X1             -> X2             break= 135.00 deg  (corner)
+  X2             -> X3             break= 135.00 deg  (corner)
+  X3             -> X4             break= 135.00 deg  (corner)
+  X4             -> X1             break= 135.00 deg  (corner)
+[SELFTEST2-crossing] 3) proximity screen (non-adjacent min sampled distance; SCREEN ONLY,
+            cannot prove absence of self-intersection):
+  FAIL X1             ~ X3             min-dist=0.0000 m
+[SELFTEST2-crossing] 4) self-intersection test (segment crossing on sampled polylines):
+  FAIL X1             x X3             4 segment crossing(s)
+  ==> total FAIL(s): 2
+
+  SELFTEST2 CAUGHT (fails=2, expect >0: crossing counted)
+
+========================================================================================================
+SEGMENTS (computed):
+  E1 bottom      line (  2.750,  0.000)-( 14.050,  0.000) L=11.300 [single segment, joins both lower tangency pts]
+  E2 RE-semi     arc  ( 14.050,  0.000)-( 14.050,  5.500) L= 8.639 [FULL 180deg semicircle (v3 fix kept)]
+  E3 top-R       line ( 14.050,  5.500)-( 13.924,  5.620) L= 0.174 [to yellow-V right shoulder]
+  E4 V-arm-Ro    line ( 13.924,  5.620)-( 11.097,  4.449) L= 3.060 [arm 3.06 @+22.5deg (envelope+chain)]
+  E5 V-arm-Lo    line ( 11.097,  4.449)-(  8.270,  5.620) L= 3.060 [arm 3.06 @-22.5deg]
+  E6 conn-Wtop   line (  8.270,  5.620)-(  8.407,  5.500) L= 0.182 [OPEN: yellow-V left shoulder -> W top (short line, NOT final)]
+  E7 W-trans-o   arc  (  8.407,  5.500)-(  6.462,  4.695) L= 2.160 [right transition 90->135, tangent to E6? (corner recorded)]
+  E8 V-dent-o    arc  (  6.462,  4.695)-(  4.695,  4.695) L= 1.963 [dent arc 315->225 via valley (5.578,4.328); R1.25 OUTER]
+  E9 LL-trans-o  arc  (  4.695,  4.695)-(  2.750,  5.500) L= 2.160 [left transition 45->90]
+  E10 top-L      line (  2.750,  5.500)-(  0.000,  5.500) L= 2.750 [tangent to LL circle at its top (height derived 5.50)]
+  E11 left-edge  line (  0.000,  5.500)-(  0.000,  2.750) L= 2.750 [square corner at (0,5.50) kept (v1 reading)]
+  E12 LL-main    arc  (  0.000,  2.750)-(  2.750,  0.000) L= 4.320 [90deg via 225 (v3 fix kept)]
+  I1 bottom-I    line (  2.750,  1.500)-( 14.050,  1.500) L=11.300 [y=1.5]
+  I2 RE-semi-I   arc  ( 14.050,  1.500)-( 14.050,  4.000) L= 3.927 [FULL 180deg semicircle]
+  I3 top-R-I     line ( 14.050,  4.000)-( 13.924,  4.120) L= 0.174 []
+  I4 V-arm-Ri    line ( 13.924,  4.120)-( 11.097,  2.949) L= 3.060 [outer arm + (0,-DV), DV code-set]
+  I5 V-arm-Li    line ( 11.097,  2.949)-(  8.270,  4.120) L= 3.060 []
+  I6 conn-WtopI  line (  8.270,  4.120)-(  8.407,  4.000) L= 0.182 [OPEN: inner shoulder -> W top (short line, NOT final)]
+  I7 W-trans-i   arc  (  8.407,  4.000)-(  7.523,  3.634) L= 0.982 [right transition 90->135]
+  I8 V-dent-i    arc  (  7.523,  3.634)-(  3.634,  3.634) L= 4.320 [dent arc via valley (5.578,2.828); R2.75 INNER (farther from V)]
+  I9 LL-trans-i  arc  (  3.634,  3.634)-(  2.750,  4.000) L= 0.982 [left transition 45->90]
+  I10 top-L-I    line (  2.750,  4.000)-(  1.500,  4.000) L= 1.250 [tangent to LL inner circle (height derived 4.00)]
+  I11 left-I     line (  1.500,  4.000)-(  1.500,  2.750) L= 1.250 [inner square corner at (1.5,4.00)]
+  I12 LL-main-I  arc  (  1.500,  2.750)-(  2.750,  1.500) L= 1.963 [90deg via 225]
+
+========================================================================================================
+CAND-B center-chain verification (adopted direction):
+  centers: LL=(2.750,2.750) V=(5.578,5.578) W=(8.407,2.750)
+  BLUE  chain: |LL-V|=4.000 (2.75+1.25=4.00) TANGENT | |V-W|=4.000 (1.25+2.75=4.00) TANGENT
+  RED   chain: |LL-V|=4.000 (1.25+2.75=4.00) TANGENT | |V-W|=4.000 (2.75+1.25=4.00) TANGENT
+  |LL-W|=5.657  |W-RE|=5.643  (equal spacing? diff=0.014)
+  joints blue: (4.695,4.695) (6.462,4.695)   red: (3.634,3.634) (7.523,3.634)
+  chain splits: P1=(3.634,3.634) P2=(4.695,4.695)
+  blue left joint == P2 ? dev=0.0000 | red left joint == P1 ? dev=0.0000
+  derived top heights: blue 5.50 (envelope 5.60, dev 0.10) | red 4.00 (envelope 4.15, dev 0.15)
+  outer valley (5.578,4.328) vs envelope 4.61 dev 0.282 | inner valley (5.578,2.828) vs envelope 2.95 dev 0.122
+  NOTE: envelope deviations are RETAINED for review (kept open, NOT auto-
+        dismissed as image noise). The old v3 'ends inset ~0.5' comparison is
+        RETRACTED: it compared against chord ends on the top line, which is
+        not how this model joins (arcs join arcs at tangent points).
+
+  RADIUS ASSIGNMENT CORRECTION (retracts v3 structural finding):
+   at V the dent points into the track -> inner boundary is FARTHER from V;
+   blue R1.25 / red R2.75 (flipped vs LL/W). Radial gap |2.75-1.25|=1.5 at
+   ALL three centers -> concentric lane width 1.5 holds through the dent.
+
+========================================================================================================
+WIDTHS (radial/vertical gaps in this rebuild):
+  bottom lane            y=0 vs y=1.5                                    1.500 m
+  left lane              x=0 vs x=1.5                                    1.500 m
+  right lane             RE concentric semicircles                       1.500 m
+  LL corners             concentric R2.75/R1.25                          1.500 m
+  top straight           derived heights 5.50 vs 4.00                    1.500 m
+  LL/W transitions       concentric at LL and W centers                  1.500 m
+  V dent                 concentric at V center (flipped radii)          1.500 m
+  V-band vertical drop   code-set DV=1.50 (open semantics)               1.500 m
+  V-band perpendicular   DV*cos(22.5) (open semantics)                   1.386 m
+
+  OPEN items (NOT resolved this round):
+   - yellow-V connections: E6/I6 short lines shoulder->W-top are placeholders;
+     corner breaks ~139-161deg recorded as-is, not promoted to 'final'.
+   - V-band width semantics: vertical 1.50 vs perpendicular 1.386 (DV code-set).
+
+TOTAL FAIL(s) incl. selftest expectations: 0
+EXIT: 0

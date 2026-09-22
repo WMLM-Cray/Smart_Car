@@ -1,0 +1,26 @@
+[Unit]
+Description=Racecar manual teleop chain (joy->teleop->safety->driver, team overlay)
+# 手动启停的独立运行单元(2026-09-17):
+#   - 解决"SSH 断开导致手柄链退出":链进程全部在本服务 cgroup 内,与登录会话无关;
+#   - 只手动 systemctl start/stop,不 enable 开机自启(故障不自动重启掩盖);
+#   - 服务管理不替代下位机看门狗与物理停止手段(断电调开关仍是第一优先)。
+
+[Service]
+Type=simple
+User=orange-pi
+WorkingDirectory=/home/orange-pi
+ExecStart=/bin/bash /home/orange-pi/racecar_team/teleop_manual.sh
+# mixed:先只给主进程(脚本)发 SIGTERM,让 trap 按序收链(指令源→零速帧→driver→安全层);
+# TimeoutStopSec 后仍存活的 cgroup 残余(含 setsid 逃逸进程组的 launch 孙进程)由 systemd SIGKILL。
+# cgroup 即"本链进程"的归属边界,替代全局按名 pkill,不误杀其他 ROS 任务。
+KillMode=mixed
+# 停链耗时:脚本内 sleep 合计≈4s + driver SIGINT 退出可耗时 8s+ → 45s 裕量
+TimeoutStopSec=45
+# 不自动重启:重启会静默恢复链路而非恢复运动(teleop 上电锁定保证零速起步),
+# 但任何异常停机都应人工查看日志后手动重启,不用 Restart= 掩盖故障。
+Restart=no
+SyslogIdentifier=racecar-teleop-manual
+
+[Install]
+# 存在 Install 段仅供需要时 enable;默认不 enable、不自启。
+WantedBy=multi-user.target

@@ -1,0 +1,79 @@
+# =============================================================================
+# 阶段3 第三步:AMCL 定位参数(trackA 已存地图 trackA_map_full)
+# 场景:sim_bringup(车+控制器,enable_odom_tf=true 出 odom→base_footprint TF)
+#      + nav2 map_server(载入地图) + nav2 amcl(发布 map→odom TF 与 /amcl_pose)
+# 激活:nav2_lifecycle_manager 自动 configure/activate(map_server→amcl)
+#
+# 坐标系推导(重要):
+#   控制器里程计从单位元启动 → slam_toolbox 建图时 map 系与 odom 系重合,
+#   地图系原点=出生点 Gazebo(11.0,0.75,yaw0)。因此本场景再次从同一出生点
+#   启动时,AMCL 初始位姿(map 系)就是 (0,0,0);真值换算 map=gz-(11.0,0.75)。
+#   与地图 origin [-11.1,-0.863,0] 自洽(赛道 Gazebo x∈[0,16.8],y∈[0,5.5])。
+#
+# 激光依据(urdf racecar.xacro + params.yaml 冻结值):
+#   360°/12Hz(仿真目标,实车实测 11.99)/1667 采样(实车确认)/量程 0.15~25.0m/
+#   高斯噪声 σ=0.01 → likelihood_field
+# 手动初始位姿:RViz 2D Pose Estimate 工具发 /initialpose(人工交互路径);
+#   无人值守时用 set_initial_pose+initial_pose(即"人工初始位姿"的先给值)。
+# =============================================================================
+map_server:
+  ros__parameters:
+    use_sim_time: true
+    yaml_filename: ""        # 由 localization_bringup.launch.py 的 map 参数注入
+
+amcl:
+  ros__parameters:
+    use_sim_time: true
+    # ---- 里程计运动模型噪声(轮式里程计+仿真地面滑移,常规量级) ----
+    alpha1: 0.2              # 旋转-旋转
+    alpha2: 0.2              # 平移-旋转
+    alpha3: 0.2              # 平移-平移
+    alpha4: 0.2              # 旋转-平移
+    alpha5: 0.2              # 平移(横向,差速模型忽略)
+    # ---- 帧与话题(与 sim_wiring 桥接链路一致) ----
+    base_frame_id: base_footprint
+    odom_frame_id: odom
+    global_frame_id: map
+    scan_topic: /scan
+    map_topic: /map
+    # ---- 初始位姿:出生点在 map 系 = (0,0,0) ----
+    set_initial_pose: true
+    initial_pose:
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      yaw: 0.0
+    # ---- 激光模型(likelihood_field) ----
+    laser_model_type: likelihood_field
+    laser_min_range: -1.0    # -1 = 用传感器最小值(0.15)
+    laser_max_range: 25.0    # 冻结量程
+    max_beams: 180           # 1667 束抽稀到 180(humble 参数名是 max_beams,
+                             # 写 laser_max_beams 会被静默忽略)
+    z_hit: 0.9
+    z_rand: 0.1
+    sigma_hit: 0.15
+    # ---- 粒子滤波 ----
+    min_particles: 500
+    max_particles: 2000
+    pf_err: 0.05
+    pf_z: 0.99
+    resample_interval: 1
+    recovery_alpha_slow: 0.001
+    recovery_alpha_fast: 0.1
+    # humble 的运动模型是 pluginlib 插件类名(ROS1 的 "differential" 会令
+    # initOdometry 的 createSharedInstance 抛异常→on_configure 失败,
+    # 2026-09-16 实测:lifecycle 报 "Failed to change state for node: amcl")
+    robot_model_type: "nav2_amcl::DifferentialMotionModel"
+    # ---- 更新触发阈值(低速短程验收,取小以多出几次位姿更新) ----
+    update_min_d: 0.10
+    update_min_a: 0.10
+    # ---- TF ----
+    tf_broadcast: true
+    transform_tolerance: 1.0
+
+lifecycle_manager_localization:
+  ros__parameters:
+    use_sim_time: true
+    node_names: ["map_server", "amcl"]
+    autostart: true
+    bond_timeout: 8.0

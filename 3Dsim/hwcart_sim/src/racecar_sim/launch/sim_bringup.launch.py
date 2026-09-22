@@ -10,11 +10,12 @@ import yaml
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, EmitEvent, ExecuteProcess, RegisterEventHandler
+from launch.actions import (DeclareLaunchArgument, EmitEvent,
+                            ExecuteProcess, RegisterEventHandler)
 from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
 from launch.events import Shutdown
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 
 
@@ -73,17 +74,22 @@ def generate_launch_description():
     #    注意:gzserver 不解析 --ros-args(官方 gzserver.launch.py 无此透传,
     #    实测 gzserver 会把 remap 串当 world 路径打开报错)。
     #    /cmd_vel 接线与 odom TF 桥由 launch 末尾的 sim_wiring 节点完成。
-    #    world 用自带 racecar.world(=empty.world + gazebo_ros_state 插件):
+    #    world 参数:默认 racecar.world(=empty.world + gazebo_ros_state 插件,
+    #    阶段1车辆验收空场,行为与旧版完全一致);传 trackA.world 即 63 锥
+    #    赛道(锥桶坐标唯一来源=冻结 CSV,include pose 即坐标;锥桶资产=
+    #    racecar_test_assets cone_{blue,red},GAZEBO_MODEL_PATH 由该包
+    #    env-hook 在 source 工作区时导出,launch 不再手工追加)。
     #    libgazebo_ros_state.so 是 WorldPlugin,-s 只装 SystemPlugin,强装
     #    报 "incorrect plugin type" 且 factory 服务起不来(实测)。它提供
     #    /gazebo/get_entity_state,验收用世界系真实位姿与里程计对账——
     #    只看账面会被错误运动学骗过(2026-09-14 独立验收教训)
-    world_file = os.path.join(pkg_share, 'worlds', 'racecar.world')
+    world_file = PathJoinSubstitution(
+        [pkg_share, 'worlds', LaunchConfiguration('world')])
     gzserver = ExecuteProcess(
         cmd=['gzserver', '--verbose',
              '-s', 'libgazebo_ros_init.so',
              '-s', 'libgazebo_ros_factory.so',
-             LaunchConfiguration('world')],
+             world_file],
         output='screen',
     )
     gzclient = ExecuteProcess(
@@ -92,22 +98,21 @@ def generate_launch_description():
         output='screen',
     )
 
-    # 3) 车模 spawn(z 略抬防穿模,落地稳定)
+    # 3) 车模 spawn(z 略抬防穿模,落地稳定)。x/y/yaw 可配:trackA 用
+    #    底道起点 (11.0, 0.75, 0)(asmp:底道 y∈[0,1.5] 车道中心,朝 +x;
+    #    规则未定发车点,仅仿真验证用)。默认 0/0/0 与旧验收一致
     spawn_entity = Node(
         package='gazebo_ros',
         executable='spawn_entity.py',
         arguments=['-topic', 'robot_description',
                    '-entity', 'racecar',
+                   '-x', LaunchConfiguration('spawn_x'),
+                   '-y', LaunchConfiguration('spawn_y'),
                    '-z', '0.02',
-                   # 出生点。默认 0,0,0 是自带 racecar.world 的空地中心;固定赛道
-                   # 的起点不在原点(赛道 A 是 11.0, 0.75 朝 +x,见 trackA_layout.yaml
-                   # 的 start_pose),不给就会生在赛道外面。
-                   '-x', LaunchConfiguration('x'),
-                   '-y', LaunchConfiguration('y'),
-                   '-Y', LaunchConfiguration('yaw'),
-                   # 2026-09-15 竞态修复:spawn_entity.py 对 /spawn_entity 服务
-                   # 的 wait_for_service 默认只等 30s,WSL 下 gzserver 加载
-                   # world+插件偶发超时(第2轮验证启动失败根因)。放宽到 60s;
+                   '-Y', LaunchConfiguration('spawn_yaw'),
+                   # 竞态修复(选择性引入自远端 ed613bd,仅此一项):spawn_entity.py
+                   # 对 /spawn_entity 服务的 wait_for_service 默认只等 30s,WSL 下
+                   # gzserver 加载 world+插件偶发超时导致启动失败;放宽到 60s,
                    # 服务就绪探测交给上游,超时仍走事件链失败传播并写明原因
                    '-timeout', '60'],
         output='screen',
@@ -155,14 +160,16 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('use_gui', default_value='true',
                               description='启动 gzclient 图形界面(headless 测试传 false)'),
-        # 换赛道用。默认仍是自带的 racecar.world,原有行为不变。
-        # 自定义 world 要自己带 libgazebo_ros_state.so 插件(见 racecar.world 注释),
-        # track_generator 出的 world 可用 3Dsim/make_sim_world.py 补上。
-        DeclareLaunchArgument('world', default_value=world_file,
-                              description='gzserver 加载的 world 文件路径'),
-        DeclareLaunchArgument('x', default_value='0.0', description='出生点 x'),
-        DeclareLaunchArgument('y', default_value='0.0', description='出生点 y'),
-        DeclareLaunchArgument('yaw', default_value='0.0', description='出生点朝向 rad'),
+        DeclareLaunchArgument('world', default_value='racecar.world',
+                              description=('世界文件名(相对 share/racecar_sim/worlds/):'
+                                           'racecar.world=空场(默认,阶段1验收不变);'
+                                           'trackA.world=63锥赛道(冻结CSV坐标)')),
+        DeclareLaunchArgument('spawn_x', default_value='0.0',
+                              description='车模 spawn 世界系 x(trackA 底道起点 11.0)'),
+        DeclareLaunchArgument('spawn_y', default_value='0.0',
+                              description='车模 spawn 世界系 y(trackA 底道起点 0.75)'),
+        DeclareLaunchArgument('spawn_yaw', default_value='0.0',
+                              description='车模 spawn 朝向 yaw/rad(trackA 发车朝 +x 为 0)'),
         robot_state_publisher,
         gzserver,
         gzclient,

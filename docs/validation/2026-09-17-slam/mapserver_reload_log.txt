@@ -1,0 +1,22 @@
+[INFO] [1775300197.821731665] [map_server]: 
+	map_server lifecycle node launched. 
+	Waiting on external lifecycle transitions to activate
+	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[INFO] [1775300197.821992604] [map_server]: Creating
+[INFO] [1775300204.937863549] [map_server]: Configuring
+[INFO] [1775300204.938031737] [map_io]: Loading yaml file: /home/orange-pi/racecar_team/maps/room_20260917/map.yaml
+[INFO] [1775300204.938656509] [map_io]: resolution: 0.05
+[INFO] [1775300204.938690655] [map_io]: origin[0]: -2.50022
+[INFO] [1775300204.938706447] [map_io]: origin[1]: -2.06828
+[INFO] [1775300204.938719780] [map_io]: origin[2]: 0
+[INFO] [1775300204.938732885] [map_io]: free_thresh: 0.25
+[INFO] [1775300204.938745947] [map_io]: occupied_thresh: 0.65
+[INFO] [1775300204.938759301] [map_io]: mode: trinary
+[INFO] [1775300204.938773176] [map_io]: negate: 0
+[INFO] [1775300204.939044865] [map_io]: Loading image_file: /home/orange-pi/racecar_team/maps/room_20260917/map.pgm
+[INFO] [1775300204.946315950] [map_io]: Read map /home/orange-pi/racecar_team/maps/room_20260917/map.pgm: 83 X 72 map @ 0.05 m/cell
+[INFO] [1775300222.061142992] [map_server]: Shutting down
+[INFO] [1775300223.377855215] [rclcpp]: signal_handler(signum=15)
+[INFO] [1775300223.378042320] [map_server]: Running Nav2 LifecycleNode rcl preshutdown (map_server)
+[INFO] [1775300223.378174487] [map_server]: Destroying bond (map_server) to lifecycle manager.
+[INFO] [1775300223.384619612] [map_server]: Destroying

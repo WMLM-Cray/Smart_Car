@@ -1,0 +1,79 @@
+===== [1/8] 一键启动(use_gui:=false) =====
+[PASS] spawn 成功
+[PASS] 无 parser error(注释剥离生效)
+[PASS] 启动链各环退出码全零
+===== [2/8] 控制器激活 =====
+[92mjoint_state_broadcaster      [0m joint_state_broadcaster/JointStateBroadcaster              [92mactive[0m
+[92mackermann_steering_controller[0m ackermann_steering_controller/AckermannSteeringController  [92mactive[0m
+[PASS] joint_state_broadcaster active
+[PASS] ackermann_steering_controller active
+joint_states: N=6 POS_LEN=6 VEL_LEN=6 MISSING=ok NONFINITE=ok
+[PASS] joint_states 含 6 关节(4 控制关节 + 2 前轮自转)
+[PASS] position/velocity 数组长度=6 与关节名一致
+[PASS] 6 关节名齐全(含前轮自转 spin joint)
+[PASS] 位置/速度值全部有限
+===== [3/8] 传感器(频率容差) =====
+/scan: 9.992 Hz(标称 10)
+[PASS] /scan 频率 9.992Hz 在容差内
+/image_raw: 30.001 Hz(标称 30)
+[PASS] /image_raw 频率 30.001Hz 在容差内
+/IMU_data: 199.917 Hz(标称 200)
+[PASS] /IMU_data 频率 199.917Hz 在容差内
+[PASS] /scan 时间戳有效(sec=52)
+[PASS] /IMU_data 时间戳有效(sec=53)
+===== [4/8] TF:厂家/物理/光学 frame =====
+laser_link:        - Translation: [0.070, 0.000, 0.000]
+[PASS] 厂家 laser_link z=0 保留
+laser_sensor_link: - Translation: [0.070, 0.000, 0.210]
+[PASS] laser_sensor_link z=0.21(物理高度)
+[PASS] /scan frame_id=laser_sensor_link
+[PASS] /IMU_data frame_id=imu_sensor_link
+[PASS] /image_raw frame_id=camera_optical
+camera_optical:    - Rotation: in RPY (radian) [-1.571, -0.000, -1.571]
+[PASS] camera_optical rpy=(-π/2,0,-π/2) 光学约定
+===== [5/8] 静止/测距/图像(车未动) =====
+静止 2s: (0.0019,0.0017,z=-0.0000) → (0.0020,0.0019,z=-0.0000)
+[PASS] 零指令静止(位移 0.0002m<0.05)
+[PASS] 接地:静止时 z=-0.0000m≈0(footprint 贴地)
+/scan 正前方(角0)读数: 5.678m(射线交点期望 5.678±0.10)
+[PASS] 障碍物测距 5.678m≈期望5.678m(射线-AABB 交点,含雷达世界坐标变换)
+/image_raw data: IMG_OK n=921600 max=178(期望 n≈921600=640×480×3)
+[PASS] /image_raw 非空图像(n=921600 max=178)
+===== [6/8] 直行与倒车(同消息稳态度量) =====
+-- 直行 0.5m/s × 10s --
+稳态瞬时 V=0.49354245134192193m/s | odom 全程平均 V=0.490m/s(收敛点法) | 指令 0.5
+[PASS] 直行稳态瞬时速度 0.49354245134192193m/s≈0.5(odometry 同消息 twist,±10%)
+[PASS] 直行全程平均速度 0.490m/s(odom stamp 同源,含斜坡损耗)
+Gazebo 全程 Δx=4.864m Δyaw=-0.0018rad
+[PASS] 直行 Gazebo 全程位移 Δx=4.864m(0.5×10s 扣冷启动/斜坡)
+odom→base_footprint: - Translation: [4.861, -0.000, 0.000]
+[PASS] 直行 odom 位移 x=4.861m>1.0
+[PASS] 账面-真实偏差 -0.003m<0.3
+[PASS] 直行 yaw 漂移 -0.0018rad<5°
+-- 倒车 -0.3m/s × 4s --
+倒车真实 Δx=-1.115m
+[PASS] 倒车 Δx=-1.115m<-0.35
+===== [7/8] 左右转弯(不饱和)/停车/限位 =====
+-- 左转 v=0.4 ω=0.25 × 10s(内轮理论角 0.247 < 限位 0.55,不饱和) --
+转弯中前轮角: left=0.24310954624633485 right=0.2026372872908695; 后轮速: left=3.936333772638116 right=4.892492444201985
+稳态瞬时 ω=0.2458070639944311rad/s | odom 全程平均 ω=0.243rad/s(收敛点法) | Gazebo 全程 Δyaw=2.3975rad | 指令 0.25
+[PASS] 左转稳态瞬时角速度 0.2458070639944311rad/s≈0.25(odometry 同消息 twist,±10%)
+[PASS] 左转全程平均角速度 0.243rad/s(odom stamp 同源)
+[PASS] 左转 Δyaw=+2.3975rad>0.3(与 ω 同号)
+[PASS] 左转为内侧:左前角0.24310954624633485>右前角0.2026372872908695
+[PASS] 外侧右后轮速更快(|4.892492444201985|>|3.936333772638116|)
+-- 右转 v=0.4 ω=-0.25 × 5s --
+右转真实Δyaw=-1.1814rad;前轮角 left=-0.2026501340254363 right=-0.2431318505344926
+[PASS] 右转 Δyaw=-1.1814rad<-0.3(与 ω 同号)
+[PASS] 右转为内侧:|右前角-0.2431318505344926|>|左前角-0.2026501340254363|
+[PASS] 外侧左后轮速更快(|4.815174411471049|>|3.8888919490530416|)
+-- 超时停车(指令停止后 sim_wiring watchdog 自动发零速) --
+超时停车采样: PA=(4.4123,5.3177,z=-0.0000,yaw=1.2305) PB=(4.4122,5.3177,z=-0.0000,yaw=1.2308)
+[PASS] 指令超时自动停车(1.5s 位移 0.0001m<0.05)
+-- 限位饱和 v=0.2 ω=0.8 × 3s(内轮理论角 1.45 > 限位 0.55,应饱和) --
+限位下前轮角: left=0.5498349416253125 right=0.5491274798121779
+[PASS] 左前角饱和于区间内(左前|0.5498349416253125|∈[0.50,0.57],零角度不通过)
+[PASS] 右前角饱和于区间内(右前|0.5491274798121779|∈[0.50,0.57],零角度不通过)
+
+===== [8/8] 结果: PASS=42 FAIL=0 =====
+ALL_GREEN

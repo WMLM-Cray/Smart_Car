@@ -1,0 +1,13 @@
+  起 safety(pid=392): python3 /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/tools/teleop/../realcar/cmd_vel_safety.py
+  起 teleop(pid=393): ros2 run racecar_teleop teleop_node --ros-args --params-file /mnt/f/影音/BaiduSyncdisk/programss/华为小车/07-仿真系统/tools/teleop/realcar_teleop.yaml -r /teleop/cmd_vel:=/cmd_vel
+PASS [S1] 上电即按住使能不运动(判据1)  -> 最近样本=[(0.0, 0.0), (0.0, 0.0), (0.0, 0.0)]
+PASS [S2] 解锁后满油门: linear.x→0.10 限幅, angular≈0  -> 样本=[(0.1, 0.0), (0.1, 0.0), (0.1, 0.0)]
+PASS [S3] 松使能立即零速  -> 样本=[(0.0, 0.0), (0.0, 0.0), (0.0, 0.0)]
+PASS [S4] 满舵转向 angular.z≈0.1014(实测样本含 0.1014)  -> 帧值对账: motor=1550 servo=1368(公式×100+1540/1500−ω×1300)
+PASS [S5] 断流后 /car_cmd_vel 恒零(teleop锁定+safety超时零速)  -> 样本=[(0.0, 0.0), (0.0, 0.0), (0.0, 0.0)]
+PASS [S6] 断流恢复(仍按使能)不自行运动(判据3b,e2113b0补丁)  -> 样本=[(0.0, 0.0), (0.0, 0.0), (0.0, 0.0)]
+PASS [S7] 锁定恢复:杆仍推着重按使能不得起步,回死区一次后恢复(判据4+7)  -> 按使能(杆0.9)样本=[(0.0, 0.0), (0.0, 0.0), (0.0, 0.0)] 回中+推杆后样本=[(0.1, 0.0), (0.1, 0.0), (0.1, 0.0)]
+PASS [S8] teleop 退出后 safety 超时零速  -> 样本=[(0.0, 0.0), (0.0, 0.0), (0.0, 0.0)]
+
+==== 全链复验汇总: S1-S8, PASS=8 FAIL=0 ====
+帧值对账(未实测串口,引用6bb97d8字节级联调结论): 满油门 motor=1550 servo=1500 | 左满舵 servo=1368

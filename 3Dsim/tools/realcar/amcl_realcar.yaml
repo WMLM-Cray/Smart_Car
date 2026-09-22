@@ -1,0 +1,41 @@
+# AMCL 实车定位参数 (2026-09-17 阶段2)
+# frame 名称=实车真实约定(与厂家 EKF/阶段1扫图一致), 禁止为启动成功改名:
+#   map / odom_combined(EKF发布odom_combined->base_footprint) / base_footprint / laser_link(static)
+# robot_model_type 用 Humble 插件类名(裸 "differential" 会 initOdometry 抛异常,
+#   lifecycle configure 失败——仿真阶段3 2026-09-16 定案)
+# max_beams=180: 实车 1667 点/帧抽稀(与仿真同口径)
+# update_min_d/a 保持 nav2 默认(0.25/0.2618), 不为本轮通过放宽
+amcl:
+  ros__parameters:
+    use_sim_time: false
+    alpha1: 0.2
+    alpha2: 0.2
+    alpha3: 0.2
+    alpha4: 0.2
+    alpha5: 0.2
+    base_frame_id: base_footprint
+    odom_frame_id: odom_combined
+    global_frame_id: map
+    scan_topic: scan
+    set_initial_pose: false
+    always_reset_initial_pose: false
+    first_map_only: true
+    laser_model_type: "likelihood_field"
+    laser_max_range: 12.0
+    laser_min_range: -1.0
+    max_beams: 180
+    z_hit: 0.5
+    z_max: 0.05
+    z_rand: 0.5
+    sigma_hit: 0.2
+    max_particles: 2000
+    min_particles: 500
+    robot_model_type: "nav2_amcl::DifferentialMotionModel"
+    robot_radius: 0.30
+    tf_broadcast: true
+    transform_tolerance: 1.0
+    update_min_d: 0.25
+    update_min_a: 0.2618
+    resample_interval: 1
+    recovery_alpha_slow: 0.0
+    recovery_alpha_fast: 0.0
