@@ -11,7 +11,9 @@ REV = 1470          # 会让车往后走
 def test_only_moving_commands_arm_it():
     assert moves(FWD) and moves(REV)
     assert not moves(SPEED_MID)
-    assert not moves(1599) and not moves(1501)      # 电调死区内,车不动
+    assert not moves(SPEED_MID + 5) and not moves(1501)   # 中位附近才算不动
+    # 2026-09-24:1584~1599 车照样跑(平台 ~0.6 m/s),这段必须武装看门狗
+    assert all(moves(p) for p in range(1584, 1600))
 
 
 def test_fires_after_the_publisher_goes_quiet():
@@ -65,3 +67,13 @@ def test_creep_pulses_are_not_cancelled():
         t = i * 0.05
         d.on_cmd(FWD if i % 6 == 0 else SPEED_MID, t)
         assert not d.tick(t), f'第 {i} 拍({t:.2f}s)抢了爬行脉冲'
+
+
+def test_neutral_steer_comes_from_params():
+    """补中位时方向也要回真中位。原来写死 84(实测 80),车带着偏角滑向墙。"""
+    import ast
+    import os
+    src = open(os.path.join(os.path.dirname(__file__), 'watchdog.py'), encoding='utf-8').read()
+    for n in ast.walk(ast.parse(src)):
+        if isinstance(n, ast.Assign) and any(getattr(t, 'id', '') == 'TURN_MID' for t in n.targets):
+            assert not isinstance(n.value, ast.Constant), 'TURN_MID 又被写死了'

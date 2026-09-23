@@ -19,7 +19,12 @@ PWM 上限硬限在 1620(PWM_HARD_MAX),这是安全线不是标定值:2026-09-21
 先落地实测 /encoder,跑不动就用占空比降速,不要抬上限。
 
 用法:python3 teleop/steer_policy_node.py runs/policy_s3_steer.npz [--pwm 1600] [--speed 0.6]
+      python3 teleop/steer_policy_node.py runs/candidate_060.npz --speed-loop --speed 0.7
       python3 teleop/steer_policy_node.py runs/candidate_060.npz --sim --speed 0.45
+
+--speed-loop(2026-09-24):油门改走 speed_loop.SpeedLoop 编码器闭环,目标就是 --speed。
+固定 PWM 的车速随电压差 40%(同一个 1610 满电 0.80、11.24V 0.52 m/s),闭环按实测曲线
+调过、直线实车验证过(docs/validation/2026-09-24-pid)。不加这个开关还是原来的固定 PWM。
 
 --sim 接队友的 racecar_sim:那边收物理量 Twist 的 /cmd_vel,angular.z 是**偏航角速度**
 不是前轮转角,换算走 fastsim.interop.to_cmd_vel。仿真里也没有 /encoder,车速只能从
@@ -50,6 +55,7 @@ from fastsim.low_speed_policy import SteeringPolicy, observe
 from fastsim.params import CarParams
 from fastsim.pwm import steer_to_turn
 from scan_guard import ScanGuard
+from speed_loop import SpeedLoop
 
 # 实车 / 仿真的接口差异只有这两行,和 policy_node.py 同一套。
 CAR = ('/teleop_cmd_vel', '/encoder')
@@ -60,6 +66,17 @@ GUARD_STOP = 0.25       # 保险杠前净空小于这个就回中位(米)
 ENABLE_TIMEOUT = 0.3    # /policy_enable 是心跳不是开关
 STUCK_SECONDS = 3.0     # 连续截停这么久就当卡死,报 error —— 见 tick() 注释
 PWM_HARD_MAX = 1620     # --pwm 的硬上限。2026-09-21 架空试跑差点冲出去,限死在这
+
+# 油门每个 tick 最多加这么多。20Hz * 1 = 20 PWM/s,和所有测速脚本里 ramp_to()
+# 用的 +2/0.1s 是同一个速率,2026-09-22 架空实测这个速率能起转。
+#
+# 上下都不能省:
+#   * 一步从中位跳到目标可能突然起步;2026-09-23 落地单步到 1600
+#     曾让车走出约 0.3m,不能把"电调拒绝跳变"当作保护。
+#   * 爬得太慢也起不来 -> 同一天实测 +2/1s(2 PWM/s)从 1550 爬到 1650 全程不转,
+#     换成 +2/0.1s 立刻转。所以这个值不是"越保守越安全",调小了车就不走了。
+# 减速方向不受这个限制:截停要立刻生效,见 tick()。
+PWM_RAMP_UP = 1.0
 
 
 def main():
@@ -73,6 +90,11 @@ def main():
         elif a == '--guard':
             guard = float(sys.argv[i + 1])
     sim = '--sim' in sys.argv
+    speed_loop = '--speed-loop' in sys.argv
+    if speed_loop and (sim or pwm is not None):
+        sys.exit('--speed-loop 是实车闭环油门:不能和 --sim 或 --pwm 一起用')
+    if speed_loop and not 0.0 < (target or 0.0) <= 1.0:
+        sys.exit(f'--speed-loop 要配 --speed,且在 (0, 1.0] m/s,给的是 {target}')
     pwm = 1600.0 if pwm is None else pwm
     target = 0.6 if target is None else target
     if not sim and not CarParams().pwm_mid < pwm <= PWM_HARD_MAX:
@@ -87,7 +109,7 @@ def main():
     # systemctl stop 停节点时车收不到中位。2026-09-21 实测。watchdog 能兜住,
     # 但不该指望兜底。和 pwm_sweep.py 同一套做法。
     rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
-    node = SteerPolicyNode(argv[0], pwm, target, sim, guard_stop)
+    node = SteerPolicyNode(argv[0], pwm, target, sim, guard_stop, speed_loop)
 
     def stop(*_):
         for _ in range(5):
@@ -101,7 +123,8 @@ def main():
 
 
 class SteerPolicyNode(Node):
-    def __init__(self, npz, pwm, target_speed, sim=False, guard_stop=GUARD_STOP):
+    def __init__(self, npz, pwm, target_speed, sim=False, guard_stop=GUARD_STOP,
+                 speed_loop=False):
         super().__init__('steer_policy_node')
         self.p = CarParams()
         self.policy = SteeringPolicy(npz)
@@ -122,8 +145,11 @@ class SteerPolicyNode(Node):
         self.stuck = False
         self.guard = ScanGuard()
         self.block_t = None         # 连续截停的起点,None = 没在截停
+        self.cur_pwm = float(self.p.pwm_mid)    # 实际发出去的油门,爬升用
+        self.loop = SpeedLoop() if speed_loop else None     # None = 固定 PWM 开环
         self.create_timer(0.05, self.tick)          # 20Hz,和训练的 control_dt 一致
-        throttle = '物理量 m/s' if sim else f'固定 PWM {self.pwm:.0f}'
+        throttle = ('物理量 m/s' if sim else '编码器速度闭环' if self.loop
+                    else f'固定 PWM {self.pwm:.0f}')
         self.get_logger().info(
             f'转向策略已载入,目标 {self.target_speed} m/s,{throttle},'
             f'{"仿真" if sim else "实车"}模式 -> {cmd_topic},等 /policy_enable')
@@ -149,10 +175,18 @@ class SteerPolicyNode(Node):
         if not m.data:
             if self.enabled:
                 self.get_logger().info('停车')
+                # 松手就自己发中位,不靠看门狗补。2026-09-24 实车:闭环输出贴着平台
+                # (159x)时松手,这里原来一个字不发,驱动保持 159x,看门狗又只认 >=1600
+                # 才算"会动",车以 ~0.6 m/s 一直往前走,摇杆和按钮都管不住。
+                self.neutral()
             self.enabled = False
             return
         if not self.enabled:
             self.policy.reset()         # 叠帧缓冲清零,别拿上一次的历史开车
+            # 重新使能时也清油门状态,避免沿用上一次的高 PWM。
+            self.cur_pwm = float(self.p.pwm_mid)
+            if self.loop is not None:
+                self.loop.reset()
             self.last_steer = 0.0
             self.block_t, self.stuck = None, False
             self.get_logger().info('使能')
@@ -161,6 +195,12 @@ class SteerPolicyNode(Node):
 
     def send(self, pwm, steer):
         """pwm 是油门:实车是电调刻度,仿真里当成 m/s(中位 -> 0)。"""
+        # 任何一条回中位的路径(心跳断、雷达丢、截停)都要把爬升状态归零,
+        # 不然下次恢复时 cur_pwm 还停在高位,发出去就是一个跳变。
+        if pwm == self.p.pwm_mid:
+            self.cur_pwm = float(self.p.pwm_mid)
+            if self.loop is not None:
+                self.loop.reset()       # 闭环也从中位重新爬,学到的 floor 保留
         tw = Twist()
         if self.sim:
             v = 0.0 if pwm == self.p.pwm_mid else self.target_speed
@@ -212,7 +252,14 @@ class SteerPolicyNode(Node):
         if self.stuck:
             self.get_logger().info('脱困,恢复行驶')
         self.block_t, self.stuck = None, False
-        self.send(self.pwm, steer)
+        # 往上只能爬。脱困之后也走这条路:截停时 cur_pwm 已经被压回中位,
+        # 这里重新爬上去,否则那一下就是从中位到目标的跳变,电调不认,车再也起不来。
+        if self.loop is not None:
+            # 闭环自己管爬升(up_rate 20 PWM/s,和 PWM_RAMP_UP 同一个速率)和上限 1620
+            return self.send(round(self.loop.update(self.target_speed, self.speed, 0.05)),
+                             steer)
+        self.cur_pwm = min(self.pwm, self.cur_pwm + PWM_RAMP_UP)
+        self.send(self.cur_pwm, steer)
 
 
 if __name__ == '__main__':

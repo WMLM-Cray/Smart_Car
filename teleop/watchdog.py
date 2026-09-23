@@ -14,9 +14,23 @@ from __future__ import annotations
 
 import time
 
-SPEED_MID = 1550           # [代码] 电调中位
-FWD_START = 1600           # [实测] >= 这个值车往前走(1599->0,1600->488mm/s,中间没有值)
-REV_START = 1500           # [代码] <= 这个值车往后走
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from fastsim.params import CarParams
+
+# 中位从 params 读,别再抄一份 —— 2026-09-22 实测真中位是 1540 不是 1550,
+# 抄着的那份会让"补中位"补出一个 0.56 m/s 的轻油门,车不但不停还会自己爬走。
+SPEED_MID = CarParams().pwm_mid
+# 高于中位这么多就当"会让车动"、武装看门狗。原来是 1600(9-21 亏电时的起转点),
+# 2026-09-24 实测车在 1584~1599 照样以 ~0.6 m/s 跑(平台),而闭环起步和贴着平台调速时
+# 输出正好落在这里 —— 那时松手,驱动保持 159x,看门狗认为"不会动"不补中位,车一直走。
+# 宁可多补几次中位(代价为零),也不漏掉一个会跑的油门。
+FWD_START = SPEED_MID + 6
+# [代码] 厂家标的倒车起步。注意 2026-09-22 实测 1510 和 1545 一样是"不出力滑行",
+# 所以 1500 附近到底是倒车还是死区边缘,没有实测过。
+REV_START = 1500
 # 超时必须大于占空比周期(server.py 的 DUTY_TICKS x 50ms = 0.3s)。低速爬行时"会让车动"的
 # 指令本来就是稀疏的,超时比周期短的话,看门狗的中位会插进两个爬行脉冲之间把它们抵消掉。
 TIMEOUT = 0.5
@@ -63,7 +77,8 @@ def main():
     from geometry_msgs.msg import Twist
 
     TOPIC = '/teleop_cmd_vel'
-    TURN_MID = 84
+    # 同 SPEED_MID:从 params 读。原来写死 84,当前中位是 81。
+    TURN_MID = CarParams().turn_mid
 
     class WatchdogNode(Node):
         def __init__(self):
