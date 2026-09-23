@@ -189,14 +189,21 @@ body.m-max #modesel button.on{color:#fff}
 </main><script>
 const $=s=>document.querySelector(s), dot=$('#dot'), log=$('#log');
 let ws, estop=0, nx=0, ny=0, active=false, dragging=false, stickPid=null, capOK=false;
+let src='';                          /* 'stick' 屏幕摇杆 / 'pad' 手柄 / 'key' 键盘 —— 油门算法不同 */
 
 /* 发给服务端的都是"比例":油门/方向盘/刹车 -1000..1000。
    PWM 换算和顶速上限都在 server.py 里做 —— 限速不能交给浏览器。
    方向盘 >0 = 左,摇杆左(nx<0)对应正值。 */
 const EXPO_STR = 2.0, EXPO_THR = 2.0;
 const expo = (t, k) => Math.sign(t) * Math.pow(Math.abs(t), k);
-/* ny>0 = 给油,方向由排挡决定(R 档取负);P 档恒为 0。ny<0 是刹车。 */
-const thr   = () => { const t = Math.max(0, ny);
+/* ny>0 = 给油,方向由排挡决定(R 档取负);P 档恒为 0。ny<0 是刹车。
+   屏幕摇杆的油门按**离中心的距离**算,不是 y 分量:原来左/右打满时 y≈0,油门也≈0,
+   满舵走不动(2026-09-24)。往下半圈拉(ny 明显 <0)仍然是不给油。
+   只对屏幕摇杆这样算:手柄油门在 RT、键盘在 W,它们的 nx 只是转向,算进油门就成了"打方向就走"。 */
+const STICK_BACK = -0.2;             /* 略低于水平也算往前推,手指横着推不会刚好水平 */
+const thrMag = () => src==='stick' ? (ny > STICK_BACK ? Math.min(1, Math.hypot(nx, ny)) : 0)
+                                   : Math.max(0, ny);
+const thr   = () => { const t = thrMag();
   return (t <= 0 || isP()) ? 0 : Math.round(expo(t, EXPO_THR) * 1000 * (isR()?-1:1)); };
 const steer = () => Math.round(-expo(nx, EXPO_STR) * 1000);
 
@@ -209,8 +216,7 @@ function connect(){
   if(ws && (ws.readyState===0 || ws.readyState===1)) return;
   ws=new WebSocket('ws://'+location.host+'/ws');
   ws.onopen =()=>{lastRx=Date.now();dot.style.background='var(--ok)';
-                  $('#hint').textContent='已连接';send('h');
-                  send('l '+range); send('y '+mode);};   /* 服务端重启后把页面上的排挡/模式同步过去 */
+                  $('#hint').textContent='已连接';send('h');};
   ws.onclose=()=>{dot.style.background='var(--bad)';
                   $('#hint').textContent='断开，重连中…';setTimeout(connect,1000);};
   ws.onerror=()=>{ try{ws.close();}catch(e){} };
@@ -240,6 +246,9 @@ function tel(d){
   if(!el.children.length) el.innerHTML=F.map(f=>`<div><b>${f[0]} ${f[1]}</b><span></span></div>`).join('');
   F.forEach((f,i)=>el.children[i].lastChild.textContent=f[2](d));
   curSpd = d.spd;                     /* 双击刹车换向要判速度,见 padPoll */
+  /* 新页面先读取车上的挡位和模式,打开网页本身不抢控制权。 */
+  if(!active){ if(d.rng!==range) setRange(d.rng, false);
+               if(d.mode!==mode) setMode(d.mode, false); }
   $('#spdnum').textContent = d.spd;
   $('#pwmnum').textContent = d.pwm;
   document.body.classList.toggle('fast', Math.abs(d.spd) > 1500);
@@ -279,6 +288,7 @@ function setxy(e){
   nx=dx/MAX; ny=-dy/MAX; place();
 }
 stick.addEventListener('pointerdown',e=>{
+  src='stick';
   dragging=true; active=true; stickPid=e.pointerId; stick.classList.add('on');
   stick.setPointerCapture(e.pointerId);
   /* 当场验一下这浏览器认不认 hasPointerCapture:不认的话下面那道检查必须关掉,
@@ -311,24 +321,24 @@ let padTap=false, padTapT=0;
 const isR = () => range===2;
 const isP = () => range===0;
 
-function setRange(r){
+function setRange(r, transmit=true){
   if(r<0||r>2||r===range) return;
   range=r;
   $('#rangen').textContent = 'PDR'[r];
   $('#rngsel').querySelectorAll('button').forEach(b=>
     b.classList.toggle('on', +b.dataset.r===r));
   thumb('#rngsel', r);
-  send('l '+r);
+  if(transmit) send('l '+r);
   const el=$('#gear'); el.classList.add('shift'); setTimeout(()=>el.classList.remove('shift'),130);
 }
-function setMode(m){
+function setMode(m, transmit=true){
   if(m<0||m>2||m===mode) return;
   mode=m;
   applyMode(m);
   $('#modesel').querySelectorAll('button').forEach(b=>
     b.classList.toggle('on', +b.dataset.m===m));
   thumb('#modesel', m);
-  send('y '+m);             /* 服务端据此取油门 PWM 上限 */
+  if(transmit) send('y '+m); /* 服务端据此取油门 PWM 上限 */
   say('模式 '+MODEN[m]);
 }
 function thumb(sel, i){
@@ -400,7 +410,7 @@ function padPoll(){
   }
 
   const on=(Math.abs(v)>0.02 || brake>0.02 || st!==0);
-  if(on){ nx=st; ny=v; active=true; stick.classList.add('on'); place(); }
+  if(on){ src='pad'; nx=st; ny=v; active=true; stick.classList.add('on'); place(); }
   else if(padOn){ release(); }
   padOn=on;
 }
@@ -441,7 +451,7 @@ function fromKeys(){
   nx=0; ny=0;
   held.forEach(k=>{ nx+=K[k][0]; ny+=K[k][1]; });
   nx=Math.max(-1,Math.min(1,nx)); ny=Math.max(-1,Math.min(1,ny));
-  active=true; stick.classList.add('on'); place();
+  src='key'; active=true; stick.classList.add('on'); place();
 }
 addEventListener('keydown',e=>{
   if(e.key==' '){e.preventDefault();send('e '+(estop?0:1));return;}

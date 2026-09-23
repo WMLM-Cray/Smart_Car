@@ -77,7 +77,10 @@ class MappingControl:
                 '-p', 'use_sim_time:=false', '-p', 'base_frame:=base_footprint',
                 '-p', 'odom_frame:=odom_combined', '-p', 'map_frame:=map',
                 '-p', 'laser_frame:=laser_link'], stdout=log, stderr=log,
-                stdin=subprocess.DEVNULL, start_new_session=True)
+                stdin=subprocess.DEVNULL, start_new_session=True,
+                # 降优先级:GMapping 一个进程就吃满一个核(2026-09-24 负载 19),和策略/网页/
+                # 看门狗抢 CPU 时网页按钮点了没反应。建图慢一点没关系,控制链不能卡。
+                preexec_fn=lambda: os.nice(15))
         time.sleep(1)
         if self.child.poll() is not None:
             raise RuntimeError('建图启动失败，请检查 mapping.log')

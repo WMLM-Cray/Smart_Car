@@ -4,15 +4,26 @@ from pathlib import Path
 import threading
 import unittest
 
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from fastsim.params import CarParams
+
 
 class ReverseOutputTests(unittest.TestCase):
     def setUp(self):
         tree = ast.parse(Path(__file__).with_name('server.py').read_text(encoding='utf-8'))
-        keep = [n for n in tree.body if isinstance(n, (ast.Assign, ast.ClassDef, ast.FunctionDef))
-                and (isinstance(n, ast.Assign)
-                     and not any(isinstance(x, ast.Call) for x in ast.walk(n))
-                     or getattr(n, 'name', '') in ('State', 'compute', 'creep_or_pwm'))]
-        self.ns = {'threading': threading}
+        # 只保留不碰 ROS 的顶层赋值。原判据是"不含任何调用",但 2026-09-22 起
+        # server.py 的舵机中位改成从 fastsim/params.py 读(避免四个脚本各抄一份
+        # 84),那一行带了 CarParams() 调用。CarParams 是纯 dataclass 无 ROS 依赖,
+        # 所以放行它,别的调用照旧挡掉。
+        def safe(node):
+            if not isinstance(node, ast.Assign):
+                return False
+            return all(isinstance(c.func, ast.Name) and c.func.id == 'CarParams'
+                       for c in ast.walk(node) if isinstance(c, ast.Call))
+        keep = [n for n in tree.body
+                if safe(n) or getattr(n, 'name', '') in ('State', 'compute', 'creep_or_pwm')]
+        self.ns = {'threading': threading, 'CarParams': CarParams}
         exec(compile(ast.Module(body=keep, type_ignores=[]), 'server_control', 'exec'), self.ns)
         self.state = self.ns['State']()
         self.ns['S'] = self.state

@@ -9,6 +9,9 @@
 import base64, hashlib, json, math, os, signal, socket, struct, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from fastsim.params import CarParams
+
 import rclpy
 from rclpy.node import Node
 from rclpy.signals import SignalHandlerOptions
@@ -24,9 +27,9 @@ from mapping_control import MappingControl
 PORT = 8080
 HTML = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'index.html')
 
-# PWM 约定取自 racecar_teleop.py:中位 1550,前进 1600 起步,倒车 1360 起步;转向中位 84,±60。
+# PWM 约定:中位和转向值从实测参数读取;前进/倒车起点仍按网页遥控设置。
 # ⚠️ 顶速上限放在服务端,不信任浏览器发来的数。数值偏保守,架空实测后再往上调。
-SPEED_MID, FWD_START, REV_START = 1550, 1600, 1500
+SPEED_MID, FWD_START, REV_START = CarParams().pwm_mid, 1600, 1500
 FWD_CAP = [1610, 1640, 1700]          # Sloth / Roaming / MAD MAX
 # ⚠️ 倒车:厂家 teleop 用 1360 起步,实车上会窜出去(2026-09-17)。
 # 电调没有渐进区(实测前进 1595->0、1600->470mm/s 一步到位),光调 PWM 保证不了速度,
@@ -37,12 +40,19 @@ REV_CAP = 1470
 # 平均速度 ≈ 占空比 x 最低速度。周期 0.3s:再快电调跟不上,再慢车会一顿一顿。
 CREEP_SPAN = 0.45                     # 摇杆前 45% 行程是占空比低速区
 DUTY_TICKS = 6                        # 6 个 20Hz 周期 = 0.3s
-TURN_MID, TURN_SPAN = 84, 60
+# 舵机中位/满舵幅度从 fastsim/params.py 读,别在这里写死 —— 2026-09-22 之前
+# 四个脚本各抄一份 84,改中位时漏改一个就会两套行为(实测真中位是 83 不是 84)。
+TURN_MID, TURN_SPAN = CarParams().turn_mid, CarParams().turn_span
 DEADMAN = 0.3                         # 这么久没收到 t 就回中位
 GUARD_STOP = 0.25                     # 保险杠前净空小于这个就不许再往前(米)
 GUARD_SLOW = 0.8                      # 小于这个就把前进档位压到最慢一档
 NEUTRAL_HOLD = 1.0                    # 回中位后续发这么久再静默,不跟导航的指令抢底盘
 POLICY_THR = 50                       # 策略模式下油门推过这个值(0..1000)才放行,松手即停
+# 策略模式的"摇杆数据多久算断"。比手动的 DEADMAN 宽:松手时网页立刻发 t 0,油门那条判据
+# 马上就断,不靠这个超时;它只管"网断了"。手机热点上 t 的间隔会抖过 0.3s,2026-09-24 实车
+# 日志里使能/停车一秒翻几次,每翻一次策略节点就回中位重新爬 3 秒 —— 现象是推到顶也半天不走。
+POLICY_DEADMAN = 0.6
+CONTROL_LEASE = 1.0                  # 一秒没收到控制指令,其他页面才能接管
 REVERSE_PAUSE = 0.3                   # 前进<->倒车换向前先给中位,电调要求
 
 
@@ -68,6 +78,9 @@ class State:
         self.wz = self.ax = self.ay = 0.0
         self.scan = None
         self.scan_received = 0.0
+        self.t_src = None             # 最近一条摇杆指令是哪个客户端发的(查"谁在开车")
+        self.owner = None             # 同一时刻仅一个网页能改驾驶指令和模式
+        self.owner_t = 0.0
 
 
 S = State()
@@ -91,7 +104,7 @@ def policy_held(now):
     """
     with S.lock:
         return bool(S.policy and not S.estop
-                    and now - S.last_t <= DEADMAN and S.thr > POLICY_THR)
+                    and now - S.last_t <= POLICY_DEADMAN and S.thr > POLICY_THR)
 
 
 def compute(now):
@@ -145,6 +158,7 @@ class Bridge(Node):
         self.guard = ScanGuard()
         self.create_subscription(LaserScan, '/scan', self.on_scan, 1)
         self.idle_since = 0.0
+        self.last_held = False
         self.create_timer(0.05, self.tick)
         self.get_logger().info(f'publishing to {topic}, http://0.0.0.0:{PORT}')
 
@@ -188,7 +202,13 @@ class Bridge(Node):
             # 按摇杆转向接管,松一点又切回策略。控制权在两者之间来回跳,现象是
             # "推杆能扳动方向"和"车莫名其妙往墙上走"。
             # 松手后的停车由 policy_node 的心跳超时负责,再不行还有 watchdog。
-            self.enable_pub.publish(Bool(data=policy_held(now)))
+            held = policy_held(now)
+            if held != self.last_held:
+                with S.lock:
+                    age, thr, src = now - S.last_t, S.thr, S.t_src
+                log_event(f'放行 {"开" if held else "关"}(油门 {thr},摇杆 {age:.2f}s 前,来自 {src})')
+                self.last_held = held
+            self.enable_pub.publish(Bool(data=held))
             return
 
         pwm, turn, active = compute(now)
@@ -210,14 +230,48 @@ clients = set()
 clients_lock = threading.Lock()
 
 
-def ws_send(conn, text):
+EVENTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'events.log')
+
+
+def log_event(text):
+    """谁连上/断开、谁在推摇杆、策略开关和放行的每次变化。车自己跑的时候靠它查是谁的指令。"""
+    try:
+        with open(EVENTS, 'a') as f:
+            f.write(time.strftime('%H:%M:%S') + f'.{int(time.time() * 1000) % 1000:03d} {text}\n')
+    except OSError:
+        pass
+
+
+def ws_send(conn, text, wait=True):
+    """wait=False 给遥测用:这个客户端收不动就断掉它,不许拖住别人。
+
+    遥测是一个线程轮流发给所有页面。原来一律 sendall,某个页面的连接半死不活(手机热点抖、
+    后台标签页被浏览器节流)时 sendall 会一直阻塞 —— 所有页面都收不到遥测,按钮状态全靠遥测
+    刷新,于是"点了没反应、刷新也没用"(2026-09-24 实车)。
+    """
     data = text.encode()
     n = len(data)
     head = bytes([0x81, n]) if n < 126 else bytes([0x81, 126]) + struct.pack('>H', n) if n < 65536 \
         else bytes([0x81, 127]) + struct.pack('>Q', n)
-    lock = conn[1]
-    with lock:
-        conn[0].sendall(head + data)
+    sock, lock = conn
+    if wait:
+        with lock:
+            sock.sendall(head + data)
+        return
+    if not lock.acquire(timeout=0.05):
+        return                              # 这一帧跳过,下一帧再说
+    try:
+        buf = head + data
+        if sock.send(buf, socket.MSG_DONTWAIT) != len(buf):
+            raise BlockingIOError           # 只发出半帧,流已经坏了,只能断
+    except (BlockingIOError, InterruptedError):
+        log_event('遥测发不出去,断开一个收不动的客户端')
+        try:
+            sock.shutdown(socket.SHUT_RDWR)  # 它的接收线程会随之退出,走正常的断线清理
+        except OSError:
+            pass
+    finally:
+        lock.release()
 
 
 def recv_exact(sock, n):
@@ -242,16 +296,36 @@ def ws_recv(sock):
     return op, data
 
 
-def handle_cmd(line):
+def handle_cmd(line, who='?'):
     p = line.split()
     if not p:
         return None
+    if p[0] in ('p', 'g', 'e'):
+        log_event(f'{who} 发 {line.strip()}')
     try:
         with S.lock:
+            now = time.time()
+            # 急停任何页面都能按;解除急停和其他控制只允许当前控制页面。
+            if p[0] == 'e' and (len(p) == 1 or int(p[1]) != 0):
+                S.estop = 1
+                return '急停'
+            if p[0] in ('t', 'e', 'l', 'y', 'g', 'p'):
+                if S.owner != who:
+                    if S.owner is not None and now - S.owner_t <= CONTROL_LEASE:
+                        return '另一页面正在控制小车'
+                    # 交接时先撤掉旧页面的油门与心跳。
+                    S.thr = S.steer = S.brake = 0
+                    S.last_t = 0.0
+                    S.owner = who
+                    log_event(f'控制页面换成 {who}')
+                S.owner_t = now
             if p[0] == 't' and len(p) >= 3:
                 S.thr, S.steer = int(p[1]), int(p[2])
                 S.brake = int(p[3]) if len(p) > 3 else 0
                 S.last_t = time.time()
+                if who != S.t_src:
+                    log_event(f'摇杆指令来源换成 {who}(油门 {S.thr})')
+                    S.t_src = who
             elif p[0] == 'e':
                 S.estop = int(p[1]) if len(p) > 1 else 1
                 return '急停' if S.estop else '急停解除'
@@ -282,7 +356,7 @@ def telemetry():
             'enc': round(time.time() - S.enc_t, 1) if S.enc_t else -1,
             'guard': S.guard, 'blocked': S.blocked, 'revb': S.rev_block,
             'pol': S.policy, 'polrun': int(bool(S.policy and not S.estop
-                                                and time.time() - S.last_t <= DEADMAN
+                                                and time.time() - S.last_t <= POLICY_DEADMAN
                                                 and S.thr > POLICY_THR)),
             'gap': -1 if S.gap is None else round(min(S.gap, 9.99), 2),
         })
@@ -296,7 +370,7 @@ def telemetry_loop():
             conns = list(clients)
         for c in conns:
             try:
-                ws_send(c, msg)
+                ws_send(c, msg, wait=False)
             except OSError:
                 pass
 
@@ -368,8 +442,10 @@ class Handler(BaseHTTPRequestHandler):
         sock = self.connection
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         conn = (sock, threading.Lock())
+        who = '%s:%d' % self.client_address[:2]
         with clients_lock:
             clients.add(conn)
+            log_event(f'{who} 连上,共 {len(clients)} 个页面')
         try:
             while True:
                 op, data = ws_recv(sock)
@@ -379,7 +455,7 @@ class Handler(BaseHTTPRequestHandler):
                     with conn[1]:
                         sock.sendall(bytes([0x8A, len(data)]) + data)
                 elif op == 1:
-                    reply = handle_cmd(data.decode(errors='replace'))
+                    reply = handle_cmd(data.decode(errors='replace'), who)
                     if reply:
                         ws_send(conn, reply)
         except (ConnectionError, OSError):
@@ -387,10 +463,14 @@ class Handler(BaseHTTPRequestHandler):
         finally:
             with clients_lock:
                 clients.discard(conn)
+                log_event(f'{who} 断开,剩 {len(clients)} 个页面')
             # 断线立刻停,不等死人开关
             with S.lock:
-                S.thr = S.steer = 0
-                S.last_t = 0.0
+                if S.owner == who:
+                    S.thr = S.steer = S.brake = 0
+                    S.last_t = 0.0
+                    S.owner = None
+                    S.owner_t = 0.0
             self.close_connection = True
 
 
