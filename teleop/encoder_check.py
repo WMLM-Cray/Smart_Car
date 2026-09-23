@@ -19,9 +19,10 @@ wall 模式用雷达当尺子:墙不动,车头到墙的距离变化就是真实�
 雷达是这车上唯一被地图验证过尺度的距离基准,比卷尺还省事。
 """
 import math
-import os
 import statistics
-import sys
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from fastsim.params import CarParams
 import threading
 import time
 
@@ -34,7 +35,10 @@ from rclpy.qos import qos_profile_sensor_data
 
 FRONT_HALF = math.radians(4)     # 取正前方 ±4° 的中位数,单点噪声不算数
 
-SPEED_MID, TURN_MID = 1550, 84
+# 舵机中位/满舵幅度从 fastsim/params.py 读,别在这里写死 —— 2026-09-22 之前
+# 四个脚本各抄一份 84,改中位时漏改一个就会两套行为(实测真中位是 83 不是 84)。
+SPEED_MID = CarParams().pwm_mid
+TURN_MID = CarParams().turn_mid
 
 
 class Enc(Node):

@@ -12,6 +12,9 @@
 """
 import os, signal, statistics, sys, threading, time
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from fastsim.params import CarParams
+
 import rclpy
 from rclpy.node import Node
 from rclpy.signals import SignalHandlerOptions
@@ -21,7 +24,10 @@ from sensor_msgs.msg import LaserScan
 
 from scan_guard import ScanGuard
 
-SPEED_MID, TURN_MID = 1550, 84
+# 舵机中位/满舵幅度从 fastsim/params.py 读,别在这里写死 —— 2026-09-22 之前
+# 四个脚本各抄一份 84,改中位时漏改一个就会两套行为(实测真中位是 83 不是 84)。
+SPEED_MID = CarParams().pwm_mid
+TURN_MID = CarParams().turn_mid
 ABORT_SPEED = 1.5            # m/s,超过就中止
 ABORT_GAP = 0.6              # 保险杠前净空小于这个就中止(米)
 DUTY_TICKS = 6               # 占空比周期 = 6 x 50ms = 0.3s,和 server.py 保持一致
@@ -122,6 +128,17 @@ def main():
         print(f'每档 {hold:.1f}s,档间回中位 {pause:.1f}s,累计 {max_dist:.1f}m 中止', flush=True)
         print(f'{"占空%" if duty_at else "PWM":>5} {"平均mm/s":>9} {"最小":>6} {"最大":>6} {"波动(std)":>9} {"累计m":>6}', flush=True)
         pwm = start
+        if step < 0:
+            # 降序扫必须先**缓慢爬**到起始档。电调不吃从中位直接跳到 1620 这种突变
+            # (按突加油门保护处理,根本不启动)—— 升序扫能起来是因为它本来就是
+            # 从 1550 每次 +5 慢慢上去的。2026-09-22 实测:升序 1600 起转,
+            # 降序直接给 1620 一点反应都没有。
+            print(f'缓慢爬到 {start:.0f}(每 0.1s +2)…', flush=True)
+            up = SPEED_MID
+            while up < start:
+                up = min(start, up + 2)
+                hold_pwm(up, 0.1, watch=True)
+            node.take()
         # step 给负数就往下扫:配 --pause 0 用,先用高 PWM 把车带动再逐档降,
         # 测"维持速度"而不是"起步速度"。电调的启动死区比维持死区高,
         # 每档都从静止起步的话,低档永远是 0,看不出它其实能维持慢速。
