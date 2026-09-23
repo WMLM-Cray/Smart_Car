@@ -110,7 +110,9 @@ def test_pwm_deadband_and_round_trip():
         assert pwm_to_speed(speed_to_pwm(v, p), p) == pytest.approx(v, abs=0.01)
     assert steer_to_turn(0.0, p) == p.turn_mid
     assert steer_to_turn(p.max_steer, p) == p.turn_mid + p.turn_span
-    assert turn_to_steer(24, p) == pytest.approx(-p.max_steer)
+    # 别写死 24(=84-60):turn_mid 是实测值,2026-09-22 从 84 改成 83 之后
+    # 满右舵就是 23 了。从 params 推,改中位时这条不用跟着动。
+    assert turn_to_steer(p.turn_mid - p.turn_span, p) == pytest.approx(-p.max_steer)
 
 
 # ---- 赛道 ----
