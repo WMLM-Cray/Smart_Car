@@ -1,117 +1,40 @@
-# 室外 ROS 无人车仿真系统(hwcart_sim)
+# HW-Autocar
 
-> 目标:在 PC 上用 Gazebo 复现整个比赛(锥桶赛道+车+雷达+相机),
-> 传感器话题/TF 与实车**完全同名**,算法代码一套、仿真实车两端通用。
-> **当前状态:阶段 1(仿真车)完成,42 项一键验证全绿**(2026-09-15,完整日志见 `evidence/`)。
+OrangePi AIpro + Ubuntu 22.04 + ROS 2 Humble 的无人车项目。本仓库包含实车控制、FastSim 训练、Gazebo 验证和网页遥控。
 
-## 1. 环境要求(与实车一致)
+**先看 [项目文档入口](docs/README.md)。** 它记录当前参数、转角模型研究状态及原始证据的位置。接手项目从 [交接目录](docs/handoff/README.md) 开始；早期方案放在 [历史参考](docs/reference/README.md)，不能直接当作现行车端配置。
 
-| 项 | 值 |
-|---|---|
-| OS | Ubuntu 22.04(虚拟机 / WSL2 / 双系统均可) |
-| ROS2 | Humble Desktop |
-| 仿真器 | Gazebo Classic 11(`ros-humble-gazebo-ros-pkgs`) |
-| 后续 | Nav2、slam_toolbox(阶段 3 才需要) |
+## 代码与资料
 
-环境自检:`python3 3Dsim/tools/check_environment.py`(输出 `ready: true` 即可)。
-WSL2 从零装环境可跑 `tools/wsl_setup_ros2.sh`。
+| 路径 | 内容 |
+| --- | --- |
+| `fastsim/` | 轻量车辆/赛道仿真、转向策略训练和评估；部分推理模块也在车上使用 |
+| `3Dsim/` | ROS 2 / Gazebo 车模、赛道生成与接近实车的验证 |
+| `teleop/` | 实车网页遥控、速度闭环、策略节点、看门狗和标定工具 |
+| `web/` | 网页界面相关代码 |
+| [`docs/`](docs/README.md) | 当前状态、交接、研究计划、赛道资料和验证证据 |
+| `runs/` | 已导出的模型权重与评估结果；部分完整训练断点未入库 |
 
-## 2. 目录结构
+Gazebo 环境与历史构建说明见 [仿真环境记录](docs/reference/SIM_CAR_MODELS.md)；FastSim 与 Gazebo 的接口说明见 [互通记录](docs/reference/SIM_INTEROP.md)。这两份记录含旧参数，运行前以当前代码为准。
 
-```
-├── 3Dsim/                       # Gazebo 仿真(队友负责)
-│   ├── hwcart_sim/              #   ROS2 colcon 工作区(在这里构建)
-│   │   └── src/
-│   │       ├── racecar_sim/         # 仿真车(阶段1 ✅):XACRO 车模+阿克曼控制器+雷达/相机/IMU
-│   │       ├── racecar_bringup_sim/ # launch 集合骨架
-│   │       ├── track_generator/     # 赛道生成器:锥桶坐标 CSV → SDF 世界
-│   │       └── racecar_strategy/    # 比赛罚则库(撞锥5s/压线10s/闯红灯30s…,已测)
-│   ├── tools/                   #   环境自检/构建/一键验证/诊断脚本
-│   ├── tests/                   #   基础测试(pytest)
-│   ├── examples/                #   锥桶坐标、赛道间隙示例数据
-│   └── evidence/                #   验证完整日志存档(未截断)
-├── fastsim/                     # 轻量仿真 + 强化学习训练(纯 Python,无 ROS)
-├── teleop/                      # 实车网页遥控(部署在车上,systemd)
-└── docs/                        # 共用文档
-    ├── SIM_INTEROP.md               # 两套仿真的对接口径(控制/赛道/观测)
-    ├── TELEOP_INTEGRATION_GUIDE.md  # 手柄遥控包对接文档
-    └── SOURCE_AUDIT.md              # 实车接口审计(PWM 公式/话题/参数出处)
-```
+## 当前车体与控制口径（2026-09-24）
 
-> 目录按负责人划分:`3Dsim/` 是队友的 Gazebo 那一套,`fastsim/` 和 `teleop/` 是训练与实车这一套。
-> 队友脚本里写死的 `~/hwcart_sim` 路径不用改,把它软链到 `3Dsim/` 即可:
-> `ln -s <仓库>/3Dsim ~/hwcart_sim`
+| 项目 | 当前值 / 验证状态 |
+| --- | --- |
+| 前后轴距 `wheelbase` | **0.33 m**，用户复量后确定，FastSim 与 Gazebo 参数已统一 |
+| 左右轮距 | 与前后轴距不同，尚未在当前记录中确认 |
+| 电调真中位 / 前进硬上限 | **1540 / 1620 PWM** |
+| 舵机中位 | **81**，精确重复标定仍待做 |
+| 直线速度闭环 | `kp=8`、`ki=75`、`i_limit=80`；12.5 V 直线试跑已记录，转弯工况仍待测 |
 
-## 3. 快速开始
+数值来源见 [`fastsim/params.py`](fastsim/params.py)、[`Gazebo params.yaml`](3Dsim/hwcart_sim/src/racecar_sim/config/params.yaml) 及 [9 月 24 日 PID 实测](docs/validation/2026-09-24-pid/README.md)。车端实际部署文件和服务状态需在车上核对。
 
-```bash
-cd 3Dsim/hwcart_sim
-colcon build --symlink-install
-source install/setup.bash
+## 转角模型现在到哪一步
 
-# 带 Gazebo 窗口:
-ros2 launch racecar_sim sim_bringup.launch.py
-# 无头模式(服务器/跑验证):
-ros2 launch racecar_sim sim_bringup.launch.py use_gui:=false
-```
+当前基线是 [`candidate_060.npz`](runs/low_speed_a/candidate_060.npz)。它在旧 FastSim 设定下的 1000 局中完成 956 局，但训练轴距为 **0.305 m**；该成绩不能代表现在的 0.33 m 车体或实车转角表现。Phase B 尚未启动。最大前轮转角和舵机速率仍是仿真假设。
 
-RViz 配置文件:`3Dsim/hwcart_sim/src/racecar_sim/rviz/sim.rviz`。
+下一步先区分“策略晚打方向”和“车收到命令后转向不足”，再决定沿用旧权重补训还是从零训练对照。诊断顺序和租机准备见 [转角训练计划](docs/research/CORNER_TRAINING_SERVER_PLAN_20260924.md)。旧训练过程见 [历史训练交接](docs/handoff/TRAINING_HANDOFF.md)。
 
-⚠️ **改过 Python 包文件后必须清理重建**:`rm -rf build install log && colcon build`
-(colcon 增量构建不会删 install 里已不存在的旧文件,会跑旧代码出假结果)。
+## 仓库与交接
 
-## 4. 接口契约(与实车同名)
-
-| 话题 | 类型 | 说明 |
-|---|---|---|
-| `/cmd_vel` | `geometry_msgs/Twist` | 控制输入。**物理单位**:linear.x=m/s,angular.z=rad/s |
-| `/scan` | `sensor_msgs/LaserScan` | 激光雷达(对齐实车镭神 M10P:10Hz、50m 裁剪) |
-| `/image_raw` | `sensor_msgs/Image` | 相机 640×480(出厂标定内参,含畸变) |
-| `/IMU_data` | `sensor_msgs/Imu` | IMU 200Hz |
-
-- 链路:`/cmd_vel` → `cmd_vel_relay` → `ackermann_steering_controller`(阿克曼 ω=v·tanδ/L)
-- 车辆参数集中在 `3Dsim/hwcart_sim/src/racecar_sim/config/params.yaml`:
-  - 轴距 `wheel_base: 0.305`(出厂代码值,**待实车卷尺复核**)
-  - 相机工作模式 640×480/标定内参/hfov≈72.21°(设备标称 1080p/150° 是镜头能力,非工作模式)
-  - 未实测项均带 `[实测假设]` 标记
-
-## 4.5 训练(fastsim/)
-
-```bash
-python -m fastsim.train                       # 从 s1 开始,过关自动进下一阶段
-python -m fastsim.preview --seed 0            # 画一张赛道+轨迹+占据栅格 PNG
-python -m pytest fastsim/tests/test_sim.py    # 31 项
-```
-
-赛道按比赛规则的元素随机生成(直道 + 45/90/135° 弯 + 端部掉头 + 5 块随机蓝挡板),
-形状照官方赛道示意图 `fastsim/reference_track_figure.png`。与 Gazebo 那一套的
-控制/赛道/观测口径见 `docs/SIM_INTEROP.md`,同一套策略两边都能跑。
-
-## 5. 一键验证(42 项,headless)
-
-```bash
-bash 3Dsim/tools/verify_phase1.sh
-# 期望输出:===== [8/8] 结果: PASS=42 FAIL=0 ===== / ALL_GREEN
-```
-
-覆盖:启动链/阿克曼几何(直行、倒车、左右满舵)/TF 树/传感器频率与量程/障碍测距/超时停车 watchdog/负例(超速/超角拒绝)。失败会逐项给 FAIL 与证据;**取不到证据即 FAIL**,不用估算值替代。
-
-## 6. 手柄遥控(teleop)对接
-
-**接 teleop 包前必读 `docs/TELEOP_INTEGRATION_GUIDE.md`**(含编译/契约/两方案对比/接入日清单/验收清单/常见问题)。三条底线:
-
-1. teleop 输出 `/teleop/cmd_vel` 是物理单位 Twist,不是 PWM 刻度;
-2. 主线接入用**方案 B(仲裁节点)**:teleop 与自动导航各发各的话题,仲裁后输出唯一 `/cmd_vel`,沿用现有 relay——不要直接 remap 绕过仲裁;
-3. 接入日把 wheelbase 三处统一 0.305(teleop 配置/主线 params/反解 L)并重跑端到端测试(满舵期望 ω≈0.5984 rad/s)。
-
-## 7. 实车迁移注意(阶段 6)
-
-- 实车厂家接口 `/car_cmd_vel` 收的是 **PWM 刻度**(速度 1500+100x、转向 1500−1300z),**不是物理单位**——必须加转换层,公式与出处见 `docs/SOURCE_AUDIT.md` 和 `hwcart_sim/src/racecar_sim/racecar_sim/contract.json`;
-- 待实测参数:前后轮距、轮径、轮宽、质量、惯量、舵角物理极限、雷达物理高度(卷尺+秤一刻钟);轴距复核出厂值 0.305;
-- 实体手柄在 WSL2 下需 usbipd-win 直通(详见对接文档"实体手柄与 WSL2"节)。
-
-## 8. 已知限制
-
-- WSL2 下 Gazebo spawn 偶发慢:验证脚本已记录就绪等待时长并自动重试一次(判据不变);
-- 2026-09-15 曾出现一轮 41/42 且原因未定位(后续三轮未复现),已按残余风险记录;最新完整全绿日志在 `evidence/`;
-- 官方 A-D 赛道锥桶坐标未入库(阶段 2 任务)。
+主仓库 `matxn/Auto_Car` 保存完整实车测量和验证数据；队友仓库 `MilkSliceKing/Astrahuaweicar` 是挑选同步的版本，两者的 `main` 不要求有相同提交。交接时注明具体提交号、模型文件、车端部署版本及对应实验数据。详见 [交接目录](docs/handoff/README.md)。

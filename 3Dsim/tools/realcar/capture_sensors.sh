@@ -56,4 +56,4 @@ sleep 8; kill $TF_PID 2>/dev/null
 
 echo "完成: $(ls "$OUT")"
 echo "重点看 10_summary.txt —— LaserScan 角度/时间字段与频率即仿真对齐缺的三项。"
-echo "下一步:整个目录拖回电脑,回填 docs/测量清单.md 与 SIM_INTEROP.md 对账。"
+echo "下一步:整个目录拖回电脑,回填 docs/reference/测量清单.md 与 SIM_INTEROP.md 对账。"

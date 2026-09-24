@@ -1,3 +1,5 @@
+> 历史参考：本文件保留写作时的记录；当前参数和状态见 [项目文档入口](../README.md)。
+
 # 基线说明 — baseline/sim2real-20260922（开发与复现基线）
 
 > 本分支是本机开发线的**候选基线发布**，目的是让队友通过一个明确的远端分支 + 完整 SHA
@@ -17,7 +19,7 @@
 ### 1.1 二维实车约束敏感性分析（sim2real 首轮交付）
 - 一页摘要：`docs/sim2real/SUMMARY_20260921.md`
 - 参数对照表：`docs/sim2real/PARAM_COMPARISON_20260921.md`
-- 队友交底：`docs/sim2real/SCENARIOS_HANDOFF_20260921.md`
+- 队友交底：`docs/handoff/SCENARIOS_HANDOFF_20260921.md`
 - 结果图 + 机器可读指标：`docs/sim2real/out/`（`scenario_s1/s2/s3.png`、`metrics.json`、`realcar_push_compare.png`）
 - 复现脚本：`tools/sim2real/run_compare.py`、`tools/sim2real/plot_realcar_push.py`
 - 推车取证原始数据：`docs/sim2real/data/tap_push_20260918.csv`（Modbus RTU tap，10344 行，仓库内）
@@ -42,8 +44,8 @@
 - 相机只读渲染：`tools/realcar/camera_monitor.py` + `camera_monitor.sh`
 - gate v2 ROS 层测试（单进程壳）：`tools/realcar/encoder_fix/test_encoder_gate_v2_ros.py`
 - cmd_vel_safety 隔离测试：`tools/realcar/test_cmd_vel_safety.py`
-- 交接/操作卡：`docs/AVOIDANCE_DEMO_20260921.md`、`docs/CAMERA_LIVEFEED_PLAN_20260921.md`、
-  `docs/FINAL_OPS_CARD_20260921.md`、`docs/TWOPOINT_ENTRY_CHECK_20260921.md`
+- 交接/操作卡：`docs/reference/AVOIDANCE_DEMO_20260921.md`、`docs/reference/CAMERA_LIVEFEED_PLAN_20260921.md`、
+  `docs/reference/FINAL_OPS_CARD_20260921.md`、`docs/reference/TWOPOINT_ENTRY_CHECK_20260921.md`
 
 ## 2. 已验证项目与验证环境
 

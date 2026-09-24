@@ -1,3 +1,5 @@
+> 历史参考：本文件保留写作时的记录；当前参数和状态见 [项目文档入口](../README.md)。
+
 # 车端 vs 本地 配置差分（2026-09-20，v1）
 
 > 目的：把「车端现役配置」与「本仓库待交付配置」**逐文件**对账，让队友现场能一眼看清
@@ -45,8 +47,8 @@
   `linear_x = linear.x*100 + 1500`（出厂 tar 版，未编译）。
 - **车端历史**：0916 12:23 现场改 1500→1540 并 `colcon build`（`REALCAR_CONTROL_AUDIT §3.3`）。
 - **差异影响**：偏置错位会让"限幅 0.10 还是 0.55、正转还是倒车"的判读失真；1540=0916 实测标定电调中位。
-- **待取证**：车上 src 第 45 行 + install 二进制的 `strings` 实际偏置（见 `docs/DRIVER_SOURCE_MANIFEST.md` 第三节回传表）。
-- **完整对照**：driver 7 文件 sha256 指纹见 `docs/DRIVER_SOURCE_MANIFEST.md`，此处不重复。
+- **待取证**：车上 src 第 45 行 + install 二进制的 `strings` 实际偏置（见 `docs/reference/DRIVER_SOURCE_MANIFEST.md` 第三节回传表）。
+- **完整对照**：driver 7 文件 sha256 指纹见 `docs/reference/DRIVER_SOURCE_MANIFEST.md`，此处不重复。
 
 ### 2.2 driver 订阅话题（node ↔ node_one）
 

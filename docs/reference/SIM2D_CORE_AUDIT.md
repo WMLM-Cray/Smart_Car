@@ -1,3 +1,5 @@
+> 历史参考：本文件保留写作时的记录；当前参数和状态见 [项目文档入口](../README.md)。
+
 # 二维仿真核心逻辑审查报告(2026-09-17 任务书五-B)
 
 > 审查对象:HEAD `09fa2f9` 时的 `sim/`(env/vehicle/sensors/raycast/track/trackA/

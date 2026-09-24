@@ -1,3 +1,5 @@
+> 历史参考：本文件保留写作时的记录；当前参数和状态见 [项目文档入口](../README.md)。
+
 # 交接说明:01a3374 "超时恢复缺陷" 任务的完整经过与现状
 
 > 写于 2026-09-16,外部验收已终审**通过**之后、push 之前。面向主开发者(老大)。
@@ -26,7 +28,7 @@
 3. **实体手柄接入前必做**:打印实际 `/joy` 核对键位(不能按外壳印刷猜);注意 joy_node 走 SDL 事件接口,WSL2 需 usbipd 直通(未验证);现场试双死区手感(joy 0.05 × 本包 0.08 串联),需要时调 `generic.yaml` 的 `deadzone`。
 4. **两件已立案的后续任务**(不在本分支):
    - wheelbase 统一 0.36 → 0.305(三处一起改并重跑 e2e,期望满舵 ω≈0.5984);
-   - 方案B仲裁节点(teleop `/teleop/cmd_vel` + 自动 `/cmd_vel` → 唯一输出),设计建议在 `docs/TELEOP_INTEGRATION_GUIDE.md`。
+   - 方案B仲裁节点(teleop `/teleop/cmd_vel` + 自动 `/cmd_vel` → 唯一输出),设计建议在 `docs/reference/TELEOP_INTEGRATION_GUIDE.md`。
 
 ## 四、还有什么问题(验证边界,非遗漏)
 

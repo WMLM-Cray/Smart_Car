@@ -1,7 +1,9 @@
+> 历史参考：本文件保留写作时的记录；当前参数和状态见 [项目文档入口](../README.md)。
+
 # 手柄(teleop)任务交接说明 — 2026-09-17
 
 > 接手人:队友。本文件由 Claude Code 依据仓库当前状态与实测记录整理,交接范围=手柄接入与实车验证剩余项。
-> 权威文档:`docs/TELEOP_MANUAL_GUIDE.md`(操作手册+T1–T12 检查表)、`docs/TELEOP_AUTOREPEAT_HANDOVER.md`(上一轮交接)。
+> 权威文档:`docs/reference/TELEOP_MANUAL_GUIDE.md`(操作手册+T1–T12 检查表)、`docs/handoff/TELEOP_AUTOREPEAT_HANDOVER.md`(上一轮交接)。
 > 红线:代码判据已冻结(03db574),**不改判据只跑验证**;全程电调断开/架空;改动留本地不 push(用户决策)。
 
 ## 1. 当前状态(截至 2026-09-17 晚)

@@ -1,3 +1,5 @@
+> 历史参考：本文件保留写作时的记录；当前参数和状态见 [项目文档入口](../README.md)。
+
 # 快仿真(fastsim/)与 Gazebo 仿真(3Dsim/)的对接口径
 
 两套仿真不合并:`fastsim/` 纯 Python、无 ROS,一步 ~1ms,用来训练;`3Dsim/` 是 Gazebo,

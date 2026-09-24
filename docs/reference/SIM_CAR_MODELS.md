@@ -1,10 +1,12 @@
+> 历史参考：本文件保留写作时的记录；当前参数和状态见 [项目文档入口](../README.md)。
+
 # 两个 Gazebo 车模的区别(2026-09-20 核对)
 
 结论:**用 `3Dsim/hwcart_sim/src/racecar_sim`,不要用 `ackermann_gazebo`。**
 
 ## 两者是什么
 
-- **`racecar_sim`** —— 队友 MilkSliceKing 照着 `docs/SOURCE_AUDIT.md` 建的我们这辆车。
+- **`racecar_sim`** —— 队友 MilkSliceKing 照着 `docs/reference/SOURCE_AUDIT.md` 建的我们这辆车。
   在本仓库 `3Dsim/hwcart_sim/src/racecar_sim/`(commit `ed613bd`,2026-09-15,
   "阶段1仿真车,42 项验证全绿";`a6d7b26` 挪进 `3Dsim/`)。
   xacro 全部从 `config/params.yaml` 取值,每项标了 `[源码]/[规则]/[实测]` 出处。

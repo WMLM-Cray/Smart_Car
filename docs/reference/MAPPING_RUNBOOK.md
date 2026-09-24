@@ -1,8 +1,10 @@
+> 历史参考：本文件保留写作时的记录；当前参数和状态见 [项目文档入口](../README.md)。
+
 # 遥控建图现场步骤
 
 目标:人开网页遥控,车在走廊里跑一趟,存出一张 pgm 地图。不涉及策略,不涉及 Gazebo。
 
-前提(来自 docs/SOURCE_AUDIT.md,已核对过源码):
+前提(来自 docs/reference/SOURCE_AUDIT.md,已核对过源码):
 - `racecar/config/ekf.yaml` 用 `/encoder` + `/IMU_data` 融合,输出 TF `odom_combined → base_footprint`
 - `racecar/launch/ekf.launch.py` 把 `/odometry/filtered` 重映射成 `odom_combined`
 - 雷达话题 `/scan`,frame `laser_link`,直接挂 `base_footprint`,z=0

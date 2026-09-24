@@ -1,6 +1,6 @@
 # 二维核心逻辑审查+实时交互 入口验证产物(2026-09-17)
 
-审查报告:docs/SIM2D_CORE_AUDIT.md。测试:pytest sim/tests/ 47/47(WSL)。
+审查报告:docs/reference/SIM2D_CORE_AUDIT.md。测试:pytest sim/tests/ 47/47(WSL)。
 
 ## 产物清单与生成命令
 

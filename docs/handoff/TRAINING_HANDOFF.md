@@ -1,7 +1,9 @@
+> 历史参考：本文件保留写作时的记录；当前参数和状态见 [项目文档入口](../README.md)。
+
 # 低速转向策略 —— 交接文档
 
 写于 2026-09-22。读者:接手训练这条线的人。
-详细的课程设计和预算见 [LOW_SPEED_TRAINING_PLAN.md](LOW_SPEED_TRAINING_PLAN.md),这里不重复,
+详细的课程设计和预算见 [LOW_SPEED_TRAINING_PLAN.md](../reference/LOW_SPEED_TRAINING_PLAN.md),这里不重复,
 只讲**东西在哪、怎么跑起来、现在到哪一步、接下来该改什么**。
 
 ## 0. 一句话状态
@@ -66,7 +68,7 @@ wsl -d Ubuntu-22.04           用户 tozzy,免密 sudo,systemd 已开
 ```
 
 装环境:`bash 3Dsim/tools/wsl_setup_ros2.sh`(2026-09-21 修过取密钥那段,别用旧版)。
-重建记录和踩过的坑见 [SIM_CAR_MODELS.md](SIM_CAR_MODELS.md) 的「WSL 环境重装」节。
+重建记录和踩过的坑见 [SIM_CAR_MODELS.md](../reference/SIM_CAR_MODELS.md) 的「WSL 环境重装」节。
 
 **别把 `~/hw_ws` 软链到 `/mnt/c`** —— colcon 在 9p 文件系统上编译慢一个数量级。
 代价是仓库改了代码要 rsync 一次。
