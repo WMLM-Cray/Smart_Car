@@ -85,7 +85,7 @@ python -m teleop.straight_trim --turns 79 80 81 --sec 6 --repeat 5
 | **本轮候选** | `runs/gazebo_margin_0p33_20260923/candidate_002.npz` | `80b94d459d6b17c4` | 主推候选 |
 | 对照 A | `runs/gazebo_robust_0p33_20260923/candidate_002.npz` | `80423075d8adfa6f` | `gazebo_robust` 路线 |
 | 对照 B | `runs/blind_gap_0p33_screen_20260924/candidate_002.npz` | `e07599c78175e7cb` | `blind_gap` 路线，失败实验 |
-| 对照 C | `runs/gazebo_sensor_0p33_20260923/candidate_002.npz` | 未取得 | `gazebo_sensor` 路线 |
+| 对照 C | `runs/gazebo_sensor_0p33_20260923/candidate_002.npz` | `795c8fbd21f96c99` | `gazebo_sensor` 路线 |
 | 历史候选 | `runs/final_candidate_0p33_20260923/` | 未取得 | 见第 8.3 节 |
 
 `candidate_002` 的热启动来源是 `runs/low_speed_a/candidate_060.npz`，不是从零训练。
@@ -100,10 +100,21 @@ python -m teleop.straight_trim --turns 79 80 81 --sec 6 --repeat 5
 !runs/track_s3/*
 ```
 
-**`runs/gazebo_margin_0p33_20260923/candidate_002.npz` 不匹配任何一条例外，因此不会被推送。**
-`gazebo_robust`、`gazebo_sensor`、`blind_gap` 三个目录同样全部不入库。
+本轮四个候选目录**不匹配任何一条例外**，无法通过 `runs/` 路径入库。
+因此本轮权重和实验证据以**快照副本**形式放在：
 
-接手者拉取仓库后**只有文档，没有本轮权重**。需要权重时须向原作者索取，或按第 10 节的训练命令重新产生。
+```text
+docs/handoff/2026-09-24/models/
+```
+
+该目录包含每个路线的 `candidate_001/002.npz`、`config.json`、`eval_*.json`、
+`validation_200*.json`、`speed_scan_20.json` 以及 `diagnostic/`、`validation_tracks/` 下的 JSON。
+详见该目录下的 `README.md`。
+
+**未包含**：`latest.pt`（75–146 MB 训练检查点）和 `*.launch.log`（被 `.gitignore` 的 `*.log` 规则挡住）。
+需要这两类文件时向原作者索取，或按第 10 节的训练命令重新产生。
+
+基线 `runs/low_speed_a/candidate_060.npz` 已在仓库中（匹配既有例外），不需要副本。
 
 ---
 

@@ -1,0 +1,11 @@
+{
+  "laps": 0,
+  "lap_splits_s": [],
+  "cone_hits": 0,
+  "cones_hit_ids": [],
+  "off_track_samples": 0,
+  "max_dist_to_nearest_cone_m": 0.0,
+  "elapsed_s": 0.0,
+  "final_xy": null,
+  "path": []
+}
