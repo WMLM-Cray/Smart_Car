@@ -1,0 +1,200 @@
+{
+  "round": 1,
+  "steps": 50683,
+  "loss": 9.810858318815008e-05,
+  "full_evaluation": false,
+  "clean_rates": {
+    "0.6": 1.0
+  },
+  "summary": {
+    "episodes": 20,
+    "clean_laps": 20,
+    "clean_rate": 1.0,
+    "reasons": {
+      "lap": 20
+    },
+    "mean_speed": 0.6000000089406948
+  },
+  "episodes": [
+    {
+      "seed": 51000000,
+      "augmented": false,
+      "reason": "lap",
+      "cone_hits": 0,
+      "lap_fraction": 1.0002809991619799,
+      "time": 59.24999999999678,
+      "mean_speed": 0.6000000089406948
+    },
+    {
+      "seed": 51000001,
+      "augmented": false,
+      "reason": "lap",
+      "cone_hits": 0,
+      "lap_fraction": 1.0,
+      "time": 60.6499999999965,
+      "mean_speed": 0.6000000089406948
+    },
+    {
+      "seed": 51000002,
+      "augmented": false,
+      "reason": "lap",
+      "cone_hits": 0,
+      "lap_fraction": 1.000235411361971,
+      "time": 71.24999999999955,
+      "mean_speed": 0.6000000089406948
+    },
+    {
+      "seed": 51000003,
+      "augmented": false,
+      "reason": "lap",
+      "cone_hits": 0,
+      "lap_fraction": 1.000318653401491,
+      "time": 75.50000000000172,
+      "mean_speed": 0.6000000089406948
+    },
+    {
+      "seed": 51000004,
+      "augmented": false,
+      "reason": "lap",
+      "cone_hits": 0,
+      "lap_fraction": 1.0004279512254823,
+      "time": 62.799999999996075,
+      "mean_speed": 0.6000000089406948
+    },
+    {
+      "seed": 51000005,
+      "augmented": false,
+      "reason": "lap",
+      "cone_hits": 0,
+      "lap_fraction": 1.0006661499220744,
+      "time": 63.999999999995836,
+      "mean_speed": 0.6000000089406948
+    },
+    {
+      "seed": 51000006,
+      "augmented": false,
+      "reason": "lap",
+      "cone_hits": 0,
+      "lap_fraction": 1.0003215041782334,
+      "time": 78.15000000000308,
+      "mean_speed": 0.6000000089406948
+    },
+    {
+      "seed": 51000007,
+      "augmented": false,
+      "reason": "lap",
+      "cone_hits": 0,
+      "lap_fraction": 1.0006883817294085,
+      "time": 59.99999999999663,
+      "mean_speed": 0.6000000089406948
+    },
+    {
+      "seed": 51000008,
+      "augmented": false,
+      "reason": "lap",
+      "cone_hits": 0,
+      "lap_fraction": 1.0004265470995761,
+      "time": 75.20000000000157,
+      "mean_speed": 0.6000000089406948
+    },
+    {
+      "seed": 51000009,
+      "augmented": false,
+      "reason": "lap",
+      "cone_hits": 0,
+      "lap_fraction": 1.0000058343820133,
+      "time": 74.20000000000105,
+      "mean_speed": 0.6000000089406948
+    },
+    {
+      "seed": 51000010,
+      "augmented": false,
+      "reason": "lap",
+      "cone_hits": 0,
+      "lap_fraction": 1.000382540261972,
+      "time": 67.19999999999747,
+      "mean_speed": 0.6000000089406948
+    },
+    {
+      "seed": 51000011,
+      "augmented": false,
+      "reason": "lap",
+      "cone_hits": 0,
+      "lap_fraction": 1.0005227243192518,
+      "time": 55.34999999999756,
+      "mean_speed": 0.6000000089406948
+    },
+    {
+      "seed": 51000012,
+      "augmented": false,
+      "reason": "lap",
+      "cone_hits": 0,
+      "lap_fraction": 1.0006441727462738,
+      "time": 62.199999999996194,
+      "mean_speed": 0.6000000089406948
+    },
+    {
+      "seed": 51000013,
+      "augmented": false,
+      "reason": "lap",
+      "cone_hits": 0,
+      "lap_fraction": 1.000421917200618,
+      "time": 69.44999999999862,
+      "mean_speed": 0.6000000089406948
+    },
+    {
+      "seed": 51000014,
+      "augmented": false,
+      "reason": "lap",
+      "cone_hits": 0,
+      "lap_fraction": 1.0005989754868287,
+      "time": 61.44999999999634,
+      "mean_speed": 0.6000000089406948
+    },
+    {
+      "seed": 51000015,
+      "augmented": false,
+      "reason": "lap",
+      "cone_hits": 0,
+      "lap_fraction": 1.0002867171571936,
+      "time": 65.34999999999653,
+      "mean_speed": 0.6000000089406948
+    },
+    {
+      "seed": 51000016,
+      "augmented": false,
+      "reason": "lap",
+      "cone_hits": 0,
+      "lap_fraction": 1.0005327065957352,
+      "time": 60.1499999999966,
+      "mean_speed": 0.6000000089406948
+    },
+    {
+      "seed": 51000017,
+      "augmented": false,
+      "reason": "lap",
+      "cone_hits": 0,
+      "lap_fraction": 1.0001136060779463,
+      "time": 65.89999999999681,
+      "mean_speed": 0.6000000089406948
+    },
+    {
+      "seed": 51000018,
+      "augmented": false,
+      "reason": "lap",
+      "cone_hits": 0,
+      "lap_fraction": 1.0005052587280894,
+      "time": 86.35000000000727,
+      "mean_speed": 0.6000000089406948
+    },
+    {
+      "seed": 51000019,
+      "augmented": false,
+      "reason": "lap",
+      "cone_hits": 0,
+      "lap_fraction": 1.0003048691634335,
+      "time": 64.6999999999962,
+      "mean_speed": 0.6000000089406948
+    }
+  ]
+}

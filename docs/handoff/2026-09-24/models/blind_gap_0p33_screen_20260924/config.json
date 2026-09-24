@@ -1,0 +1,14 @@
+{
+  "mode": "blind_gap",
+  "init_weights": "runs/low_speed_a/candidate_060.npz",
+  "out": "runs/blind_gap_0p33_screen_20260924",
+  "steps": 50000,
+  "round_steps": 25000,
+  "updates": 750,
+  "seed": 240924,
+  "eval_seed_start": 52000000,
+  "eval_count": 50,
+  "schema": "low_speed_steering_v1",
+  "git_head": "f7131779a0923e94f3e933739fa7d8b5424bd1fc",
+  "current_parameter_model": "CarParams"
+}
