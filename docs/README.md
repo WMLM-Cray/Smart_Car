@@ -7,7 +7,7 @@
 | 项目 | 当前值 / 状态 | 依据 |
 | --- | --- | --- |
 | 前后轴距 `wheelbase` | **0.33 m**，用户复量后确定；FastSim、Gazebo 已统一 | `fastsim/params.py`、`3Dsim/hwcart_sim/src/racecar_sim/config/params.yaml` |
-| 左右轮距 | 尚未在这里确认；与前后轴距是不同尺寸 | 测量时分别记录 |
+| 左右轮中心距 `wheel_track` | **0.28 m**，用户确认；与前后轴距是不同尺寸 | `3Dsim/hwcart_sim/src/racecar_sim/config/params.yaml` |
 | 电调真中位 / 前进硬上限 | 1540 / 1620 PWM | [`2026-09-23 曲线`](validation/2026-09-23-curve/README.md)、[`2026-09-24 PID`](validation/2026-09-24-pid/README.md) |
 | 舵机中位 | 81，直线观察选定，精确重复标定仍待做 | `fastsim/params.py` |
 | 直线速度闭环 | `kp=8`、`ki=75`、`i_limit=80`；12.5 V 直线试跑已记录 | [`2026-09-24 PID`](validation/2026-09-24-pid/README.md) |

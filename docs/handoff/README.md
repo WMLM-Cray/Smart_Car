@@ -4,7 +4,7 @@
 
 ## 接手时先对齐
 
-- **车体**：前后轴距 **0.33 m**；左右轮距是另一项尺寸，不能用轴距代替。电调真中位 1540 PWM、前进硬上限 1620 PWM、舵机中位 81。实车与仿真参数以 `fastsim/params.py` 和 Gazebo `params.yaml` 当前版本为准。
+- **车体**：前后轴距 **0.33 m**，左右轮中心距 **0.28 m**，两项分别记录。电调真中位 1540 PWM、前进硬上限 1620 PWM、舵机中位 81。实车与仿真参数以 `fastsim/params.py` 和 Gazebo `params.yaml` 当前版本为准。
 - **速度控制**：`teleop/speed_loop.py` 的 `kp=8`、`ki=75`、`i_limit=80` 已有 12.5 V 直线试跑记录；转弯和亏电工况尚未完成同等验证。逐帧依据在 [`validation/2026-09-24-pid`](../validation/2026-09-24-pid/README.md)。
 - **转向模型**：`runs/low_speed_a/candidate_060.npz` 是旧轴距 0.305 m 下训练的基线。旧 FastSim 956/1000 圈不能当作 0.33 m 或实车成绩；Phase B 未启动。当前诊断与租机顺序见 [`转角训练准备`](../research/CORNER_TRAINING_SERVER_PLAN_20260924.md)。
 - **版本**：主仓库 `matxn/Auto_Car` 保留完整实车测量和验证数据；队友仓库 `MilkSliceKing/Astrahuaweicar` 同步的是挑选内容，两个 `main` 不要求同一提交。部署到车上的实际文件与服务状态仍须单独核对。
