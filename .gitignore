@@ -64,3 +64,9 @@ runs/track_s3/*
 !runs/track_s3/cones.csv
 !runs/track_s3/gaps.json
 !runs/track_s3/track_s3.json
+
+# 2026-09-24 转向手推测量：完整过程和原始样本仅留本地；仓库发布精简结论与图。
+docs/validation/2026-09-24-steering/README.md
+docs/validation/2026-09-24-steering/*.csv
+docs/validation/2026-09-24-steering/fit_curve.py
+docs/validation/2026-09-24-steering/plot_curve.py

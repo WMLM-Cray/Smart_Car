@@ -10,13 +10,14 @@
 | 左右轮中心距 `wheel_track` | **0.28 m**，用户确认；与前后轴距是不同尺寸 | `3Dsim/hwcart_sim/src/racecar_sim/config/params.yaml` |
 | 电调真中位 / 前进硬上限 | 1540 / 1620 PWM | [`2026-09-23 曲线`](validation/2026-09-23-curve/README.md)、[`2026-09-24 PID`](validation/2026-09-24-pid/README.md) |
 | 舵机中位 | 81，直线观察选定，精确重复标定仍待做 | `fastsim/params.py` |
+| 转向刻度曲线 | 21～141 的低速手推后轴半径与等效转角已初测；81 零点仍待复测 | [`转向曲线结论与图片`](validation/2026-09-24-steering/CONCLUSION.md) |
 | 直线速度闭环 | `kp=8`、`ki=75`、`i_limit=80`；12.5 V 直线试跑已记录 | [`2026-09-24 PID`](validation/2026-09-24-pid/README.md) |
 
 ## 转角模型研究
 
 - 当前基线为 `runs/low_speed_a/candidate_060.npz`。旧 FastSim 评估是 956/1000 圈，但权重在 **0.305 m 轴距**等旧仿真假设下训练；这个成绩不能算 0.33 m 或实车的通过率。
 - Phase B 尚未启动。2026-09-22 的 Gazebo 赛道 A 三次均未完圈，记录显示在雷达看不到的黄 V 胶带缺口驶出；这和其他转角差的现象需要分开分析。
-- 最大前轮转角 `0.55 rad`、舵机速率 `4.0 rad/s` 仍是假设。下一步先记录弯前策略动作、实际转向和偏航响应，并量左右舵角，再决定是否从旧权重补训。
+- 低速手推得到约 −21.7°～+20.5° 的**等效**转向角和后轴半径，见[`实车转向曲线`](validation/2026-09-24-steering/CONCLUSION.md)。静态左右前轮最大转角及舵机速率 `4.0 rad/s` 仍未测；动力转弯和弯前策略动作也待验证，再决定是否从旧权重补训。
 - 租机和训练决策见 [`转角训练准备`](research/CORNER_TRAINING_SERVER_PLAN_20260924.md)。给队友接手的入口见 [`handoff/`](handoff/README.md)；旧训练交接保留作历史快照，其中旧轴距、PWM 和远端同步叙述已失效。
 
 ## 去哪里找
