@@ -53,6 +53,10 @@ class Level:
     inner_spacing: tuple = (0.4, 0.65)
     outer_spacing: tuple = (0.6, 1.5)
     sharp_end_chance: float = 0.6       # 方角端用尖角(半径 = 半宽 ~ 半宽+0.25)的概率
+    # --- 开口方角(L6):尖 90° 的外角做成方角,外侧桶稀(1.1~1.5m),正前方留一个缺口 ---
+    # 赛道 A 左上角:外角两桶 (0,5.5)/(0,4.1) 隔 1.4m,雷达看正前方像一条继续往前的路,
+    # 所有模型都直冲出去;和实车走廊尽头卡死是同一种情形(2026-09-25)。
+    gap_corners: bool = False
 
 
 LEVELS = (
@@ -68,6 +72,7 @@ LEVELS = (
           gap_chance=0.2, one_side_none_chance=0.1, n_elems=(4, 7), straight=(0.3, 3.0),
           cone_spacing=(0.4, 1.2)),
     Level('L5', loop=True),
+    Level('L6', gap_corners=True, width=(1.3, 1.7), wall_chance=0.2),
 )
 
 
@@ -168,6 +173,26 @@ def _elements(rng: np.random.Generator, lv: Level) -> list[dict]:
     return out
 
 
+def _gap_elements(rng: np.random.Generator, lv: Level) -> list[dict]:
+    """L6:前面一段 S 弯/台阶或直道,紧接一个开口方角。重复 2~4 次,方向随机。"""
+    width = rng.uniform(*lv.width)
+    out = [dict(kind='straight', length=rng.uniform(2.0, 3.0), width=width)]
+    for _ in range(int(rng.integers(2, 5))):
+        if rng.random() < 0.6:
+            a = float(rng.choice([45.0, 90.0])) * (1 if rng.random() < 0.5 else -1)
+            out.append(dict(kind='arc', angle=a, r_in=rng.uniform(0.3, 1.2), width=width))
+            out.append(dict(kind='straight', length=rng.uniform(0.5, 2.5), width=width))
+        else:
+            out.append(dict(kind='straight', length=rng.uniform(1.5, 4.0), width=width))
+        sign = 1 if rng.random() < 0.5 else -1
+        out.append(dict(kind='arc', angle=90.0 * sign, r_in=rng.uniform(0.0, 0.1), width=width,
+                        gap_corner=rng.random() < 0.8, gap_spacing=rng.uniform(1.1, 1.5),
+                        gap_phase=rng.uniform(0.0, 1.0)))
+        out.append(dict(kind='straight', length=rng.uniform(1.5, 3.5), width=width))
+    out.append(dict(kind='straight', length=3.0, width=width))
+    return out
+
+
 def _materials(rng: np.random.Generator, lv: Level, elems: list[dict]) -> None:
     """每个元素两侧各选一种材质。整条路先抽一个"风格",元素之间小概率换。"""
     style = [WALL if rng.random() < lv.wall_chance else CONE for _ in range(2)]
@@ -190,6 +215,7 @@ def build(elems: list[dict], cone_spacing: float = 0.7, cone_radius: float = 0.1
     pts, hs, half, ml, mr = [], [], [], [], []
     for e in elems:
         w0 = e['width']
+        e['_i0'] = len(pts)
         if e['kind'] == 'arc':
             rc = e['r_in'] + w0 / 2
             a = math.radians(abs(e['angle']))
@@ -225,7 +251,51 @@ def build(elems: list[dict], cone_spacing: float = 0.7, cone_radius: float = 0.1
     road = Road(centre, np.unwrap(np.array(hs)), s, np.array(half), np.array(ml), np.array(mr),
                 cone_radius=cone_radius, elems=elems)
     road.walls, road.cones = _boundary_objects(road, cone_spacing)
+    for i, e in enumerate(elems):
+        e['_i1'] = elems[i + 1]['_i0'] if i + 1 < len(elems) else len(centre) - 1
+        if e.get('gap_corner'):
+            _square_gap_corner(road, e)
     return road
+
+
+def _square_gap_corner(road: Road, e: dict) -> None:
+    """把尖 90° 弯的外侧锥桶换成方角:两条外边线延长交于顶点,从顶点起按稀间距排桶。
+
+    相位随机:相位 0 时顶点上正好一个桶(赛道 A 左上角就是这样),
+    正前方(来车方向的延长线)落在两桶之间的缺口里。
+    """
+    sign = 1.0 if e['angle'] > 0 else -1.0
+    i0, i1 = e['_i0'], e['_i1']
+    side = road.right if sign > 0 else road.left                # 左转的外侧是右边
+    mat = road.mat_right if sign > 0 else road.mat_left
+    if mat[i0] != CONE:
+        return
+    h0, h1 = road.heading[i0], road.heading[i1]
+    d0, d1 = np.array([math.cos(h0), math.sin(h0)]), np.array([math.cos(h1), math.sin(h1)])
+    p0, p1 = side[i0], side[i1]
+    # p0 + a*d0 = p1 - b*d1
+    A = np.array([d0, d1]).T
+    a, b = np.linalg.solve(A, p1 - p0)
+    vertex = p0 + a * d0
+    # 去掉这个弯前后 2m 内、外侧的旧桶
+    reach = 2.0
+    lo = max(0, int(np.searchsorted(road.s, road.s[i0] - reach)))
+    hi = min(len(road.s) - 1, int(np.searchsorted(road.s, road.s[i1] + reach)))
+    nrm = road.normal
+    keep = []
+    for c in road.cones:
+        j = lo + int(np.argmin(np.hypot(*(road.centre[lo:hi + 1] - c).T)))
+        near = np.hypot(*(road.centre[j] - c)) < road.half[j] + 0.4
+        outer = np.dot(c - road.centre[j], nrm[j]) * sign < 0
+        keep.append(not (lo < j < hi and near and outer))
+    sp, ph = e['gap_spacing'], e['gap_phase'] * e['gap_spacing']
+    new = []
+    for d, leg in ((-d0, a + reach), (d1, b + reach)):     # 顶点往来车方向退 / 往出弯方向走
+        t = ph if (ph > 1e-6 or d is not d1) else sp      # 相位 0 时顶点上的桶只放一次
+        while t <= leg:
+            new.append(vertex + d * t)
+            t += sp
+    road.cones = np.vstack([road.cones[np.array(keep, bool)], np.array(new)])
 
 
 def _runs(mat: np.ndarray, kind: int):
@@ -282,7 +352,7 @@ def self_overlaps(road: Road, clearance: float = 0.4) -> bool:
 def generate(rng: np.random.Generator, lv: Level, tries: int = 50) -> Road:
     """按 lv 生成一条不自重叠的路。可通性另外查(road_check)。"""
     for _ in range(tries):
-        elems = _elements(rng, lv)
+        elems = _gap_elements(rng, lv) if lv.gap_corners else _elements(rng, lv)
         _materials(rng, lv, elems)
         road = build(elems, cone_spacing=rng.uniform(*lv.cone_spacing))
         if not self_overlaps(road):

@@ -167,6 +167,8 @@ def main():
     ap.add_argument('--resume', action='store_true')
     ap.add_argument('--init', type=Path, default=None, help='从这个 road_v2 .npz 热启动(新目录,回放从零)')
     ap.add_argument('--start-level', default='L1', choices=[l.name for l in LEVELS])
+    ap.add_argument('--mix', default=None,
+                    help="固定配比,不走升级:'L6:0.4,L5:0.35,L4:0.15,L3:0.1';评估用 --start-level 那一级")
     a = ap.parse_args()
 
     import torch
@@ -222,8 +224,14 @@ def main():
             beta = max(0.0, 1.0 - 0.25 * r)
             wts = None if r == 0 and a.init is None else weights_of(net)
             jobs = []
+            mix = None if a.mix is None else [(n, float(p)) for n, p in
+                                              (x.split(':') for x in a.mix.split(','))]
             for _ in range(a.episodes_per_round):
-                level = LEVELS[lv] if lv == 0 or rng.random() < 0.7 else LEVELS[int(rng.integers(lv))]
+                if mix is not None:
+                    name = mix[int(rng.choice(len(mix), p=np.array([p for _, p in mix]) / sum(p for _, p in mix)))][0]
+                    level = next(l for l in LEVELS if l.name == name)
+                else:
+                    level = LEVELS[lv] if lv == 0 or rng.random() < 0.7 else LEVELS[int(rng.integers(lv))]
                 jobs.append((state['next_seed'], level.name, wts, beta, True))
                 state['next_seed'] += 1
             t0 = time.time()
@@ -263,7 +271,7 @@ def main():
                 f'eval={summ["success"]:.3f} {summ["by_cap"]} {summ["reasons"]} '
                 f'[{t_collect:.0f}s/{t_update:.0f}s/{t_eval:.0f}s]')
             state['history'].append(dict(round=r, level=level, success=summ['success']))
-            if promoted(summ) and lv + 1 < len(LEVELS):
+            if a.mix is None and promoted(summ) and lv + 1 < len(LEVELS):
                 state['level'] = lv + 1
                 say(f'升级 -> {LEVELS[lv + 1].name}')
             state['round'] = r + 1
