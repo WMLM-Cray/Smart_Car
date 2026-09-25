@@ -169,6 +169,11 @@ def main():
     ap.add_argument('--start-level', default='L1', choices=[l.name for l in LEVELS])
     ap.add_argument('--mix', default=None,
                     help="固定配比,不走升级:'L6:0.4,L5:0.35,L4:0.15,L3:0.1';评估用 --start-level 那一级")
+    ap.add_argument('--eval-levels', default=None,
+                    help="评估分摊到这几级(逗号分隔),日志逐级报;默认只评当前级")
+    ap.add_argument('--ema', type=float, default=0.0,
+                    help='权重滑动平均系数(每次更新);>0 时采样/评估/导出都用平均后的权重。'
+                         '单个存档在赛道 A 方角上忽好忽坏(v2_f 第 10 轮 100%%、第 25 轮 0%%)')
     a = ap.parse_args()
 
     import torch
@@ -177,6 +182,8 @@ def main():
     rng = np.random.default_rng(a.seed)
     net = make_net()
     opt = torch.optim.Adam(net.parameters(), lr=a.lr)
+    ema = make_net()
+    ema.load_state_dict(net.state_dict())
     a.out.mkdir(parents=True, exist_ok=True)
     ckpt = a.out / 'latest.pt'
     state = dict(round=0, level=[l.name for l in LEVELS].index(a.start_level),
@@ -186,6 +193,7 @@ def main():
     if a.resume:
         s = torch.load(ckpt, map_location='cpu', weights_only=False)
         net.load_state_dict(s['net'])
+        ema.load_state_dict(s.get('ema', s['net']))
         opt.load_state_dict(s['opt'])
         rng.bit_generator.state = s['numpy_rng']
         state = s['state']
@@ -210,6 +218,7 @@ def main():
                     for i, k in enumerate((0, 2, 4)):
                         net[k].weight.copy_(torch.from_numpy(z[f'w{i}']))
                         net[k].bias.copy_(torch.from_numpy(z[f'b{i}']))
+                ema.load_state_dict(net.state_dict())
 
     log = open(a.out / 'train.log', 'a', encoding='utf-8', buffering=1)
 
@@ -222,7 +231,8 @@ def main():
         while state['round'] < a.rounds:
             r, lv = state['round'], state['level']
             beta = max(0.0, 1.0 - 0.25 * r)
-            wts = None if r == 0 and a.init is None else weights_of(net)
+            pol = ema if a.ema > 0 else net
+            wts = None if r == 0 and a.init is None else weights_of(pol)
             jobs = []
             mix = None if a.mix is None else [(n, float(p)) for n, p in
                                               (x.split(':') for x in a.mix.split(','))]
@@ -250,25 +260,33 @@ def main():
                 opt.zero_grad()
                 loss.backward()
                 opt.step()
+                if a.ema > 0:
+                    with torch.no_grad():
+                        for pe, p in zip(ema.parameters(), net.parameters()):
+                            pe.mul_(a.ema).add_(p, alpha=1 - a.ema)
                 losses.append(loss.item())
             t_update = time.time() - t0
 
             t0 = time.time()
-            wts = weights_of(net)
+            wts = weights_of(pol)
             level = LEVELS[lv].name
-            ev = list(ex.map(_job, [(SELECT_SEED0 + i, level, wts, 0.0, False)
+            ev_levels = a.eval_levels.split(',') if a.eval_levels else [level]
+            ev = list(ex.map(_job, [(SELECT_SEED0 + i, ev_levels[i % len(ev_levels)], wts, 0.0, False)
                                     for i in range(a.eval_count)]))
             summ = summarize(ev)
+            if a.eval_levels:
+                summ['by_level'] = {n: summarize([e for e in ev if e['level'] == n])['success']
+                                    for n in ev_levels}
             t_eval = time.time() - t0
 
-            export(net, a.out / f'candidate_{r:03d}.npz')
+            export(pol, a.out / f'candidate_{r:03d}.npz')
             report = dict(round=r, level=level, beta=beta, samples=replay.size,
                           loss=float(np.mean(losses[-200:])), collect=summarize(rows),
                           eval=summ, seconds=dict(collect=t_collect, update=t_update, eval=t_eval),
                           episodes=ev)
             (a.out / f'eval_{r:03d}.json').write_text(json.dumps(report, indent=1), encoding='utf-8')
             say(f'round {r} {level} beta={beta:.2f} samples={replay.size} loss={report["loss"]:.4f} '
-                f'eval={summ["success"]:.3f} {summ["by_cap"]} {summ["reasons"]} '
+                f'eval={summ["success"]:.3f} {summ.get("by_level", "")} {summ["by_cap"]} {summ["reasons"]} '
                 f'[{t_collect:.0f}s/{t_update:.0f}s/{t_eval:.0f}s]')
             state['history'].append(dict(round=r, level=level, success=summ['success']))
             if a.mix is None and promoted(summ) and lv + 1 < len(LEVELS):
@@ -277,7 +295,7 @@ def main():
             state['round'] = r + 1
             state['replay'] = replay.save(a.out)
             tmp = a.out / 'latest.tmp'
-            torch.save(dict(net=net.state_dict(), opt=opt.state_dict(),
+            torch.save(dict(net=net.state_dict(), ema=ema.state_dict(), opt=opt.state_dict(),
                             numpy_rng=rng.bit_generator.state, state=state), tmp)
             os.replace(tmp, ckpt)
     say('done')
