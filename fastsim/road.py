@@ -47,9 +47,12 @@ class Level:
     loop_bend: tuple = (1.0, 1.4)       # 弯中心线半径下限 = 它 -0.25、不小于半宽(=内侧尖角,赛道 A 左端方角)
     # 锥桶间距分三种位置抽:赛方参考图(用户 2026-09-25 量)直道约 0.61、弯内侧最密约 0.45;
     # 同一张图按 16.8m 比例尺量直道是 ~1.13(和 params.py 的 1.15 一致)。两种说法都覆盖到。
-    straight_spacing: tuple = (0.55, 1.2)
+    # 上限 1.5:规则只要求桶距 < 道宽 1.5m;官方 A 实测 0.48~1.475(原来训练最大 1.2,
+    # A 左上方角 1.3~1.47 的稀桶没见过,四个模型全从缝里冲出去,2026-09-25)
+    straight_spacing: tuple = (0.55, 1.5)
     inner_spacing: tuple = (0.4, 0.65)
-    outer_spacing: tuple = (0.6, 1.1)
+    outer_spacing: tuple = (0.6, 1.5)
+    sharp_end_chance: float = 0.6       # 方角端用尖角(半径 = 半宽 ~ 半宽+0.25)的概率
 
 
 LEVELS = (
@@ -319,7 +322,8 @@ def generate_loop(rng: np.random.Generator, lv: Level, laps: float = 1.0) -> Roa
     width = rng.uniform(*lv.loop_width)
     bend = rng.uniform(*lv.loop_bend)
     p = _replace(RuleTrackParams(), width=width, bend_radius_min=max(width / 2, bend - 0.25),
-                 bend_radius_max=1.8, n_boards=5)
+                 bend_radius_max=1.8, n_boards=5,
+                 end_radius=(width / 2, width / 2 + 0.25) if rng.random() < lv.sharp_end_chance else None)
     # 上限留规则默认 1.8:全部弯都压到 bend 附近时台阶/S 弯挤成一团,本车(R>=0.83m)过不去,
     # 作废率 34~44%(2026-09-25 试过)。只把下限放低,偶尔出尖角。
     tr = make_rule_track(rng, p)

@@ -131,6 +131,7 @@ class RuleTrackParams(TrackParams):
     s_bends_min: int = 2                # [规则图1] 回程侧的台阶组数(每组 2 个镜像对 = 4 个弯)
     s_bends_max: int = 2                # 连两端的弯,一共 10-12 个
     square_end_chance: float = 0.7      # [图1] 端部做成方角(两个直角)的概率,其余是大圆弯
+    end_radius: tuple | None = None     # 方角端弯半径范围;None = 和 S 弯同一个范围(road.py L5 用它出尖方角)
     right_angle_ratio: float = 0.7      # [规则] 折角里直角的比例,赛道整体偏方正
     jog_min: float = 1.2                # [假设] 矩形台阶横向段长度
     jog_max: float = 3.0                # [假设]

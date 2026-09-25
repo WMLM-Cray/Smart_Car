@@ -41,7 +41,8 @@ def _layout(rng: np.random.Generator, p: RuleTrackParams):
     square = rng.random() < p.square_end_chance
     height = rng.uniform(p.height_min, p.height_max)          # 主直道到回程直道的间距
     # 方角要看得出是直角:半径先让位于横直道,不然两个 90° 弯接在一起就成了一个圆弧掉头
-    r_end = min(rng.uniform(p.bend_radius_min, p.bend_radius_max), (height - p.cross_min) / 2)
+    lo, hi = p.end_radius if p.end_radius is not None else (p.bend_radius_min, p.bend_radius_max)
+    r_end = min(rng.uniform(lo, hi), (height - p.cross_min) / 2)
 
     def end(lead):
         if square:                                            # 方角:两个直角夹一段横直道
