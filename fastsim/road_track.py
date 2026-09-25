@@ -133,6 +133,7 @@ def official(name: str, fill_v: bool = False, laps: int = LAPS) -> tuple[Road, f
                 elems=[dict(kind=f'track{name}', fill_v=fill_v)])
     road.cones = np.asarray(cones, float)
     road.walls = np.zeros((0, 2, 2))
+    road.region = (np.asarray(outer, float), np.asarray(inner, float))
     return road, lap_len
 
 

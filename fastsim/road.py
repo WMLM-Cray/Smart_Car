@@ -80,6 +80,9 @@ class Road:
     walls: np.ndarray = field(default_factory=lambda: np.zeros((0, 2, 2)))
     cones: np.ndarray = field(default_factory=lambda: np.zeros((0, 2)))
     elems: list = field(default_factory=list)     # 生成记录,便于复现和统计
+    # 官方赛道:路面 = 外边界多边形内、内边界多边形外。给了就用它判出界,不用半宽 ——
+    # 方角处车走进角落是合法的,但离平滑后的中心线超过半宽(2026-09-25 赛道 A 全判成出界)
+    region: tuple | None = None
 
     @property
     def normal(self) -> np.ndarray:
@@ -110,6 +113,16 @@ class Road:
         rel = np.asarray(xy, float) - self.centre[i]
         n = (-math.sin(self.heading[i]), math.cos(self.heading[i]))
         return i, float(rel[0] * n[0] + rel[1] * n[1])
+
+
+def inside(poly: np.ndarray, xy) -> bool:
+    """点是否在闭合多边形内(射线法)。"""
+    x, y = xy
+    a, b = poly, np.roll(poly, -1, axis=0)
+    cross = (a[:, 1] > y) != (b[:, 1] > y)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        xi = a[:, 0] + (y - a[:, 1]) * (b[:, 0] - a[:, 0]) / (b[:, 1] - a[:, 1])
+    return bool(np.count_nonzero(cross & (x < xi)) % 2)
 
 
 # ---- 生成 ----

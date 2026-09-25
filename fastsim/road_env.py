@@ -17,7 +17,7 @@ import numpy as np
 from .params import CarParams
 from .pwm import turn_to_steer
 from .raycast import cast_cones, cast_walls
-from .road import WALL_HEIGHT, Road
+from .road import WALL_HEIGHT, Road, inside
 from .road_policy import V_HI, V_LO, action_to_speed, observe
 from .vehicle import Car
 
@@ -175,9 +175,14 @@ class RoadEnv:
         # 车体中心离开路面(无边界段/没墙的一侧就靠这个判)
         mid = (car.x + math.cos(car.yaw) * (self.cp.length / 2 - self.cp.rear_overhang),
                car.y + math.sin(car.yaw) * (self.cp.length / 2 - self.cp.rear_overhang))
-        _, dm = road.project(mid, self.idx)
-        if abs(dm) > road.half[self.idx]:
-            return 'off_track'
+        if road.region is not None:
+            outer, inner = road.region
+            if not inside(outer, mid) or inside(inner, mid):
+                return 'off_track'
+        else:
+            _, dm = road.project(mid, self.idx)
+            if abs(dm) > road.half[self.idx]:
+                return 'off_track'
         if road.s[self.idx] >= road.length - GOAL_BEFORE_END:
             return 'goal'
         if self.t > self.budget_s:
