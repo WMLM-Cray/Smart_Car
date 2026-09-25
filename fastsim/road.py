@@ -57,6 +57,7 @@ class Level:
     # 赛道 A 左上角:外角两桶 (0,5.5)/(0,4.1) 隔 1.4m,雷达看正前方像一条继续往前的路,
     # 所有模型都直冲出去;和实车走廊尽头卡死是同一种情形(2026-09-25)。
     gap_corners: bool = False
+    gap_spacing: tuple = (0.4, 1.5)     # 方角外侧桶距
 
 
 LEVELS = (
@@ -73,6 +74,9 @@ LEVELS = (
           cone_spacing=(0.4, 1.2)),
     Level('L5', loop=True),
     Level('L6', gap_corners=True, width=(1.3, 1.7), wall_chance=0.2),
+    # 只做验证:稀桶方角(赛道 A 左上角 1.3~1.47)。L6 整体 0.98 的两个存档在 A 上一个 100% 一个 0%,
+    # 差别全在这种角上,L6 里它占比小、看不出来(2026-09-26)
+    Level('L6h', gap_corners=True, width=(1.3, 1.7), wall_chance=0.0, gap_spacing=(1.2, 1.5)),
 )
 
 
@@ -188,7 +192,7 @@ def _gap_elements(rng: np.random.Generator, lv: Level) -> list[dict]:
         out.append(dict(kind='arc', angle=90.0 * sign, r_in=rng.uniform(0.0, 0.1), width=width,
                         # 外角方角的桶距 0.4~1.5 全覆盖:只练稀桶时车学会了"方角 = 稀桶",
                         # 赛道 C 左上角那种密桶方角(0.5m)反而一头撞上去(v2_d,2026-09-26)
-                        gap_corner=rng.random() < 0.9, gap_spacing=rng.uniform(0.4, 1.5),
+                        gap_corner=rng.random() < 0.9, gap_spacing=rng.uniform(*lv.gap_spacing),
                         gap_phase=rng.uniform(0.0, 1.0)))
         out.append(dict(kind='straight', length=rng.uniform(1.5, 3.5), width=width))
     out.append(dict(kind='straight', length=3.0, width=width))
