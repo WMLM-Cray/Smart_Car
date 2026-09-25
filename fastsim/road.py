@@ -306,7 +306,8 @@ def generate_loop(rng: np.random.Generator, lv: Level, laps: float = 1.0) -> Roa
     width = rng.uniform(*lv.loop_width)
     bend = rng.uniform(*lv.loop_bend)
     p = _replace(RuleTrackParams(), width=width, bend_radius_min=max(width / 2, bend - 0.25),
-                 bend_radius_max=max(bend, width / 2 + 0.05), n_boards=5)
+                 bend_radius_max=max(bend, width / 2 + 0.05), n_boards=5,
+                 straight_min=0.8)     # 原 0.4:两个反向弯只隔 0.4m 时本车(R>=0.83m)过不去,作废率 34%
     tr = make_rule_track(rng, p)
     c = tr.centerline
     boards = tr.boards
