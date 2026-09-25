@@ -92,6 +92,45 @@ def promoted(summary) -> bool:
         v is None or v >= PROMOTE_BIN for v, _ in summary['by_cap'].values())
 
 
+class Replay:
+    """固定大小的环形回放池。观测存 float16(都在 ±1 内,精度 1e-3 够用),省一半内存。
+
+    以前是 list + 每轮 np.concatenate + 连回放一起 torch.save,3M 帧时峰值十几 GB,
+    被 OOM 杀过两次(2026-09-25)。现在不拼接、断点里只存下标,数组单独 np.save。
+    """
+
+    def __init__(self, cap):
+        self.x = np.zeros((cap, DIM * FRAMES), np.float16)
+        self.y = np.zeros((cap, 2), np.float32)
+        self.size = self.ptr = 0
+
+    def add(self, x, y):
+        for i in range(0, len(x), len(self.x)):
+            xs, ys = x[i:i + len(self.x)], y[i:i + len(self.x)]
+            idx = (self.ptr + np.arange(len(xs))) % len(self.x)
+            self.x[idx], self.y[idx] = xs, ys
+            self.ptr = int((self.ptr + len(xs)) % len(self.x))
+            self.size = min(len(self.x), self.size + len(xs))
+
+    def batch(self, rng, n):
+        i = rng.integers(0, self.size, n)
+        return self.x[i].astype(np.float32), self.y[i]
+
+    def save(self, out):
+        for name, arr in (('replay_x', self.x), ('replay_y', self.y)):
+            with open(out / f'{name}.tmp', 'wb') as f:
+                np.save(f, arr[:self.size])
+            os.replace(out / f'{name}.tmp', out / f'{name}.npy')
+        return dict(size=self.size, ptr=self.ptr)
+
+    def load(self, out, meta):
+        x = np.load(out / 'replay_x.npy', mmap_mode='r')
+        n = min(len(x), len(self.x))
+        self.x[:n] = x[:n]
+        self.y[:n] = np.load(out / 'replay_y.npy')[:n]
+        self.size, self.ptr = n, meta['ptr'] % len(self.x)
+
+
 def make_net():
     import torch
     from torch import nn
@@ -136,13 +175,21 @@ def main():
     opt = torch.optim.Adam(net.parameters(), lr=a.lr)
     a.out.mkdir(parents=True, exist_ok=True)
     ckpt = a.out / 'latest.pt'
-    state = dict(round=0, level=0, next_seed=TRAIN_SEED0, replay_x=[], replay_y=[], history=[])
+    state = dict(round=0, level=0, next_seed=TRAIN_SEED0, replay=None, history=[])
+    replay = Replay(a.replay)
+    batch_rng = np.random.default_rng(a.seed + 1)
     if a.resume:
         s = torch.load(ckpt, map_location='cpu', weights_only=False)
         net.load_state_dict(s['net'])
         opt.load_state_dict(s['opt'])
         rng.bit_generator.state = s['numpy_rng']
         state = s['state']
+        if 'replay_x' in state:             # 旧格式断点:回放是 list,转进环形池
+            for x, y in zip(state.pop('replay_x'), state.pop('replay_y')):
+                replay.add(x, y)
+        else:
+            replay.load(a.out, state['replay'])
+        del s
     elif ckpt.exists():
         raise SystemExit(f'{a.out} 里已经有断点,续训加 --resume,新实验换目录')
     else:
@@ -171,22 +218,16 @@ def main():
             t0 = time.time()
             rows = []
             for x, y, row in ex.map(_job, jobs):
-                state['replay_x'].append(x)
-                state['replay_y'].append(y)
+                replay.add(x, y)
                 rows.append(row)
-            while sum(len(x) for x in state['replay_x']) > a.replay:
-                state['replay_x'].pop(0)
-                state['replay_y'].pop(0)
             t_collect = time.time() - t0
 
-            X = torch.from_numpy(np.concatenate(state['replay_x']))
-            Y = torch.from_numpy(np.concatenate(state['replay_y']))
             wy = torch.tensor([1.0, 0.5])
             t0 = time.time()
             losses = []
             for _ in range(a.updates):
-                i = torch.randint(len(X), (a.batch,))
-                loss = (((net(X[i]) - Y[i]) ** 2) * wy).mean()
+                xb, yb = replay.batch(batch_rng, a.batch)
+                loss = (((net(torch.from_numpy(xb)) - torch.from_numpy(yb)) ** 2) * wy).mean()
                 opt.zero_grad()
                 loss.backward()
                 opt.step()
@@ -202,12 +243,12 @@ def main():
             t_eval = time.time() - t0
 
             export(net, a.out / f'candidate_{r:03d}.npz')
-            report = dict(round=r, level=level, beta=beta, samples=len(X),
+            report = dict(round=r, level=level, beta=beta, samples=replay.size,
                           loss=float(np.mean(losses[-200:])), collect=summarize(rows),
                           eval=summ, seconds=dict(collect=t_collect, update=t_update, eval=t_eval),
                           episodes=ev)
             (a.out / f'eval_{r:03d}.json').write_text(json.dumps(report, indent=1), encoding='utf-8')
-            say(f'round {r} {level} beta={beta:.2f} samples={len(X)} loss={report["loss"]:.4f} '
+            say(f'round {r} {level} beta={beta:.2f} samples={replay.size} loss={report["loss"]:.4f} '
                 f'eval={summ["success"]:.3f} {summ["by_cap"]} {summ["reasons"]} '
                 f'[{t_collect:.0f}s/{t_update:.0f}s/{t_eval:.0f}s]')
             state['history'].append(dict(round=r, level=level, success=summ['success']))
@@ -215,6 +256,7 @@ def main():
                 state['level'] = lv + 1
                 say(f'升级 -> {LEVELS[lv + 1].name}')
             state['round'] = r + 1
+            state['replay'] = replay.save(a.out)
             tmp = a.out / 'latest.tmp'
             torch.save(dict(net=net.state_dict(), opt=opt.state_dict(),
                             numpy_rng=rng.bit_generator.state, state=state), tmp)
