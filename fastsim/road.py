@@ -41,6 +41,15 @@ class Level:
     straight: tuple = (1.5, 4.0)        # 元素之间的直道长
     cone_spacing: tuple = (0.5, 0.9)
     wall_chance: float = 0.5            # 一侧用墙(否则锥桶)的概率
+    # --- 闭环赛道(L5):按规则元素拼的闭环(track_rules.make_rule_track),折在 16.8m 场地里 ---
+    loop: bool = False
+    loop_width: tuple = (1.4, 1.6)      # [规则] 1.5m,上下留一点
+    loop_bend: tuple = (0.9, 1.3)       # 弯中心线半径上限;下限取它 -0.3、不小于半宽(=内侧尖角,赛道 A 左端方角)
+    # 锥桶间距分三种位置抽:赛方参考图(用户 2026-09-25 量)直道约 0.61、弯内侧最密约 0.45;
+    # 同一张图按 16.8m 比例尺量直道是 ~1.13(和 params.py 的 1.15 一致)。两种说法都覆盖到。
+    straight_spacing: tuple = (0.55, 1.2)
+    inner_spacing: tuple = (0.4, 0.65)
+    outer_spacing: tuple = (0.6, 1.1)
 
 
 LEVELS = (
@@ -55,6 +64,7 @@ LEVELS = (
           sharp_chance=0.4, uturn_chance=0.15, jog_chance=0.2, taper_chance=0.15,
           gap_chance=0.2, one_side_none_chance=0.1, n_elems=(4, 7), straight=(0.3, 3.0),
           cone_spacing=(0.4, 1.2)),
+    Level('L5', loop=True),
 )
 
 
@@ -262,3 +272,67 @@ def generate(rng: np.random.Generator, lv: Level, tries: int = 50) -> Road:
         if not self_overlaps(road):
             return road
     raise RuntimeError(f'{lv.name}: {tries} 次都生成了自重叠的路,参数范围有问题')
+
+
+# ---- 闭环赛道 ----
+def _loop_cones(side: np.ndarray, kappa: np.ndarray, is_left: bool, sp: tuple) -> np.ndarray:
+    """沿闭合边界按位置变间距排锥桶:直道 / 弯内侧 / 弯外侧。kappa 是中心线曲率(左正)。"""
+    closed = np.vstack([side, side[:1]])
+    seg = np.hypot(*np.diff(closed, axis=0).T)
+    s = np.concatenate([[0.0], np.cumsum(seg)])
+    straight, inner, outer = sp
+    out, t = [], 0.0
+    while t < s[-1] - 0.2:
+        i = min(int(np.searchsorted(s, t, side='right')) - 1, len(side) - 1)
+        out.append(closed[i] + (closed[i + 1] - closed[i]) * (t - s[i]) / max(seg[i], 1e-9))
+        k = kappa[i]
+        if abs(k) < 0.25:
+            t += straight
+        else:
+            t += inner if (k > 0) == is_left else outer
+    return np.array(out)
+
+
+def generate_loop(rng: np.random.Generator, lv: Level, laps: float = 1.0) -> Road:
+    """按规则拼一条闭环锥桶赛道,从随机位置展开成 laps 圈的 Road(再多 2m 当终点区)。
+
+    车在任何位置都能看到折回来的其它路段的锥桶 —— 这正是开放路段里没有、
+    赛道 A 上把 v2 干扰掉的东西(2026-09-25)。
+    """
+    from dataclasses import replace as _replace
+    from .params import RuleTrackParams
+    from .track_rules import make_rule_track
+    from .road_teacher import curvature
+    width = rng.uniform(*lv.loop_width)
+    bend = rng.uniform(*lv.loop_bend)
+    p = _replace(RuleTrackParams(), width=width, bend_radius_min=max(width / 2, bend - 0.3),
+                 bend_radius_max=max(bend, width / 2 + 0.05), n_boards=5)
+    tr = make_rule_track(rng, p)
+    c = tr.centerline
+    boards = tr.boards
+    if rng.random() < 0.5:                          # 一半镜像:顺时针/逆时针都见
+        c = (c * (1, -1))[::-1].copy()
+        boards = boards * (1, -1)
+    kap = curvature(np.vstack([c[-6:], c, c[:6]]), gap=6)[6:-6]
+    d = np.roll(c, -1, axis=0) - np.roll(c, 1, axis=0)
+    h = np.arctan2(d[:, 1], d[:, 0])
+    nrm = np.stack([-np.sin(h), np.cos(h)], axis=1)
+    left, right = c + nrm * width / 2, c - nrm * width / 2
+    sp = (rng.uniform(*lv.straight_spacing), rng.uniform(*lv.inner_spacing),
+          rng.uniform(*lv.outer_spacing))
+    cones = np.vstack([_loop_cones(left, kap, True, sp), _loop_cones(right, kap, False, sp)])
+    # 从随机位置展开
+    i0 = int(rng.integers(len(c)))
+    c = np.roll(c, -i0, axis=0)
+    n = int(len(c) * laps) + int(2.0 / DS)
+    reps = np.arange(n) % len(c)
+    cc = c[reps]
+    s = np.concatenate([[0.0], np.cumsum(np.hypot(*np.diff(cc, axis=0).T))])
+    dd = np.gradient(cc, axis=0)
+    heading = np.unwrap(np.arctan2(dd[:, 1], dd[:, 0]))
+    mat = np.full(n, CONE)
+    road = Road(cc, heading, s, np.full(n, width / 2), mat, mat.copy(),
+                elems=[dict(kind='loop', width=width, bend=bend, spacing=sp)])
+    road.cones = cones
+    road.walls = np.asarray(boards, float).reshape(-1, 2, 2)     # [规则] 5 块蓝挡板,当墙打
+    return road

@@ -29,7 +29,7 @@ from concurrent.futures import ProcessPoolExecutor
 import numpy as np
 
 from .params import CarParams
-from .road import LEVELS, generate
+from .road import LEVELS, generate, generate_loop
 from .road_env import GOAL_BEFORE_END, Plant, RoadEnv, footprint_clearance
 from .road_teacher import Teacher, plan
 
@@ -94,7 +94,7 @@ def sample_episode(seed: int, level: str, max_tries: int = 200):
     lv = next(l for l in LEVELS if l.name == level)
     rejects = collections.Counter()
     for _ in range(max_tries):
-        road = generate(rng, lv)
+        road = generate_loop(rng, lv) if lv.loop else generate(rng, lv)
         pl = Plant.sample(rng)
         start = sample_start(rng, road, recovery=rng.random() < 0.5)
         ok, why, P = check(road, pl, start)
