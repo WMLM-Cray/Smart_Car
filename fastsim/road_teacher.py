@@ -63,13 +63,12 @@ def curvature(pts: np.ndarray, gap: int = 3) -> np.ndarray:
 
 
 def plan(road: Road, i0: int, d0: float, car_width: float, pl,
-         horizon: float | None = None, yaw0: float | None = None, r_min: float = R_MIN) -> Plan | str:
+         horizon: float | None = None, r_min: float = R_MIN) -> Plan | str:
     """返回 Plan,或者失败原因字符串('too_narrow' / 'curvature' / 'plan_error')。
 
     在 0.25m 一个的粗网格上解,再三次样条插回 5cm。粗点的边界取它前后半格内
     最紧的那个,插值后才不会在尖内角处越界。
     horizon  只规划前方这么远(m),None = 到路终点
-    yaw0     车头相对路向的偏角;给了就把第二个粗点钉在车头方向上(重规划时方向盘不跳)
     r_min    5cm 路线上允许的最小半径(粗网格照样按 R_MIN 摊弯)
     """
     i1 = len(road.half) if horizon is None else min(len(road.half), i0 + int(horizon / DS) + 1)
@@ -89,9 +88,6 @@ def plan(road: Road, i0: int, d0: float, car_width: float, pl,
     n = np.stack([-np.sin(h), np.cos(h)], axis=1)
     m = len(idx)
     lo[0], hi[0] = d0 - 1e-6, d0 + 1e-6             # 从车现在的位置出发
-    if yaw0 is not None and m > 3:
-        d1 = float(np.clip(d0 + math.tan(yaw0) * (idx[1] * DS), lo[1], hi[1]))
-        lo[1], hi[1] = d1 - 1e-6, d1 + 1e-6
     # 目标:sum w_i |p_{i-1} - 2p_i + p_{i+1}|²,p = c + d·n,对 d 线性
     rhs0 = c[:-2] - 2 * c[1:-1] + c[2:]
     w = np.ones(m - 2)
@@ -135,6 +131,8 @@ class Teacher:
     """replan=True:每 REPLAN_EVERY 拍、或偏离路线 > REPLAN_DEV,从车当前位姿重规划前方
     HORIZON 米。标签只取决于车现在的状态和前方的路 —— 学生开偏了,老师给的是"从这里
     怎么开",不是"回到开局那条线"(那条线取决于起点,学生看不到,同一画面标签打架)。
+    只钉起点位置、不钉车头方向:钉了的话被扰动后车头冲着边界,最小曲率路线把回正摊开,
+    扰动恢复率掉一截(L2 0.70->0.50);不钉则纯追踪立刻打回,恢复率 0.97(2026-09-26 实测)。
     重规划失败(车已偏到规划不出来)就沿用旧路线,计入 fails。
     """
 
@@ -146,8 +144,7 @@ class Teacher:
     def _replan(self):
         env, car = self.env, self.env.car
         i, d = env.road.project((car.x, car.y), env.idx)
-        yaw = (car.yaw - env.road.heading[i] + math.pi) % (2 * math.pi) - math.pi
-        P = plan(env.road, i, d, env.cp.width, env.pl, HORIZON, yaw, R_REPLAN)
+        P = plan(env.road, i, d, env.cp.width, env.pl, HORIZON, R_REPLAN)
         if isinstance(P, str):
             self.fails += 1
             return
