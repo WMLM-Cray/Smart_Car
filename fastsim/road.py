@@ -186,7 +186,9 @@ def _gap_elements(rng: np.random.Generator, lv: Level) -> list[dict]:
             out.append(dict(kind='straight', length=rng.uniform(1.5, 4.0), width=width))
         sign = 1 if rng.random() < 0.5 else -1
         out.append(dict(kind='arc', angle=90.0 * sign, r_in=rng.uniform(0.0, 0.1), width=width,
-                        gap_corner=rng.random() < 0.8, gap_spacing=rng.uniform(1.1, 1.5),
+                        # 外角方角的桶距 0.4~1.5 全覆盖:只练稀桶时车学会了"方角 = 稀桶",
+                        # 赛道 C 左上角那种密桶方角(0.5m)反而一头撞上去(v2_d,2026-09-26)
+                        gap_corner=rng.random() < 0.9, gap_spacing=rng.uniform(0.4, 1.5),
                         gap_phase=rng.uniform(0.0, 1.0)))
         out.append(dict(kind='straight', length=rng.uniform(1.5, 3.5), width=width))
     out.append(dict(kind='straight', length=3.0, width=width))
