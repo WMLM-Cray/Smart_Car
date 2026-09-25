@@ -95,6 +95,8 @@ def plan(road: Road, i0: int, d0: float, car_width: float, pl) -> Plan | str:
             d = lsq_linear(A, b, bounds=(lo, hi), method='bvls').x
         except np.linalg.LinAlgError:
             return 'plan_error'
+        if not np.all(np.isfinite(d)):      # bvls 偶尔除零给出 NaN(2026-09-25 训练第 42 轮崩过)
+            return 'plan_error'
         kap = curvature(c + d[:, None] * n, gap=1)
         over = np.abs(kap[1:-1]) * R_MIN
         if over.max() <= 0.95:
