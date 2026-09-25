@@ -30,7 +30,7 @@ import numpy as np
 
 from .params import CarParams
 from .road import LEVELS, generate
-from .road_env import RoadEnv, Plant, footprint_clearance
+from .road_env import GOAL_BEFORE_END, Plant, RoadEnv, footprint_clearance
 from .road_teacher import Teacher, plan
 
 SWEEP_CLEAR = 0.08
@@ -64,6 +64,8 @@ def check(road, pl, start) -> tuple[bool, str, object]:
     # 3 可见(放在闭环前面,便宜)
     last = -math.inf
     for k in range(len(P.pts)):
+        if P.s[k] > P.s[-1] - GOAL_BEFORE_END:     # 过了终点线就结束了,路尽头前面本来就空
+            break
         if P.s[k] - last < LOOK_STEP:
             continue
         last = P.s[k]
