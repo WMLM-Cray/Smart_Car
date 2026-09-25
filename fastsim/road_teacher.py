@@ -11,7 +11,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 from scipy.interpolate import CubicSpline
@@ -20,7 +20,7 @@ from scipy.optimize import lsq_linear
 from .pwm import steer_to_turn_float
 from .road import CONE, DS, NONE, WALL, Road
 from .road_env import CONTROL_DT, RoadEnv
-from .road_policy import speed_to_action
+from .road_policy import V_HI, speed_to_action
 
 R_MIN = 0.95                # 规划用最小转弯半径 m
 # 车身两侧到边界至少留这么多(规划时)。锥桶立在边界线上,半径 0.14 要额外扣;
@@ -136,15 +136,19 @@ class Teacher:
     重规划失败(车已偏到规划不出来)就沿用旧路线,计入 fails。
     """
 
-    def __init__(self, env: RoadEnv, pl_: Plan, replan: bool = True):
+    def __init__(self, env: RoadEnv, pl_: Plan, replan: bool = True, privileged: bool = True):
         self.env, self.plan = env, pl_
         self.j = 0
         self.replan, self.n, self.fails = replan, 0, 0
+        # privileged=False:老师按名义车辆参数算(学生看不到这一局的延迟/增益/中位/纯滞后/满电速度),
+        # 真实偏差靠每拍重规划吸收。标签就只取决于学生看得到的东西。
+        self.pl = env.pl if privileged else replace(env.pl, lag=0.5, steer_gain=1.0, servo_offset=0.0,
+                                                    dead_time=0.275, v_top=V_HI)
 
     def _replan(self):
         env, car = self.env, self.env.car
         i, d = env.road.project((car.x, car.y), env.idx)
-        P = plan(env.road, i, d, env.cp.width, env.pl, HORIZON, R_REPLAN)
+        P = plan(env.road, i, d, env.cp.width, self.pl, HORIZON, R_REPLAN)
         if isinstance(P, str):
             self.fails += 1
             return
@@ -158,7 +162,7 @@ class Teacher:
             if self.n % REPLAN_EVERY == 0 or dev > REPLAN_DEV:
                 self._replan()
         self.n += 1
-        P, pl, cp = self.plan, env.pl, env.cp
+        P, pl, cp = self.plan, self.pl, env.cp
         # 按指令延迟往前推位姿:这一拍的动作要 lag 拍后才生效
         t = CONTROL_DT * (pl.lag + 0.5)
         v = max(car.v, 0.3)
