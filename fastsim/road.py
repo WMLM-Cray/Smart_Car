@@ -58,6 +58,10 @@ class Level:
     # 所有模型都直冲出去;和实车走廊尽头卡死是同一种情形(2026-09-25)。
     gap_corners: bool = False
     gap_spacing: tuple = (0.4, 1.5)     # 方角外侧桶距
+    # 方角缺口后面摆一段"假走廊"(来车方向延长线上两排桶)的概率。赛道 A 左上角在缺口后面
+    # 10m 内加一排桶,v2_g 通过率 0.83 -> 0.03:学生看缺口后面像不像路来决定拐不拐,
+    # 而训练里缺口后面几乎总是空的(2026-09-26)。实车场地上缺口后面是别的赛段、人、杂物
+    decoy_chance: float = 0.0
 
 
 LEVELS = (
@@ -73,10 +77,11 @@ LEVELS = (
           gap_chance=0.2, one_side_none_chance=0.1, n_elems=(4, 7), straight=(0.3, 3.0),
           cone_spacing=(0.4, 1.2)),
     Level('L5', loop=True),
-    Level('L6', gap_corners=True, width=(1.3, 1.7), wall_chance=0.2),
+    Level('L6', gap_corners=True, width=(1.3, 1.7), wall_chance=0.2, decoy_chance=0.5),
     # 只做验证:稀桶方角(赛道 A 左上角 1.3~1.47)。L6 整体 0.98 的两个存档在 A 上一个 100% 一个 0%,
     # 差别全在这种角上,L6 里它占比小、看不出来(2026-09-26)
-    Level('L6h', gap_corners=True, width=(1.3, 1.7), wall_chance=0.0, gap_spacing=(1.2, 1.5)),
+    Level('L6h', gap_corners=True, width=(1.3, 1.7), wall_chance=0.0, gap_spacing=(1.2, 1.5),
+          decoy_chance=0.5),
 )
 
 
@@ -182,10 +187,18 @@ def _gap_elements(rng: np.random.Generator, lv: Level) -> list[dict]:
     width = rng.uniform(*lv.width)
     out = [dict(kind='straight', length=rng.uniform(2.0, 3.0), width=width)]
     for _ in range(int(rng.integers(2, 5))):
-        if rng.random() < 0.6:
+        u = rng.random()
+        if u < 0.4:
             a = float(rng.choice([45.0, 90.0])) * (1 if rng.random() < 0.5 else -1)
             out.append(dict(kind='arc', angle=a, r_in=rng.uniform(0.3, 1.2), width=width))
             out.append(dict(kind='straight', length=rng.uniform(0.5, 2.5), width=width))
+        elif u < 0.7:
+            # 缓 S 弯直接进方角:车不用减速,满速冲到角前(赛道 A 左上角,cap 1.0 时 12% 撞在这,
+            # 原来方角前只有急弯或直道,2026-09-26)
+            a = float(rng.uniform(20.0, 45.0)) * (1 if rng.random() < 0.5 else -1)
+            out.append(dict(kind='arc', angle=a, r_in=rng.uniform(1.5, 3.0), width=width))
+            out.append(dict(kind='arc', angle=-a, r_in=rng.uniform(1.5, 3.0), width=width))
+            out.append(dict(kind='straight', length=rng.uniform(1.0, 3.0), width=width))
         else:
             out.append(dict(kind='straight', length=rng.uniform(1.5, 4.0), width=width))
         sign = 1 if rng.random() < 0.5 else -1
@@ -193,7 +206,9 @@ def _gap_elements(rng: np.random.Generator, lv: Level) -> list[dict]:
                         # 外角方角的桶距 0.4~1.5 全覆盖:只练稀桶时车学会了"方角 = 稀桶",
                         # 赛道 C 左上角那种密桶方角(0.5m)反而一头撞上去(v2_d,2026-09-26)
                         gap_corner=rng.random() < 0.9, gap_spacing=rng.uniform(*lv.gap_spacing),
-                        gap_phase=rng.uniform(0.0, 1.0)))
+                        gap_phase=rng.uniform(0.0, 1.0),
+                        decoy=rng.random() < lv.decoy_chance, decoy_dist=rng.uniform(0.8, 4.0),
+                        decoy_len=rng.uniform(2.0, 5.0), decoy_spacing=rng.uniform(0.5, 1.5)))
         out.append(dict(kind='straight', length=rng.uniform(1.5, 3.5), width=width))
     out.append(dict(kind='straight', length=3.0, width=width))
     return out
@@ -301,6 +316,13 @@ def _square_gap_corner(road: Road, e: dict) -> None:
         while t <= leg:
             new.append(vertex + d * t)
             t += sp
+    if e.get('decoy'):                                          # 外墙后面、来车方向的假走廊
+        q0 = (road.left if sign > 0 else road.right)[i0]
+        for p in (p0, q0):
+            t = a + e['decoy_dist']
+            while t <= a + e['decoy_dist'] + e['decoy_len']:
+                new.append(p + d0 * t)
+                t += e['decoy_spacing']
     road.cones = np.vstack([road.cones[np.array(keep, bool)], np.array(new)])
 
 
