@@ -1,10 +1,10 @@
-# 赛道A 坐标清单 —— 仿真几何基线 v1(冻结自 7ba1e08 验收)
-# 几何单源=本生成器;CSV/YAML/俯视图同源生成,勿手改。
+# 赛道A 图9A逐桶坐标；边界段为未校准的旧仿真模型
+# 锥桶坐标来自 fig9a_cones.py 对原图逐桶读点;旧边界段为未校准的模型。
 # 坐标系: 原点=外边界左下角, x向右, y向上, 单位m, 行车逆时针
 # 假设声明: 黄V按图示肩点与角度连接;局部法向宽度约1.386m,
 #           与规则统一道宽1.5m的关系待确认。不宣称全程严格1.5m。
 track: A
-baseline: {name: sim-geometry-v1, commit: 7ba1e08, checker_exit: 0}
+baseline: {name: legacy-sim-boundaries, commit: 7ba1e08, geometry_validation: pending}
 frame:
   origin: outer_boundary_lower_left
   axes: {x: right, y: up}
@@ -26,7 +26,8 @@ params:
   v_arm_generated: {value: 3.054048, source: 'frozen: 保肩点+135°,残差-0.005952'}
   v_band_width: {value: {vertical: 1.50, normal: 1.386}, source: 'asmp: 待确认'}
   w_point_dev: {value: 0.211, source: 'envchk: 来源待核查(不足以断言读数噪声)'}
-  cone_spacing: {value: 1.000, source: 'asmp: 无官方定值,可配置'}
+  cone_placement: {value: individual_pixel_centres, source: '2026规则图9A;fig9A_source.jpg'}
+  cone_scale: {value: 78.630952, source: '图示外蓝锥水平跨度1321px对应16.8m'}
 boundaries:
   outer:  # 逆时针,自左下弧下切点
     - {seg: E1, line: [2.750000, 0.000000, 14.050000, 0.000000]}
@@ -57,70 +58,80 @@ yellow_v_band:  # 禁放区(黄V中段不放锥桶)
   valley_outer: [11.228427, 4.331266]
   valley_inner: [11.228427, 2.831266]
 zones:
-  zone_a: {x: [6.00, 7.25], source: image, note: 'A 检测区黄框(宽1.25)'}
-  zone_ab: {x: [8.25, 9.50], source: image, note: 'A/B 双格黄框(宽1.25,上A下B)'}
+  zone_light_example: {x: [2.759727, 5.010749], source: image, note: '图示红绿灯区;实赛位置可变'}
+  zone_a: {x: [6.129902, 7.261771], source: image, note: 'A 检测区黄框'}
+  zone_ab: {x: [8.393641, 9.512793], source: image, note: 'A/B 双格黄框'}
+  zone_start: {x: [10.644663, 11.776533], source: image, note: '发车区黄框'}
 start_pose: {xy: [11.00, 0.75], yaw_deg: 0, source: asmp}
-cones:  # 37 blue + 26 red,沿边界逆时针;黄V段无锥
-  - {id: b01, color: blue, x: 2.750000, y: 0.000000, segment: E1}
-  - {id: b02, color: blue, x: 3.777273, y: 0.000000, segment: E1}
-  - {id: b03, color: blue, x: 4.804545, y: 0.000000, segment: E1}
-  - {id: b04, color: blue, x: 5.831818, y: 0.000000, segment: E1}
-  - {id: b05, color: blue, x: 6.859091, y: 0.000000, segment: E1}
-  - {id: b06, color: blue, x: 7.886364, y: 0.000000, segment: E1}
-  - {id: b07, color: blue, x: 8.913636, y: 0.000000, segment: E1}
-  - {id: b08, color: blue, x: 9.940909, y: 0.000000, segment: E1}
-  - {id: b09, color: blue, x: 10.968182, y: 0.000000, segment: E1}
-  - {id: b10, color: blue, x: 11.995455, y: 0.000000, segment: E1}
-  - {id: b11, color: blue, x: 13.022727, y: 0.000000, segment: E1}
-  - {id: b12, color: blue, x: 14.050000, y: 0.000000, segment: E1}
-  - {id: b13, color: blue, x: 14.990555, y: 0.165845, segment: E2}
-  - {id: b14, color: blue, x: 15.817666, y: 0.643378, segment: E2}
-  - {id: b15, color: blue, x: 16.431570, y: 1.375000, segment: E2}
-  - {id: b16, color: blue, x: 16.758221, y: 2.272468, segment: E2}
-  - {id: b17, color: blue, x: 16.758221, y: 3.227532, segment: E2}
-  - {id: b18, color: blue, x: 16.431570, y: 4.125000, segment: E2}
-  - {id: b19, color: blue, x: 15.817666, y: 4.856622, segment: E2}
-  - {id: b20, color: blue, x: 14.990555, y: 5.334155, segment: E2}
-  - {id: b21, color: blue, x: 14.050000, y: 5.500000, segment: E2}
-  - {id: b22, color: blue, x: 8.406854, y: 5.500000, segment: E5}
-  - {id: b23, color: blue, x: 7.354475, y: 5.290669, segment: E5}
-  - {id: b24, color: blue, x: 6.462311, y: 4.694544, segment: E5}
-  - {id: b25, color: blue, x: 5.578427, y: 4.328427, segment: E6}
-  - {id: b26, color: blue, x: 4.694544, y: 4.694544, segment: E6}
-  - {id: b27, color: blue, x: 3.802379, y: 5.290669, segment: E7}
-  - {id: b28, color: blue, x: 2.750000, y: 5.500000, segment: E7}
-  - {id: b29, color: blue, x: 1.833333, y: 5.500000, segment: E8}
-  - {id: b30, color: blue, x: 0.916667, y: 5.500000, segment: E8}
-  - {id: b31, color: blue, x: 0.000000, y: 5.500000, segment: E8}
-  - {id: b32, color: blue, x: 0.000000, y: 4.583333, segment: E9}
-  - {id: b33, color: blue, x: 0.000000, y: 3.666667, segment: E9}
-  - {id: b34, color: blue, x: 0.000000, y: 2.750000, segment: E9}
-  - {id: b35, color: blue, x: 0.209331, y: 1.697621, segment: E10}
-  - {id: b36, color: blue, x: 0.805456, y: 0.805456, segment: E10}
-  - {id: b37, color: blue, x: 1.697621, y: 0.209331, segment: E10}
-  - {id: r01, color: red, x: 2.750000, y: 1.500000, segment: I1}
-  - {id: r02, color: red, x: 3.777273, y: 1.500000, segment: I1}
-  - {id: r03, color: red, x: 4.804545, y: 1.500000, segment: I1}
-  - {id: r04, color: red, x: 5.831818, y: 1.500000, segment: I1}
-  - {id: r05, color: red, x: 6.859091, y: 1.500000, segment: I1}
-  - {id: r06, color: red, x: 7.886364, y: 1.500000, segment: I1}
-  - {id: r07, color: red, x: 8.913636, y: 1.500000, segment: I1}
-  - {id: r08, color: red, x: 9.940909, y: 1.500000, segment: I1}
-  - {id: r09, color: red, x: 10.968182, y: 1.500000, segment: I1}
-  - {id: r10, color: red, x: 11.995455, y: 1.500000, segment: I1}
-  - {id: r11, color: red, x: 13.022727, y: 1.500000, segment: I1}
-  - {id: r12, color: red, x: 14.050000, y: 1.500000, segment: I1}
-  - {id: r13, color: red, x: 14.933883, y: 1.866117, segment: I2}
-  - {id: r14, color: red, x: 15.300000, y: 2.750000, segment: I2}
-  - {id: r15, color: red, x: 14.933883, y: 3.633883, segment: I2}
-  - {id: r16, color: red, x: 14.050000, y: 4.000000, segment: I2}
-  - {id: r17, color: red, x: 8.406854, y: 4.000000, segment: I5}
-  - {id: r18, color: red, x: 7.522971, y: 3.633883, segment: I5}
-  - {id: r19, color: red, x: 6.630807, y: 3.037758, segment: I6}
-  - {id: r20, color: red, x: 5.578427, y: 2.828427, segment: I6}
-  - {id: r21, color: red, x: 4.526048, y: 3.037758, segment: I6}
-  - {id: r22, color: red, x: 3.633883, y: 3.633883, segment: I6}
-  - {id: r23, color: red, x: 2.750000, y: 4.000000, segment: I7}
-  - {id: r24, color: red, x: 1.500000, y: 4.000000, segment: I8}
-  - {id: r25, color: red, x: 1.500000, y: 2.750000, segment: I9}
-  - {id: r26, color: red, x: 1.866117, y: 1.866117, segment: I10}
+cones:  # 36 blue + 35 red,沿边界逆时针;黄V段无锥
+  - {id: b01, color: blue, x: 2.759727, y: 0.000000, segment: E1}
+  - {id: b02, color: blue, x: 3.878880, y: 0.000000, segment: E1}
+  - {id: b03, color: blue, x: 5.010749, y: 0.000000, segment: E1}
+  - {id: b04, color: blue, x: 6.129902, y: 0.000000, segment: E1}
+  - {id: b05, color: blue, x: 7.287207, y: -0.025435, segment: E1}
+  - {id: b06, color: blue, x: 8.380924, y: -0.025435, segment: E1}
+  - {id: b07, color: blue, x: 9.550946, y: -0.012718, segment: E1}
+  - {id: b08, color: blue, x: 10.644663, y: -0.025435, segment: E1}
+  - {id: b09, color: blue, x: 11.801968, y: -0.025435, segment: E1}
+  - {id: b10, color: blue, x: 12.908403, y: 0.000000, segment: E1}
+  - {id: b11, color: blue, x: 14.052990, y: 0.000000, segment: E1}
+  - {id: b12, color: blue, x: 15.095836, y: 0.216200, segment: E2}
+  - {id: b13, color: blue, x: 15.986071, y: 0.801211, segment: E2}
+  - {id: b14, color: blue, x: 16.583800, y: 1.691446, segment: E2}
+  - {id: b15, color: blue, x: 16.800000, y: 2.747010, segment: E2}
+  - {id: b16, color: blue, x: 16.583800, y: 3.802574, segment: E2}
+  - {id: b17, color: blue, x: 15.986071, y: 4.692808, segment: E2}
+  - {id: b18, color: blue, x: 15.108554, y: 5.290537, segment: E2}
+  - {id: b19, color: blue, x: 14.065708, y: 5.494020, segment: E2}
+  - {id: b20, color: blue, x: 8.393641, y: 5.494020, segment: E5}
+  - {id: b21, color: blue, x: 7.350795, y: 5.290537, segment: E5}
+  - {id: b22, color: blue, x: 6.460560, y: 4.680091, segment: E5}
+  - {id: b23, color: blue, x: 6.053596, y: 4.425738, segment: E6}
+  - {id: b24, color: blue, x: 5.583043, y: 4.323997, segment: E6}
+  - {id: b25, color: blue, x: 5.099773, y: 4.413020, segment: E6}
+  - {id: b26, color: blue, x: 4.692808, y: 4.680091, segment: E6}
+  - {id: b27, color: blue, x: 3.802574, y: 5.290537, segment: E7}
+  - {id: b28, color: blue, x: 2.759727, y: 5.494020, segment: E7}
+  - {id: b29, color: blue, x: 1.284481, y: 5.494020, segment: E8}
+  - {id: b30, color: blue, x: 0.000000, y: 5.494020, segment: E8}
+  - {id: b31, color: blue, x: 0.000000, y: 4.120515, segment: E9}
+  - {id: b32, color: blue, x: 0.000000, y: 3.382892, segment: E9}
+  - {id: b33, color: blue, x: 0.000000, y: 2.747010, segment: E9}
+  - {id: b34, color: blue, x: 0.216200, y: 1.691446, segment: E10}
+  - {id: b35, color: blue, x: 0.813929, y: 0.801211, segment: E10}
+  - {id: b36, color: blue, x: 1.704164, y: 0.216200, segment: E10}
+  - {id: r01, color: red, x: 2.759727, y: 1.500681, segment: I1}
+  - {id: r02, color: red, x: 3.878880, y: 1.500681, segment: I1}
+  - {id: r03, color: red, x: 5.010749, y: 1.500681, segment: I1}
+  - {id: r04, color: red, x: 6.129902, y: 1.500681, segment: I1}
+  - {id: r05, color: red, x: 7.261771, y: 1.500681, segment: I1}
+  - {id: r06, color: red, x: 8.393641, y: 1.500681, segment: I1}
+  - {id: r07, color: red, x: 9.512793, y: 1.513399, segment: I1}
+  - {id: r08, color: red, x: 10.644663, y: 1.500681, segment: I1}
+  - {id: r09, color: red, x: 11.776533, y: 1.500681, segment: I1}
+  - {id: r10, color: red, x: 12.908403, y: 1.500681, segment: I1}
+  - {id: r11, color: red, x: 14.052990, y: 1.500681, segment: I1}
+  - {id: r12, color: red, x: 14.523543, y: 1.589705, segment: I2}
+  - {id: r13, color: red, x: 14.930507, y: 1.869493, segment: I2}
+  - {id: r14, color: red, x: 15.223013, y: 2.301893, segment: I2}
+  - {id: r15, color: red, x: 15.299319, y: 2.747010, segment: I2}
+  - {id: r16, color: red, x: 15.197578, y: 3.217562, segment: I2}
+  - {id: r17, color: red, x: 14.930507, y: 3.637245, segment: I2}
+  - {id: r18, color: red, x: 14.523543, y: 3.904315, segment: I2}
+  - {id: r19, color: red, x: 14.078425, y: 3.993338, segment: I2}
+  - {id: r20, color: red, x: 8.406359, y: 3.993338, segment: I5}
+  - {id: r21, color: red, x: 7.923089, y: 3.891597, segment: I5}
+  - {id: r22, color: red, x: 7.516124, y: 3.624527, segment: I5}
+  - {id: r23, color: red, x: 6.613172, y: 3.039516, segment: I6}
+  - {id: r24, color: red, x: 5.583043, y: 2.823316, segment: I6}
+  - {id: r25, color: red, x: 4.527479, y: 3.026798, segment: I6}
+  - {id: r26, color: red, x: 3.649962, y: 3.611809, segment: I6}
+  - {id: r27, color: red, x: 3.217562, y: 3.904315, segment: I7}
+  - {id: r28, color: red, x: 2.734292, y: 3.993338, segment: I7}
+  - {id: r29, color: red, x: 2.111128, y: 3.993338, segment: I8}
+  - {id: r30, color: red, x: 1.500681, y: 3.993338, segment: I8}
+  - {id: r31, color: red, x: 1.500681, y: 3.382892, segment: I9}
+  - {id: r32, color: red, x: 1.500681, y: 2.747010, segment: I9}
+  - {id: r33, color: red, x: 1.602422, y: 2.276457, segment: I10}
+  - {id: r34, color: red, x: 1.869493, y: 1.869493, segment: I10}
+  - {id: r35, color: red, x: 2.276457, y: 1.589705, segment: I10}
