@@ -359,7 +359,11 @@ def main():
     write_csv(os.path.join(OUTDIR, "trackA_cones.csv"), cones)
     write_yaml(os.path.join(OUTDIR, "trackA_layout.yaml"), cones, a.spacing, a.curve_spacing, a.source)
     if a.source == "fig9":
-        module.write_overlay(os.path.join(OUTDIR, "trackA_topview.png"))
+        render_path = os.path.join(HERE, "render_trackA.py")
+        render_spec = importlib.util.spec_from_file_location("render_trackA", render_path)
+        renderer = importlib.util.module_from_spec(render_spec)
+        render_spec.loader.exec_module(renderer)
+        renderer.render(os.path.join(OUTDIR, "trackA_topview.png"))
         module.write_overlay(os.path.join(OUTDIR, "trackA_fig9_cone_overlay.png"))
     else:
         write_topview(os.path.join(OUTDIR, "trackA_topview.png"), cones)

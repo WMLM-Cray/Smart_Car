@@ -1,9 +1,0 @@
-{
-  "frame": "map",
-  "width": 1472,
-  "height": 640,
-  "resolution": 0.05000000074505806,
-  "map_stamp_sec": 1789909335,
-  "export_time_sec": 1789909335.631577,
-  "note": "SLAM snapshot, not a guarantee of map accuracy. Check odometry and TF."
-}
