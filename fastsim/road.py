@@ -44,7 +44,7 @@ class Level:
     # --- 闭环赛道(L5):按规则元素拼的闭环(track_rules.make_rule_track),折在 16.8m 场地里 ---
     loop: bool = False
     loop_width: tuple = (1.4, 1.6)      # [规则] 1.5m,上下留一点
-    loop_bend: tuple = (0.9, 1.3)       # 弯中心线半径上限;下限取它 -0.3、不小于半宽(=内侧尖角,赛道 A 左端方角)
+    loop_bend: tuple = (1.0, 1.4)       # 弯中心线半径上限;下限取它 -0.25、不小于半宽(=内侧尖角,赛道 A 左端方角)
     # 锥桶间距分三种位置抽:赛方参考图(用户 2026-09-25 量)直道约 0.61、弯内侧最密约 0.45;
     # 同一张图按 16.8m 比例尺量直道是 ~1.13(和 params.py 的 1.15 一致)。两种说法都覆盖到。
     straight_spacing: tuple = (0.55, 1.2)
@@ -305,7 +305,7 @@ def generate_loop(rng: np.random.Generator, lv: Level, laps: float = 1.0) -> Roa
     from .road_teacher import curvature
     width = rng.uniform(*lv.loop_width)
     bend = rng.uniform(*lv.loop_bend)
-    p = _replace(RuleTrackParams(), width=width, bend_radius_min=max(width / 2, bend - 0.3),
+    p = _replace(RuleTrackParams(), width=width, bend_radius_min=max(width / 2, bend - 0.25),
                  bend_radius_max=max(bend, width / 2 + 0.05), n_boards=5)
     tr = make_rule_track(rng, p)
     c = tr.centerline
