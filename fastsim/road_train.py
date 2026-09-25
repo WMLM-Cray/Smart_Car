@@ -15,9 +15,15 @@
 """
 from __future__ import annotations
 
+import os
+
+# 每个采样进程只用一个 BLAS 线程:32 个进程 x 32 线程会把机器压到负载 400(2026-09-25 实测)。
+# 必须在 import numpy 之前设。
+for _k in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS'):
+    os.environ.setdefault(_k, '1')
+
 import argparse
 import json
-import os
 import time
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -62,10 +68,6 @@ def run_episode(seed, level, weights=None, beta=0.0, collect=False):
     if collect:
         return np.asarray(xs, np.float32), np.asarray(ys, np.float32), row
     return row
-
-
-def _init_worker():
-    os.environ['OMP_NUM_THREADS'] = '1'
 
 
 def _job(args):
@@ -156,7 +158,7 @@ def main():
         print(line, flush=True)
         log.write(line + '\n')
 
-    with ProcessPoolExecutor(a.workers, initializer=_init_worker) as ex:
+    with ProcessPoolExecutor(a.workers) as ex:
         while state['round'] < a.rounds:
             r, lv = state['round'], state['level']
             beta = max(0.0, 1.0 - 0.25 * r)

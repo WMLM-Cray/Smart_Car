@@ -12,6 +12,13 @@
 """
 from __future__ import annotations
 
+import os
+
+# 每个采样进程只用一个 BLAS 线程:32 个进程 x 32 线程会把机器压到负载 400(2026-09-25 实测)。
+# 必须在 import numpy 之前设。
+for _k in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS'):
+    os.environ.setdefault(_k, '1')
+
 import argparse
 import collections
 import json

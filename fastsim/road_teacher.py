@@ -58,7 +58,7 @@ def curvature(pts: np.ndarray, gap: int = 3) -> np.ndarray:
 
 
 def plan(road: Road, i0: int, d0: float, car_width: float, pl) -> Plan | str:
-    """返回 Plan,或者失败原因字符串('too_narrow' / 'curvature')。
+    """返回 Plan,或者失败原因字符串('too_narrow' / 'curvature' / 'plan_error')。
 
     在 0.25m 一个的粗网格上解,再三次样条插回 5cm。粗点的边界取它前后半格内
     最紧的那个,插值后才不会在尖内角处越界。
@@ -91,7 +91,10 @@ def plan(road: Road, i0: int, d0: float, car_width: float, pl) -> Plan | str:
             A[r, rows + 1] = -2 * w * n[1:-1, ax]
             A[r, rows + 2] = w * n[2:, ax]
         b = -(rhs0 * w[:, None]).reshape(-1)
-        d = lsq_linear(A, b, bounds=(lo, hi), method='bvls').x
+        try:
+            d = lsq_linear(A, b, bounds=(lo, hi), method='bvls').x
+        except np.linalg.LinAlgError:
+            return 'plan_error'
         kap = curvature(c + d[:, None] * n, gap=1)
         over = np.abs(kap[1:-1]) * R_MIN
         if over.max() <= 0.95:
