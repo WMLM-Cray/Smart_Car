@@ -18,7 +18,7 @@ from scipy.interpolate import CubicSpline
 from scipy.optimize import lsq_linear
 
 from .pwm import steer_to_turn_float
-from .road import CONE, NONE, WALL, Road
+from .road import CONE, DS, NONE, WALL, Road
 from .road_env import CONTROL_DT, RoadEnv
 from .road_policy import speed_to_action
 
@@ -31,6 +31,10 @@ A_LAT = 0.35                # 老师过弯的横向加速度上限 m/s²:R=1m �
                             # (原来 0.6 -> 0.78,弯前基本不减速;用户 2026-09-25 指出)
 A_DEC = 0.6                 # 计划减速度,比实测滑行 0.68~0.78 保守
 A_ACC = 0.4
+HORIZON = 8.0               # 重规划看前方多远 m(雷达量程 10m)
+REPLAN_EVERY = 5            # 拍,0.25s
+REPLAN_DEV = 0.15           # 偏离路线这么远立即重规划 m
+R_REPLAN = 0.85             # 重规划放宽到实测最小半径:车已偏了,贴着极限打满也比退回旧路线强
 
 
 @dataclass
@@ -58,15 +62,20 @@ def curvature(pts: np.ndarray, gap: int = 3) -> np.ndarray:
     return k
 
 
-def plan(road: Road, i0: int, d0: float, car_width: float, pl) -> Plan | str:
+def plan(road: Road, i0: int, d0: float, car_width: float, pl,
+         horizon: float | None = None, yaw0: float | None = None, r_min: float = R_MIN) -> Plan | str:
     """返回 Plan,或者失败原因字符串('too_narrow' / 'curvature' / 'plan_error')。
 
     在 0.25m 一个的粗网格上解,再三次样条插回 5cm。粗点的边界取它前后半格内
     最紧的那个,插值后才不会在尖内角处越界。
+    horizon  只规划前方这么远(m),None = 到路终点
+    yaw0     车头相对路向的偏角;给了就把第二个粗点钉在车头方向上(重规划时方向盘不跳)
+    r_min    5cm 路线上允许的最小半径(粗网格照样按 R_MIN 摊弯)
     """
+    i1 = len(road.half) if horizon is None else min(len(road.half), i0 + int(horizon / DS) + 1)
     margin = np.vectorize(SIDE_MARGIN.get)
-    hi_all = road.half[i0:] - car_width / 2 - margin(road.mat_left[i0:])
-    lo_all = -(road.half[i0:] - car_width / 2 - margin(road.mat_right[i0:]))
+    hi_all = road.half[i0:i1] - car_width / 2 - margin(road.mat_left[i0:i1])
+    lo_all = -(road.half[i0:i1] - car_width / 2 - margin(road.mat_right[i0:i1]))
     idx = np.arange(0, len(hi_all), STEP)
     if idx[-1] != len(hi_all) - 1:
         idx = np.r_[idx, len(hi_all) - 1]
@@ -80,11 +89,14 @@ def plan(road: Road, i0: int, d0: float, car_width: float, pl) -> Plan | str:
     n = np.stack([-np.sin(h), np.cos(h)], axis=1)
     m = len(idx)
     lo[0], hi[0] = d0 - 1e-6, d0 + 1e-6             # 从车现在的位置出发
+    if yaw0 is not None and m > 3:
+        d1 = float(np.clip(d0 + math.tan(yaw0) * (idx[1] * DS), lo[1], hi[1]))
+        lo[1], hi[1] = d1 - 1e-6, d1 + 1e-6
     # 目标:sum w_i |p_{i-1} - 2p_i + p_{i+1}|²,p = c + d·n,对 d 线性
     rhs0 = c[:-2] - 2 * c[1:-1] + c[2:]
     w = np.ones(m - 2)
     rows = np.arange(m - 2)
-    for _ in range(4):
+    for _ in range(6):
         A = np.zeros((2 * (m - 2), m))
         for ax in range(2):
             r = 2 * rows + ax
@@ -100,16 +112,16 @@ def plan(road: Road, i0: int, d0: float, car_width: float, pl) -> Plan | str:
             return 'plan_error'
         kap = curvature(c + d[:, None] * n, gap=1)
         over = np.abs(kap[1:-1]) * R_MIN
-        if over.max() <= 0.95:
+        if over.max() <= 0.9:           # 粗网格留 10%,插值回 5cm 后曲率会略涨
             break
         w = w * (1 + 4 * np.maximum(0, over - 0.8) ** 2)      # 超限处加权,把弯摊开
     # 插回中心线的 5cm 采样
     dense = CubicSpline(idx, d)(np.arange(len(hi_all)))
-    cd = road.centre[i0:]
-    hd = road.heading[i0:]
+    cd = road.centre[i0:i1]
+    hd = road.heading[i0:i1]
     pts = cd + dense[:, None] * np.stack([-np.sin(hd), np.cos(hd)], axis=1)
     kap = curvature(pts, gap=6)
-    if np.max(np.abs(kap)) > 1 / R_MIN:
+    if np.max(np.abs(kap)) > 1 / r_min:
         return 'curvature'
     s = np.concatenate([[0], np.cumsum(np.hypot(*np.diff(pts, axis=0).T))])
     v_top = min(pl.cap, pl.v_top)
@@ -120,13 +132,36 @@ def plan(road: Road, i0: int, d0: float, car_width: float, pl) -> Plan | str:
 
 
 class Teacher:
-    def __init__(self, env: RoadEnv, pl_: Plan):
+    """replan=True:每 REPLAN_EVERY 拍、或偏离路线 > REPLAN_DEV,从车当前位姿重规划前方
+    HORIZON 米。标签只取决于车现在的状态和前方的路 —— 学生开偏了,老师给的是"从这里
+    怎么开",不是"回到开局那条线"(那条线取决于起点,学生看不到,同一画面标签打架)。
+    重规划失败(车已偏到规划不出来)就沿用旧路线,计入 fails。
+    """
+
+    def __init__(self, env: RoadEnv, pl_: Plan, replan: bool = True):
         self.env, self.plan = env, pl_
         self.j = 0
+        self.replan, self.n, self.fails = replan, 0, 0
+
+    def _replan(self):
+        env, car = self.env, self.env.car
+        i, d = env.road.project((car.x, car.y), env.idx)
+        yaw = (car.yaw - env.road.heading[i] + math.pi) % (2 * math.pi) - math.pi
+        P = plan(env.road, i, d, env.cp.width, env.pl, HORIZON, yaw, R_REPLAN)
+        if isinstance(P, str):
+            self.fails += 1
+            return
+        self.plan, self.j = P, 0
 
     def __call__(self) -> np.ndarray:
-        env, P = self.env, self.plan
-        car, pl, cp = env.car, env.pl, env.cp
+        env, car = self.env, self.env.car
+        if self.replan:
+            dd = self.plan.pts[max(0, self.j - 20):self.j + 60] - (car.x, car.y)
+            dev = math.sqrt(float(np.min(np.einsum('ij,ij->i', dd, dd))))
+            if self.n % REPLAN_EVERY == 0 or dev > REPLAN_DEV:
+                self._replan()
+        self.n += 1
+        P, pl, cp = self.plan, env.pl, env.cp
         # 按指令延迟往前推位姿:这一拍的动作要 lag 拍后才生效
         t = CONTROL_DT * (pl.lag + 0.5)
         v = max(car.v, 0.3)
