@@ -1,0 +1,224 @@
+"""路段策略 v2:并行 DAgger + 按几何难度推进的课程。
+
+    python -m fastsim.road_train --out runs/road_v2_a --workers 30
+    python -m fastsim.road_train --out runs/road_v2_a --workers 30 --resume
+
+每轮:
+  1 采样  workers 个进程并行跑 episodes_per_round 局。每局先过 road_check 的三层可通性检查;
+          按 beta 概率逐拍用老师动作(带小噪声)或学生动作开车,每拍都记老师标签
+  2 更新  全部数据进回放池(FIFO),MLP 做 updates 次小批量回归
+  3 评估  学生独立开 eval_count 局(挑模型用的种子,不和训练重叠),按速度上限分三档统计
+  4 课程  当前级别总通过率 >= 0.95 且每档 >= 0.90 就升一级。训练里 70% 当前级、30% 以前各级
+
+速度上限每局在 [0.45, 1.0] 均匀随机,从第一轮就是,不按速度分阶段。
+种子:训练 10M 起,挑模型 50M 起,最终测试 90M 起(这里不用)。
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import time
+from concurrent.futures import ProcessPoolExecutor
+from pathlib import Path
+
+import numpy as np
+
+from .road import LEVELS
+from .road_check import sample_episode
+from .road_env import RoadEnv
+from .road_policy import DIM, FRAMES, SCHEMA, History, forward
+from .road_teacher import Teacher
+
+TRAIN_SEED0, SELECT_SEED0 = 10_000_000, 50_000_000
+SPEED_BINS = ((0.45, 0.6), (0.6, 0.8), (0.8, 1.01))
+PROMOTE_ALL, PROMOTE_BIN = 0.95, 0.90
+
+
+def run_episode(seed, level, weights=None, beta=0.0, collect=False):
+    road, pl, start, P, rejects = sample_episode(seed, level)
+    env = RoadEnv(road, pl, seed, start, noise=True)
+    teacher = Teacher(env, P)
+    hist = History()
+    rng = np.random.default_rng(seed + 1)
+    xs, ys = [], []
+    why, n = None, 0
+    while why is None:
+        x = hist.push(env.observation())
+        label = teacher()
+        if collect:
+            xs.append(x)
+            ys.append(label)
+        if weights is None or rng.random() < beta:
+            act = label + (rng.normal(0, [0.05, 0.05]) if collect else 0.0)
+        else:
+            act = forward(weights[0], weights[1], x)
+        why = env.step(act)
+        n += 1
+    row = dict(seed=seed, level=level, reason=why, cap=pl.cap, v_plateau=pl.v_plateau,
+               min_clear=float(env.min_clear), time=env.t, steps=n,
+               recovery=start[0] != 0 or start[1] != 0.0, rejects=dict(rejects),
+               elems=[e['kind'] for e in road.elems])
+    if collect:
+        return np.asarray(xs, np.float32), np.asarray(ys, np.float32), row
+    return row
+
+
+def _init_worker():
+    os.environ['OMP_NUM_THREADS'] = '1'
+
+
+def _job(args):
+    return run_episode(*args)
+
+
+def summarize(rows):
+    ok = [r['reason'] == 'goal' for r in rows]
+    out = dict(episodes=len(rows), success=float(np.mean(ok)) if rows else 0.0,
+               reasons={k: sum(r['reason'] == k for r in rows)
+                        for k in sorted({r['reason'] for r in rows})})
+    bins = {}
+    for lo, hi in SPEED_BINS:
+        sel = [r['reason'] == 'goal' for r in rows if lo <= r['cap'] < hi]
+        bins[f'{lo:.2f}-{min(hi, 1.0):.2f}'] = (float(np.mean(sel)) if sel else None, len(sel))
+    out['by_cap'] = bins
+    return out
+
+
+def promoted(summary) -> bool:
+    return summary['success'] >= PROMOTE_ALL and all(
+        v is None or v >= PROMOTE_BIN for v, _ in summary['by_cap'].values())
+
+
+def make_net():
+    import torch
+    from torch import nn
+    return nn.Sequential(nn.Linear(DIM * FRAMES, 256), nn.Tanh(),
+                         nn.Linear(256, 256), nn.Tanh(), nn.Linear(256, 2))
+
+
+def weights_of(net):
+    layers = [net[i] for i in (0, 2, 4)]
+    return ([l.weight.detach().numpy().copy() for l in layers],
+            [l.bias.detach().numpy().copy() for l in layers])
+
+
+def export(net, path):
+    w, b = weights_of(net)
+    np.savez(path, schema=SCHEMA, **{f'w{i}': w[i] for i in range(3)},
+             **{f'b{i}': b[i] for i in range(3)})
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument('--out', type=Path, required=True)
+    ap.add_argument('--rounds', type=int, default=60)
+    ap.add_argument('--episodes-per-round', type=int, default=240)
+    ap.add_argument('--updates', type=int, default=3000)
+    ap.add_argument('--batch', type=int, default=1024)
+    ap.add_argument('--lr', type=float, default=1e-3)
+    ap.add_argument('--replay', type=int, default=3_000_000)
+    ap.add_argument('--eval-count', type=int, default=200)
+    ap.add_argument('--workers', type=int, default=8)
+    ap.add_argument('--torch-threads', type=int, default=8)
+    ap.add_argument('--seed', type=int, default=0)
+    ap.add_argument('--resume', action='store_true')
+    a = ap.parse_args()
+
+    import torch
+    torch.set_num_threads(a.torch_threads)
+    torch.manual_seed(a.seed)
+    rng = np.random.default_rng(a.seed)
+    net = make_net()
+    opt = torch.optim.Adam(net.parameters(), lr=a.lr)
+    a.out.mkdir(parents=True, exist_ok=True)
+    ckpt = a.out / 'latest.pt'
+    state = dict(round=0, level=0, next_seed=TRAIN_SEED0, replay_x=[], replay_y=[], history=[])
+    if a.resume:
+        s = torch.load(ckpt, map_location='cpu', weights_only=False)
+        net.load_state_dict(s['net'])
+        opt.load_state_dict(s['opt'])
+        rng.bit_generator.state = s['numpy_rng']
+        state = s['state']
+    elif ckpt.exists():
+        raise SystemExit(f'{a.out} 里已经有断点,续训加 --resume,新实验换目录')
+    else:
+        cfg = {k: str(v) if isinstance(v, Path) else v for k, v in vars(a).items()}
+        cfg.update(schema=SCHEMA, levels=[l.name for l in LEVELS],
+                   git_head=os.popen('git rev-parse HEAD').read().strip())
+        (a.out / 'config.json').write_text(json.dumps(cfg, indent=1), encoding='utf-8')
+
+    log = open(a.out / 'train.log', 'a', encoding='utf-8', buffering=1)
+
+    def say(msg):
+        line = f'{time.strftime("%H:%M:%S")} {msg}'
+        print(line, flush=True)
+        log.write(line + '\n')
+
+    with ProcessPoolExecutor(a.workers, initializer=_init_worker) as ex:
+        while state['round'] < a.rounds:
+            r, lv = state['round'], state['level']
+            beta = max(0.0, 1.0 - 0.25 * r)
+            wts = None if r == 0 else weights_of(net)
+            jobs = []
+            for _ in range(a.episodes_per_round):
+                level = LEVELS[lv] if lv == 0 or rng.random() < 0.7 else LEVELS[int(rng.integers(lv))]
+                jobs.append((state['next_seed'], level.name, wts, beta, True))
+                state['next_seed'] += 1
+            t0 = time.time()
+            rows = []
+            for x, y, row in ex.map(_job, jobs):
+                state['replay_x'].append(x)
+                state['replay_y'].append(y)
+                rows.append(row)
+            while sum(len(x) for x in state['replay_x']) > a.replay:
+                state['replay_x'].pop(0)
+                state['replay_y'].pop(0)
+            t_collect = time.time() - t0
+
+            X = torch.from_numpy(np.concatenate(state['replay_x']))
+            Y = torch.from_numpy(np.concatenate(state['replay_y']))
+            wy = torch.tensor([1.0, 0.5])
+            t0 = time.time()
+            losses = []
+            for _ in range(a.updates):
+                i = torch.randint(len(X), (a.batch,))
+                loss = (((net(X[i]) - Y[i]) ** 2) * wy).mean()
+                opt.zero_grad()
+                loss.backward()
+                opt.step()
+                losses.append(loss.item())
+            t_update = time.time() - t0
+
+            t0 = time.time()
+            wts = weights_of(net)
+            level = LEVELS[lv].name
+            ev = list(ex.map(_job, [(SELECT_SEED0 + i, level, wts, 0.0, False)
+                                    for i in range(a.eval_count)]))
+            summ = summarize(ev)
+            t_eval = time.time() - t0
+
+            export(net, a.out / f'candidate_{r:03d}.npz')
+            report = dict(round=r, level=level, beta=beta, samples=len(X),
+                          loss=float(np.mean(losses[-200:])), collect=summarize(rows),
+                          eval=summ, seconds=dict(collect=t_collect, update=t_update, eval=t_eval),
+                          episodes=ev)
+            (a.out / f'eval_{r:03d}.json').write_text(json.dumps(report, indent=1), encoding='utf-8')
+            say(f'round {r} {level} beta={beta:.2f} samples={len(X)} loss={report["loss"]:.4f} '
+                f'eval={summ["success"]:.3f} {summ["by_cap"]} {summ["reasons"]} '
+                f'[{t_collect:.0f}s/{t_update:.0f}s/{t_eval:.0f}s]')
+            state['history'].append(dict(round=r, level=level, success=summ['success']))
+            if promoted(summ) and lv + 1 < len(LEVELS):
+                state['level'] = lv + 1
+                say(f'升级 -> {LEVELS[lv + 1].name}')
+            state['round'] = r + 1
+            tmp = a.out / 'latest.tmp'
+            torch.save(dict(net=net.state_dict(), opt=opt.state_dict(),
+                            numpy_rng=rng.bit_generator.state, state=state), tmp)
+            os.replace(tmp, ckpt)
+    say('done')
+
+
+if __name__ == '__main__':
+    main()
