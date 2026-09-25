@@ -165,6 +165,8 @@ def main():
     ap.add_argument('--torch-threads', type=int, default=8)
     ap.add_argument('--seed', type=int, default=0)
     ap.add_argument('--resume', action='store_true')
+    ap.add_argument('--init', type=Path, default=None, help='从这个 road_v2 .npz 热启动(新目录,回放从零)')
+    ap.add_argument('--start-level', default='L1', choices=[l.name for l in LEVELS])
     a = ap.parse_args()
 
     import torch
@@ -175,7 +177,8 @@ def main():
     opt = torch.optim.Adam(net.parameters(), lr=a.lr)
     a.out.mkdir(parents=True, exist_ok=True)
     ckpt = a.out / 'latest.pt'
-    state = dict(round=0, level=0, next_seed=TRAIN_SEED0, replay=None, history=[])
+    state = dict(round=0, level=[l.name for l in LEVELS].index(a.start_level),
+                 next_seed=TRAIN_SEED0, replay=None, history=[])
     replay = Replay(a.replay)
     batch_rng = np.random.default_rng(a.seed + 1)
     if a.resume:
@@ -197,6 +200,14 @@ def main():
         cfg.update(schema=SCHEMA, levels=[l.name for l in LEVELS],
                    git_head=os.popen('git rev-parse HEAD').read().strip())
         (a.out / 'config.json').write_text(json.dumps(cfg, indent=1), encoding='utf-8')
+        if a.init is not None:
+            with np.load(a.init) as z:
+                if str(z['schema']) != SCHEMA:
+                    raise SystemExit(f'{a.init} 不是 {SCHEMA}')
+                with torch.no_grad():
+                    for i, k in enumerate((0, 2, 4)):
+                        net[k].weight.copy_(torch.from_numpy(z[f'w{i}']))
+                        net[k].bias.copy_(torch.from_numpy(z[f'b{i}']))
 
     log = open(a.out / 'train.log', 'a', encoding='utf-8', buffering=1)
 
@@ -209,7 +220,7 @@ def main():
         while state['round'] < a.rounds:
             r, lv = state['round'], state['level']
             beta = max(0.0, 1.0 - 0.25 * r)
-            wts = None if r == 0 else weights_of(net)
+            wts = None if r == 0 and a.init is None else weights_of(net)
             jobs = []
             for _ in range(a.episodes_per_round):
                 level = LEVELS[lv] if lv == 0 or rng.random() < 0.7 else LEVELS[int(rng.integers(lv))]
