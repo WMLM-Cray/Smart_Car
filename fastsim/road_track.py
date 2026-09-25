@@ -48,8 +48,11 @@ def _gen():
     return m
 
 
-def track_a(laps: int = LAPS) -> tuple[Road, float]:
-    """返回 (Road, 一圈长度)。Road 的中心线是 laps 圈再多 1.5m,锥桶只有一圈的。"""
+def track_a(laps: int = LAPS, fill_v: bool = False) -> tuple[Road, float]:
+    """返回 (Road, 一圈长度)。Road 的中心线是 laps 圈再多 1.5m,锥桶只有一圈的。
+
+    fill_v=True 时黄 V 也排锥桶(和 gen_trackA_cones --fill-v 一样):用来单独测黄 V 以外的部分。
+    """
     lay = yaml.safe_load(LAYOUT.read_text(encoding='utf-8'))
     g = _gen()
     outer, inner = lay['boundaries']['outer'], lay['boundaries']['inner']
@@ -66,7 +69,7 @@ def track_a(laps: int = LAPS) -> tuple[Road, float]:
         po, pi = po[:k], pi[:k]
         cen.append((po + pi) / 2)
         half.append(np.hypot(*(po - pi).T) / 2)
-        m = NONE if eo['seg'] in v_segs else CONE
+        m = NONE if eo['seg'] in v_segs and not fill_v else CONE
         mat.append(np.full(k, m))
     cen, half, mat = np.concatenate(cen), np.concatenate(half), np.concatenate(mat)
     # 左端方角处两条边界配对出来的中心线是个尖折点,沿法向偏移会自交。按周期高斯平滑
@@ -98,7 +101,7 @@ def track_a(laps: int = LAPS) -> tuple[Road, float]:
     # 锥桶直接按 gen_trackA_cones 的排法(和 Gazebo 那边同源),不走 _boundary_objects
     cones = []
     for items in (outer, inner):
-        cones += [(x, y) for _, x, y in g.boundary_cones(items, SPACING, CURVE_SPACING, False)]
+        cones += [(x, y) for _, x, y in g.boundary_cones(items, SPACING, CURVE_SPACING, fill_v)]
     road.cones = np.array(cones, float)
     road.walls = np.zeros((0, 2, 2))
     return road, lap_len
@@ -110,8 +113,8 @@ def _schema(path):
 
 
 def run(args):
-    model, seed, cap = args
-    road, lap_len = track_a()
+    model, seed, cap, fill_v = args
+    road, lap_len = track_a(fill_v=fill_v)
     rng = np.random.default_rng(seed)
     pl = replace(Plant.sample(rng), cap=cap)
     out = dict(seed=seed, cap=cap, v_plateau=pl.v_plateau, v_top=pl.v_top)
@@ -164,9 +167,10 @@ def main():
     ap.add_argument('--count', type=int, default=30, help='每档速度上限跑几局(车辆参数每局随机)')
     ap.add_argument('--workers', type=int, default=8)
     ap.add_argument('--seed-start', type=int, default=95_000_000)
+    ap.add_argument('--fill-v', action='store_true', help='黄 V 也排锥桶(测黄 V 以外的部分)')
     ap.add_argument('--out', default=None)
     a = ap.parse_args()
-    jobs = [(a.model, a.seed_start + i, cap) for cap in a.caps for i in range(a.count)]
+    jobs = [(a.model, a.seed_start + i, cap, a.fill_v) for cap in a.caps for i in range(a.count)]
     with ProcessPoolExecutor(a.workers) as ex:
         rows = list(ex.map(run, jobs))
     summary = {}
