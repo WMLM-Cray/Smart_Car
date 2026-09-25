@@ -20,6 +20,8 @@ import math
 
 import numpy as np
 
+from .pwm import steer_to_action
+
 
 def curvature(pts: np.ndarray) -> np.ndarray:
     """闭合折线每点曲率,取相邻三点外接圆半径的倒数。"""
@@ -100,4 +102,4 @@ class SpeedPlanTeacher:
         alpha = math.atan2(target[1] - car.y, target[0] - car.x) - car.yaw
         steer = math.atan2(2 * env.cp.wheelbase * math.sin(alpha), lookahead)
         return np.array([np.clip(v_target / env.v_cmd_fwd, -1.0, 1.0),
-                         np.clip(steer / env.cp.max_steer, -1.0, 1.0)], np.float32)
+                         steer_to_action(steer, env.cp)], np.float32)

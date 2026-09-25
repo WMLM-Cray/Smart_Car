@@ -2,7 +2,7 @@
 
 动作 Box(-2,2,(2,)) = [速度, 转角],进物理前先 clip 到 ±1:
     速度 = a0 · v_cmd_fwd(前进)或 a0 · v_cmd_rev(倒车),m/s
-    转角 = a1 · max_steer,rad,左正
+    转角 = 实测舵机曲线(turn_mid + a1·turn_span),rad,左正,见 pwm.action_to_steer
 空间开到 ±2 是给 clip 高斯留活动余量,超出 ±1 的部分在奖励里二次罚,见 ACTION_LIMIT。
 实车 PWM 换算在 pwm.py,只在对接实车时用;info 里附带换算结果便于对照。
 观测只来自传感器,不读赛道真值(53 维):
@@ -27,7 +27,7 @@ from gymnasium import spaces
 from .mapping import OccupancyMap
 from .obs import SECTOR_EDGES, SECTORS, build_obs, make_sector_edges, sector_index, sectorize
 from .params import CarParams, RuleTrackParams, TrackParams
-from .pwm import speed_to_pwm, steer_to_turn
+from .pwm import action_to_steer, speed_to_pwm, steer_to_turn
 from .sensors import Lidar, encoder, imu
 from .track import make_track
 from .track_rules import make_rule_track
@@ -68,7 +68,7 @@ class ConeTrackEnv(gym.Env):
     def action_to_command(self, action) -> tuple[float, float]:
         a0, a1 = float(np.clip(action[0], -1, 1)), float(np.clip(action[1], -1, 1))
         v = a0 * (self.v_cmd_fwd if a0 >= 0 else self.v_cmd_rev)
-        return v, a1 * self.cp.max_steer
+        return v, action_to_steer(a1, self.cp)
 
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed)

@@ -15,7 +15,8 @@ from fastsim.interop import export_track, from_cmd_vel, to_cmd_vel
 from fastsim.mapping import FREE, OCCUPIED
 from fastsim.params import CarParams, RuleTrackParams, TrackParams
 from fastsim.preview import pure_pursuit
-from fastsim.pwm import pwm_to_speed, speed_to_pwm, steer_to_turn, turn_to_steer
+from fastsim.pwm import (action_to_steer, pwm_to_speed, speed_to_pwm, steer_to_action,
+                         steer_to_turn, turn_to_steer)
 from fastsim.raycast import cast_cones, cast_walls
 from fastsim.sensors import Lidar
 from fastsim.track import make_track
@@ -108,11 +109,25 @@ def test_pwm_deadband_and_round_trip():
     assert speed_to_pwm(-p.v_rev_full, p) == p.pwm_rev_full
     for v in (0.05, 0.4, 1.3, 2.9, -0.2, -1.4):
         assert pwm_to_speed(speed_to_pwm(v, p), p) == pytest.approx(v, abs=0.01)
-    assert steer_to_turn(0.0, p) == p.turn_mid
-    assert steer_to_turn(p.max_steer, p) == p.turn_mid + p.turn_span
-    # 别写死 24(=84-60):turn_mid 是实测值,2026-09-22 从 84 改成 83 之后
-    # 满右舵就是 23 了。从 params 推,改中位时这条不用跟着动。
-    assert turn_to_steer(p.turn_mid - p.turn_span, p) == pytest.approx(-p.max_steer)
+    # 舵机曲线:实测表上的点原样回来,中间插值,两端钳住
+    assert turn_to_steer(111, p) == pytest.approx(math.radians(11.9))
+    assert turn_to_steer(21, p) == pytest.approx(math.radians(-21.7))
+    assert turn_to_steer(160, p) == pytest.approx(math.radians(20.5))
+    assert steer_to_turn(math.radians(11.9), p) == 111
+    assert steer_to_turn(1.0, p) == 141
+
+
+def test_action_maps_to_the_servo_value_the_car_sends():
+    """动作 a 在车上发 turn_mid + a·turn_span,仿真里的转角必须是这个舵机值实测转多少。"""
+    p = CarParams()
+    for a in (-1.0, -0.5, -0.1, 0.0, 0.25, 0.5, 1.0):
+        servo = p.turn_mid + a * p.turn_span
+        assert action_to_steer(a, p) == pytest.approx(turn_to_steer(servo, p))
+        assert steer_to_turn(action_to_steer(a, p), p) == round(servo)
+        assert steer_to_action(action_to_steer(a, p), p) == pytest.approx(a, abs=1e-9)
+    # 旧的线性假设满舵 0.55 rad(31.5°),实测左满舵只有 20.5°
+    assert action_to_steer(1.0, p) == pytest.approx(math.radians(20.5))
+    assert steer_to_action(0.55, p) == 1.0
 
 
 # ---- 赛道 ----
@@ -240,8 +255,8 @@ def test_action_is_physical_and_info_reports_equivalent_pwm():
     env = ConeTrackEnv()
     cp = env.cp
     assert env.action_to_command([0, 0]) == (0.0, 0.0)
-    assert env.action_to_command([1, 1]) == (env.v_cmd_fwd, cp.max_steer)
-    assert env.action_to_command([-1, -1]) == (-env.v_cmd_rev, -cp.max_steer)
+    assert env.action_to_command([1, 1]) == (env.v_cmd_fwd, action_to_steer(1.0, cp))
+    assert env.action_to_command([-1, -1]) == (-env.v_cmd_rev, action_to_steer(-1.0, cp))
     env.reset(seed=0)
     _, _, _, _, info = env.step([1, 1])
     assert info["v_cmd"] == env.v_cmd_fwd

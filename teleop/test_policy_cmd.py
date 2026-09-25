@@ -55,7 +55,7 @@ def test_sim_sends_yaw_rate_not_steer_angle():
     assert to_cmd(0.0, 0.0, True, P) == (0.0, 0.0)
 
 
-@pytest.mark.parametrize('v,steer', [(1.5, 0.55), (0.8, -0.2), (0.3, 0.0)])
+@pytest.mark.parametrize('v,steer', [(1.5, 0.3), (0.8, -0.2), (0.3, 0.0)])
 def test_sim_conversion_round_trips(v, steer):
     lin, ang = to_cmd(v, steer, True, P)
     assert from_cmd_vel(lin, ang, P) == pytest.approx((v, steer), abs=1e-9)
@@ -69,7 +69,7 @@ def test_car_converts_to_pwm_and_servo_scale():
     assert to_cmd(0.0, 0.0, False, P) == (P.pwm_mid, P.turn_mid)
 
 
-@pytest.mark.parametrize('v,steer', [(0.0, 0.0), (1.5, 0.55), (0.8, -0.2), (-0.5, 0.1)])
+@pytest.mark.parametrize('v,steer', [(0.0, 0.0), (1.5, 0.3), (0.8, -0.2), (-0.5, 0.1)])
 def test_car_conversion_round_trips(v, steer):
     """换算回来要还原 —— 死区外的值不能在这一层丢掉。"""
     lin, ang = to_cmd(v, steer, False, P, pwm_cap=P.pwm_fwd_full)

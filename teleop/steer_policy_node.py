@@ -53,7 +53,7 @@ from std_msgs.msg import Bool
 from fastsim.interop import to_cmd_vel
 from fastsim.low_speed_policy import SteeringPolicy, observe
 from fastsim.params import CarParams
-from fastsim.pwm import steer_to_turn
+from fastsim.pwm import action_to_steer, steer_to_turn
 from scan_guard import ScanGuard
 from speed_loop import SpeedLoop
 
@@ -230,7 +230,7 @@ class SteerPolicyNode(Node):
                       self.yaw_rate, self.last_steer)
         action = self.policy(obs)
         self.last_steer = action
-        steer = action * self.p.max_steer
+        steer = action_to_steer(action, self.p)
 
         # 防撞按**当前要打的转角**算扫掠路径,不是正前方一条直走廊。
         gap = self.guard.gap(steer)

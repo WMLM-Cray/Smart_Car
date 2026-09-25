@@ -55,8 +55,8 @@ def test_node_feeds_back_raw_action_not_angle():
     src = NODE.read_text(encoding='utf-8')
     body = src.split('def tick(self):')[1]
     assert 'self.last_steer = action' in body, 'last_steer 要存网络原始输出'
-    assert 'steer = action * self.p.max_steer' in body, '转角才乘 max_steer'
-    assert body.index('self.last_steer = action') < body.index('steer = action *'), \
+    assert 'steer = action_to_steer(action, self.p)' in body, '转角才过舵机曲线'
+    assert body.index('self.last_steer = action') < body.index('steer = action_to_steer('), \
         '先存原始输出再换算转角,顺序反了会把转角存进去'
 
 

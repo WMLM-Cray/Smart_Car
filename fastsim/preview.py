@@ -14,6 +14,7 @@ import numpy as np
 from .curriculum import STAGES
 from .env import ConeTrackEnv
 from .mapping import FREE, OCCUPIED
+from .pwm import steer_to_action
 
 
 def pure_pursuit(env, lookahead=1.2, throttle=0.4):   # 动作 0.4 -> 0.4·v_cmd_fwd m/s
@@ -25,7 +26,7 @@ def pure_pursuit(env, lookahead=1.2, throttle=0.4):   # 动作 0.4 -> 0.4·v_cmd
     target = pts[np.searchsorted(cum, (s + lookahead) % cum[-1]) % len(pts)]
     alpha = math.atan2(target[1] - car.y, target[0] - car.x) - car.yaw
     steer = math.atan2(2 * env.cp.wheelbase * math.sin(alpha), lookahead)
-    return np.array([throttle, np.clip(steer / env.cp.max_steer, -1, 1)], np.float32)
+    return np.array([throttle, steer_to_action(steer, env.cp)], np.float32)
 
 
 def main():

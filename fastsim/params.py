@@ -24,7 +24,15 @@ class CarParams:
     length: float = 0.56            # [假设] 外形 560mm(规则外形尺寸)
     width: float = 0.35             # [假设] 外形 350mm
     rear_overhang: float = 0.13     # [假设] 后轴到车尾
-    max_steer: float = 0.55         # [假设] 前轮最大转角 rad(~31°)
+    # 舵机值 -> 等效自行车前轮角(度,左正),2026-09-24 手推实测,
+    # docs/validation/2026-09-24-steering/CONCLUSION.md。不是线性的:近满舵 15 个刻度
+    # 只多 2~3°。81 那点实测 +0.3° 不可靠,按中位 = 0° 记。点间线性插值。
+    steer_curve: tuple = ((21, -21.7), (36, -18.6), (51, -13.4), (66, -5.8), (76, -1.2),
+                          (81, 0.0), (86, 1.9), (96, 5.6), (111, 11.9), (126, 17.9),
+                          (141, 20.5))
+    # 以前是 [假设] 0.55(~31°),实测右满舵 21.7°。现在只当物理钳位用,
+    # 动作 -> 转角走 steer_curve(pwm.action_to_steer)。
+    max_steer: float = 0.379        # [实测 2026-09-24] = 21.7°
     steer_rate: float = 4.0         # [假设] 舵机转角速率 rad/s
 
     # --- PWM 接口(与 racecar_teleop.py / web_teleop 一致) ---
