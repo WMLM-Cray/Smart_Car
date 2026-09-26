@@ -3,7 +3,7 @@
     python -m evaluation.road_eval --model runs/road_v2_a/candidate_040.npz --level L4 --count 500
     python -m evaluation.road_eval --model models/steering_v1/candidate_060.npz --level L3
 
-默认用最终测试种子(90M 起),训练和挑模型都没碰过。
+默认评估种子从 90M 起；这些种子已用于开发诊断，不能宣称为未见最终测试集。
 v1 模型只输出转向:速度指令固定为这一局的速度上限,观测里的目标速度也填速度上限。
 """
 from __future__ import annotations
