@@ -1,3 +1,5 @@
+> 临时精简分支，不合并主线。删除清单见 docs/PRUNED_PATHS.txt；完整整理版提交为 66814ff。
+
 # HW-Autocar：ROS 2 无人车与仿真项目
 
 本项目围绕 OrangePi AIpro 小车、Ubuntu 22.04 和 ROS 2 Humble，覆盖 **Gazebo 车模与赛道、传感器和建图定位、导航、FastSim 策略训练、实车控制及网页/手柄遥控**。各方向的代码和实验记录都保留在本仓库；仿真、离线验证与实车验收是不同阶段。
@@ -14,7 +16,6 @@
 | FastSim 与策略 | [`fastsim/`](fastsim/)、[`runs/`](runs/) | 轻量环境、教师、低速转向训练与评估、导出权重；FastSim 成绩不能代替 Gazebo 或实车验收 |
 | 实车控制和网页 | [`teleop/`](teleop/) | HTTP/WebSocket 遥控、雷达显示、速度闭环、转向策略、看门狗、标定脚本和 systemd 配置记录 |
 | 手柄遥控 | [`racecar_teleop/`](3Dsim/hwcart_sim/src/racecar_teleop/) | 队友的 `/joy`→`/teleop/cmd_vel` 物理速度接口；与实车网页的 PWM 接口不同，接入前需确定唯一的控制仲裁路径 |
-| 网页界面资料 | [`monitor/`](monitor/) | 独立界面与预览资料；车上的 HTTP 服务入口是 `teleop/server.py` |
 | 仿真与实车对照 | [`3Dsim/tools/sim2real/`](3Dsim/tools/sim2real/)、[`docs/sim2real/`](docs/sim2real/) | 场景和动力学假设对照，按报告的参数版本解释结果 |
 
 本仓库主线保存完整实车测量与验证数据。队友的 `MilkSliceKing/Astrahuaweicar` 仓库同步的是选定部分，两个仓库的 `main` 不保证提交号相同。

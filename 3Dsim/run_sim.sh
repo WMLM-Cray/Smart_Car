@@ -22,7 +22,7 @@ source "$(dirname "$0")/tools/_env.sh"
 WORLD=${WORLD:-trackA.world}
 # 低速 1.5m/s(s3):完赛率最高、几乎不撞锥。2.5m/s 的是 runs/policy_v25.npz,
 # 圈速快 8 秒但在这条赛道上三次都没跑完一圈。
-POLICY=${POLICY:-runs/policy_s3.npz}
+POLICY=${POLICY:-runs/low_speed_a/candidate_060.npz}
 
 source /usr/share/gazebo/setup.sh
 export GAZEBO_MODEL_DATABASE_URI="http://127.0.0.1:1/"   # 立刻被拒,不上网找模型
@@ -51,7 +51,7 @@ for _ in $(seq 45); do
 done
 
 echo "启动策略:$POLICY"
-cd "$AUTOCAR" && python3 teleop/policy_node.py "$POLICY" --sim &
+cd "$AUTOCAR" && python3 teleop/steer_policy_node.py "$POLICY" --sim --speed "${SPEED:-0.6}" &
 sleep 8
 # /policy_enable 是**心跳**不是开关:policy_node 的 ENABLE_TIMEOUT 是 0.3s,
 # 0.3 秒收不到就回中位。原来这里用 `ros2 topic pub --once`,只能让车抖一下

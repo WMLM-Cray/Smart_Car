@@ -30,7 +30,7 @@ fi
 # 策略和 teleop 脚本所在目录
 if [ -z "${AUTOCAR:-}" ]; then
   for _c in "$REPO" "$HOME/autocar"; do
-    [ -f "$_c/teleop/policy_node.py" ] && AUTOCAR=$_c && break
+    [ -f "$_c/teleop/steer_policy_node.py" ] && AUTOCAR=$_c && break
   done
 fi
 export REPO WS AUTOCAR
