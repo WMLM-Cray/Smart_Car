@@ -1,6 +1,0 @@
-image: /home/lzx/hwcart_sim/docs/track/trackA_slam_smoke.pgm
-resolution: 0.05000000074505806
-origin: [-10.91949297479573, -0.8640755833845357, 0.0]
-negate: 0
-occupied_thresh: 0.65
-free_thresh: 0.196

@@ -1,8 +1,0 @@
-# 部署到车上的脚本必须是 LF:Windows 的 CRLF 会让 bash 报 "set: pipefail: invalid option name"
-*.sh   text eol=lf
-*.py   text eol=lf
-*.html text eol=lf
-*.yaml text eol=lf
-*.json text eol=lf
-*.md   text eol=lf
-*.png  binary

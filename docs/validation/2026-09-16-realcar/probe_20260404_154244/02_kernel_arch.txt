@@ -1,3 +1,0 @@
-$ uname -a
-Linux orangepiaipro-20t 5.10.0+ #1 SMP Tue Jun 4 14:51:23 CST 2024 aarch64 aarch64 aarch64 GNU/Linux
-[rc=0]

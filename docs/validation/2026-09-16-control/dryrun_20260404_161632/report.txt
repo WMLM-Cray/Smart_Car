@@ -1,5 +1,0 @@
-# 无动力联调报告 2026-04-04T16:16:32.842457
-输出目录: /home/orange-pi/dryrun_20260404_161632
-!! 已有 racecar_driver 进程在跑,为避免双写串口/话题干扰,中止:
-24046 /home/orange-pi/racecar/install/racecar_driver/lib/racecar_driver/racecar_driver_node_one --ros-args -r __node:=racecar_driver
-

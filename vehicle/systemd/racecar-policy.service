@@ -1,0 +1,11 @@
+[Unit]
+Description=Auto Car steering baseline with speed loop
+After=racecar-chassis.service
+[Service]
+User=orange-pi
+WorkingDirectory=/home/orange-pi/autocar
+ExecStart=/bin/bash -c 'source vehicle/ros_env.sh && exec python3 -m vehicle.steer_policy_node models/steering_v1/candidate_060.npz --speed-loop --speed 0.7'
+Restart=always
+RestartSec=2
+[Install]
+WantedBy=multi-user.target

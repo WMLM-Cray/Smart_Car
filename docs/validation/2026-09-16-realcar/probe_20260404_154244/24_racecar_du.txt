@@ -1,3 +1,0 @@
-$ du -sh /home/orange-pi/racecar
-262M	/home/orange-pi/racecar
-[rc=0]
