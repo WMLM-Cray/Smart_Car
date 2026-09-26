@@ -1,8 +1,0 @@
-$ ls -la /etc/udev/rules.d/
-total 16
-drwxrwxrwx 2 root      root      4096 Apr  4 10:36 .
-drwxr-xr-x 4 root      root      4096 Sep 23  2025 ..
--rw------- 1 root      root         0 Apr  4 10:35 .racecar.rules.swp
--rw------- 1 root      root       216 Apr  4 10:36 racecar.rules
--rw------- 1 orange-pi orange-pi  163 Apr  4 10:33 racecar.rules~
-[rc=0]

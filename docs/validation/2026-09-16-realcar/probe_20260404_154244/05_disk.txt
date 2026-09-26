@@ -1,5 +1,0 @@
-$ df -h / /home
-Filesystem      Size  Used Avail Use% Mounted on
-/dev/root        29G   25G  3.4G  88% /
-/dev/root        29G   25G  3.4G  88% /
-[rc=0]

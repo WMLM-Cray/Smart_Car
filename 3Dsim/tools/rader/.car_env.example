@@ -1,7 +1,0 @@
-# 小车 SSH 连接信息模板
-# 复制为同目录的 .car_env 后填写；不要把真实密码提交或发给他人。
-CAR_HOST=你的车辆IP
-CAR_USER=orange-pi
-CAR_PASS=你的密码
-# CAR_PORT=22
-# CAR_KEY=~/.ssh/id_rsa

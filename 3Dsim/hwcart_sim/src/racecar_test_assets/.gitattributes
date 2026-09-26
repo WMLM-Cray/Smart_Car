@@ -1,5 +1,0 @@
-# keep text files LF (bash scripts and python tools run on Ubuntu/WSL)
-* text=auto eol=lf
-*.stl binary
-*.png binary
-*.jpg binary

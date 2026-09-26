@@ -1,6 +1,0 @@
-$ ls -l /dev/car /dev/imu /dev/encoder /dev/laser
-lrwxrwxrwx 1 root root 7 Apr  4 15:17 /dev/car -> ttyUSB2
-lrwxrwxrwx 1 root root 7 Apr  4 15:17 /dev/encoder -> ttyUSB1
-lrwxrwxrwx 1 root root 7 Apr  4 15:17 /dev/imu -> ttyUSB0
-lrwxrwxrwx 1 root root 7 Apr  4 15:17 /dev/laser -> ttyACM0
-[rc=0]

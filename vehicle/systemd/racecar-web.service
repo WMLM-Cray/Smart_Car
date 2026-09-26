@@ -1,0 +1,11 @@
+[Unit]
+Description=Auto Car server
+After=network-online.target
+[Service]
+User=orange-pi
+WorkingDirectory=/home/orange-pi/autocar
+ExecStart=/bin/bash -c 'source vehicle/ros_env.sh && exec python3 -m vehicle.server'
+Restart=always
+RestartSec=2
+[Install]
+WantedBy=multi-user.target

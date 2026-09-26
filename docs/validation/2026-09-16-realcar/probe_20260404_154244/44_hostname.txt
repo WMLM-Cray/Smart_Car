@@ -1,3 +1,0 @@
-$ hostname
-orangepiaipro-20t
-[rc=0]
