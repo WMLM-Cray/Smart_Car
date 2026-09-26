@@ -207,8 +207,9 @@ def _gap_elements(rng: np.random.Generator, lv: Level) -> list[dict]:
                         # 赛道 C 左上角那种密桶方角(0.5m)反而一头撞上去(v2_d,2026-09-26)
                         gap_corner=rng.random() < 0.9, gap_spacing=rng.uniform(*lv.gap_spacing),
                         gap_phase=rng.uniform(0.0, 1.0),
-                        decoy=rng.random() < lv.decoy_chance, decoy_dist=rng.uniform(0.8, 4.0),
-                        decoy_len=rng.uniform(2.0, 5.0), decoy_spacing=rng.uniform(0.5, 1.5)))
+                        decoy=rng.random() < lv.decoy_chance, decoy_kind=int(rng.integers(3)),
+                        decoy_dist=rng.uniform(0.8, 4.0), decoy_len=rng.uniform(2.0, 6.0),
+                        decoy_spacing=rng.uniform(0.5, 1.5), decoy_seed=int(rng.integers(2**31))))
         out.append(dict(kind='straight', length=rng.uniform(1.5, 3.5), width=width))
     out.append(dict(kind='straight', length=3.0, width=width))
     return out
@@ -316,13 +317,21 @@ def _square_gap_corner(road: Road, e: dict) -> None:
         while t <= leg:
             new.append(vertex + d * t)
             t += sp
-    if e.get('decoy'):                                          # 外墙后面、来车方向的假走廊
+    if e.get('decoy'):
+        # 外墙后面摆东西:0 顺来车方向的两排(假走廊) 1 横着一排(像远处的墙,
+        # 赛道 A 上加这种 v2_h 仍 0.02,只练走廊不够) 2 随手散一堆
         q0 = (road.left if sign > 0 else road.right)[i0]
-        for p in (p0, q0):
-            t = a + e['decoy_dist']
-            while t <= a + e['decoy_dist'] + e['decoy_len']:
-                new.append(p + d0 * t)
-                t += e['decoy_spacing']
+        mid, dist, ln, sp_ = (p0 + q0) / 2, e['decoy_dist'], e['decoy_len'], e['decoy_spacing']
+        if e['decoy_kind'] == 0:
+            for p in (p0, q0):
+                new += [p + d0 * t for t in np.arange(a + dist, a + dist + ln, sp_)]
+        elif e['decoy_kind'] == 1:
+            c = mid + d0 * (a + dist)
+            new += [c + d1 * t for t in np.arange(-ln / 2, ln / 2, sp_)]
+        else:
+            r = np.random.default_rng(e['decoy_seed'])
+            for _ in range(int(r.integers(5, 16))):
+                new.append(mid + d0 * (a + r.uniform(0.8, 0.8 + dist + 1)) + d1 * r.uniform(-2.5, 2.5))
     road.cones = np.vstack([road.cones[np.array(keep, bool)], np.array(new)])
 
 
