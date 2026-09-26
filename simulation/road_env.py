@@ -1,4 +1,4 @@
-"""路段环境:按实测参数模拟整条控制链,一局 = 从静止起步开到路的终点。
+"""路段环境:结合实测参数与假设，近似模拟闭环行为,一局 = 从静止起步开到路的终点。
 
 和实车对齐的点(数值出处见 params.py / docs/validation):
   转向  动作 a -> 舵机 turn_mid + 60a -> 实测曲线插值出转角;舵机速度、增益、中位偏差每局随机
@@ -29,7 +29,7 @@ GOAL_BEFORE_END = 1.0       # 离路终点这么远就算到达
 
 @dataclass
 class Plant:
-    """一局的车辆参数。老师检查和学生训练用同一份,可通性才有保证。"""
+    """一局的车辆参数。老师与学生共用；检查通过只证明该模拟条件下老师可完成。"""
     steer_rate: float = 5.0         # rad/s
     steer_gain: float = 1.0
     servo_offset: float = 0.0       # 舵机单位,中位 80/81 分不清
@@ -54,7 +54,7 @@ class Plant:
 
 
 class SpeedPlant:
-    """PID 闭环之后的车速。命令先过纯滞后,再按平台/加速/滑行规则走。"""
+    """闭环后车速的近似模型，并未执行真实 SpeedLoop。仅用于正速度指令，不支持停车命令。"""
 
     def __init__(self, pl: Plant):
         self.pl, self.v, self.t = pl, 0.0, 0.0
