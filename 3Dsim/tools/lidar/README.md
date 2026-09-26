@@ -164,7 +164,7 @@ scanN/
 本 README 与工具位于仓库的：
 
 ```text
-3Dsim/tools/rader/
+3Dsim/tools/lidar/
 ```
 
 工具脚本之间通过相对位置调用，因此从本目录执行命令最简单；从其他目录运行时请使用脚本的完整路径。

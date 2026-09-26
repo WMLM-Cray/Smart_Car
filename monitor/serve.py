@@ -4,7 +4,7 @@
 小车监视与操作台 —— 只读本地服务(前端 + 拉取的 PNG + 状态/能力声明)
 ====================================================================
 这是"操作台"的极简后端, 只做三件只读的事:
-  1. 托管 web/ 下的静态前端(index.html / css / js);
+  1. 托管 monitor/ 下的静态前端(index.html / css / js);
   2. 提供 /media/map.png 与 /media/camera.png(由 pull.sh / fetch_monitor.sh 从车机拉取落地);
   3. 提供 /api/status 与 /api/capabilities 两份 JSON, 供前端判断可用性与新鲜度。
 
@@ -108,7 +108,7 @@ class Server(BaseHTTPRequestHandler):
         ext = os.path.splitext(rel)[1].lower()
         if rel and ".." not in rel.split("/") and ext in SAFE_EXT:
             p = os.path.abspath(os.path.join(HERE, rel))
-            if p.startswith(HERE) and os.path.isfile(p):  # 限制在 web/ 内
+            if p.startswith(HERE) and os.path.isfile(p):  # 限制在 monitor/ 内
                 with open(p, "rb") as f:
                     return self._send(200, f.read(), SAFE_CTYPE.get(ext, "application/octet-stream"))
         return self._send(404, "not found", "text/plain; charset=utf-8")

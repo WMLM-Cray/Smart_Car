@@ -17,7 +17,7 @@ racecar_teleop:
     max_speed_forward: 0.5     # 前进速度上限 m/s
     max_speed_reverse: 0.3     # 倒车速度上限 m/s
     max_steering_angle: 0.35   # 等效自行车转向角上限 rad，范围 (0, pi/2)
-    wheelbase: 0.36            # 轴距 m
+    wheelbase: 0.33            # 轴距 m
     low_speed_scale: 0.4       # 低速模式速度比例
     publish_rate: 20.0         # 输出频率 Hz
     input_timeout: 0.3         # 输入超时 s（超过则停车）

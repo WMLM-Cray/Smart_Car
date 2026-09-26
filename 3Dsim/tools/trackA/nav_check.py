@@ -32,7 +32,7 @@ bt_navigator(/navigate_to_pose)依次发送目标点(短直道→弯道→连续
         (无接触+半格量化余量;第十二轮 0.041 未达标 → 按原判据 FAIL 归档,
         见 TH_CLEAR 注);
       ⑤阿克曼上界按【车辆实际运动】(里程计 /ackermann_steering_controller
-        /odometry)判定:运动 |ω|≤|v|·tan(0.55)/0.36+0.15;静止 |ω|≤0.15
+        /odometry)判定:运动 |ω|≤|v|·tan(0.55)/0.33+0.15;静止 |ω|≤0.15
         ——即"不原地转向"的运行时验证。指令层 /cmd_vel 的曲率超限
         (RPP 追几何胡萝卜不追运动学,峰值 ω/v 可达 4+,由 gz 舵角钳制
         0.55rad 消化)不判 FAIL,仅计数上报 cmd_vel_curvature_overshoots。
@@ -62,7 +62,7 @@ TAG = "[Nav2导航验收器]"
 GZ_SPAWN = (11.0, 0.75)          # 出生点(Gazebo 世界系)= map 系原点
 CONE_R = 0.14                    # 锥桶碰撞半径(098c3f0 官方 0.28 底径/2)
 HALF_L, HALF_W = 0.28, 0.175     # 冻结整车矩形 0.56×0.35 的半长/半宽
-WHEELBASE, MAX_STEER = 0.36, 0.55
+WHEELBASE, MAX_STEER = 0.33, 0.55
 W_SLOPE = math.tan(MAX_STEER) / WHEELBASE   # ω-v 上界斜率 ≈1.703
 
 TH_ARRIVAL_GT, TH_AMCL_GT, TH_CLEAR = 0.30, 0.25, 0.05
@@ -164,7 +164,7 @@ class NavCheck(Node):
 
     def on_cmd(self, msg):
         # 指令层:RPP 追逐几何胡萝卜的 κ=2y/L² 不受运动学上限约束,低速时
-        # ω/v 可远超 tan(0.55)/0.36=1.703;由 gz 舵角钳制消化,仅计数上报
+        # ω/v 可远超 tan(0.55)/0.33=1.703;由 gz 舵角钳制消化,仅计数上报
         v, w = msg.linear.x, msg.angular.z
         if abs(v) > 0.05 and abs(w) / max(abs(v), 1e-6) > W_SLOPE * 1.10:
             self.cmd_over.append((self.phase, round(v, 3), round(w, 3),

@@ -9,7 +9,7 @@
   S1 启动锁定:上电即"按住使能"不运动(判据1)
   S2 松开→按住→满油门:/car_cmd_vel.linear.x 收敛 0.10(限幅对齐),angular≈0
   S3 松使能:立即零
-  S4 满舵转向:angular.z≈+0.101(v·tan(δ)/L, 0.10·tan(0.35)/0.36)
+  S4 满舵转向:angular.z≈+0.101(v·tan(δ)/L, 0.10·tan(0.35)/0.33)
   S5 断流 1.0s:teleop 0.3s 锁定零 → safety 0.5s 超时零速重发,/car_cmd_vel 恒零
   S6 判据3b实链:恢复发送(仍按住使能+满油门)→ 保持零(需 e2113b0 补丁)
   S7 锁定恢复(油门门 2026-09-17):杆仍推着时松开重按使能不得起步;
@@ -39,7 +39,7 @@ from sensor_msgs.msg import Joy
 import math  # noqa: E402
 
 V_MAX = 0.10                                          # 满油门=安全层上限
-W_EXPECT = round(V_MAX * math.tan(0.35) / 0.36, 6)    # ω=v·tan(δ)/L ≈0.1013(左满舵)
+W_EXPECT = round(V_MAX * math.tan(0.35) / 0.33, 6)    # ω=v·tan(δ)/L ≈0.1013(左满舵)
 MOTOR_VMAX = 1540 + round(V_MAX * 100)                # =1550(帧值对账打印用)
 SERVO_WEXPECT = 1500 - round(W_EXPECT * 1300)         # 左满舵期望舵机值
 

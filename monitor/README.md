@@ -8,7 +8,7 @@
 ## 目录
 
 ```
-web/
+monitor/
 ├── index.html          前端(无构建, 纯 HTML/CSS/JS)
 ├── css/app.css
 ├── js/adapter.js       数据适配层(界面与后端解耦)
@@ -36,9 +36,9 @@ web/
 **2) 本机拉图（可选，二选一）**
 
 ```bash
-# 方式A：永续拉两张图(地图譥相机)到 web/media/
+# 方式A：永续拉两张图(地图譥相机)到 monitor/media/
 ./pull.sh <车机IP>          # IP 是热点 DHCP 动态分配，每次先查，禁止写死
-# 方式B：沿用 tools/realcar/fetch_monitor.sh(只拉地图)，把输出放 web/media/
+# 方式B：沿用 tools/realcar/fetch_monitor.sh(只拉地图)，把输出放 monitor/media/
 ```
 
 **3) 启动前端服务（只读）**

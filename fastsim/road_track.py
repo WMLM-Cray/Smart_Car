@@ -1,4 +1,4 @@
-"""把官方赛道 A-D(maps/ 下 1:1 数据)转成路段环境的 Road,跑速度 x 通过性测试。
+"""把官方赛道 A-D(maps/ 下规则图估读数据)转成路段环境的 Road,跑速度 x 通过性测试。
 
     python -m fastsim.road_track --model runs/road_v2_b/candidate_030.npz --tracks A B C D --fill-v
     python -m fastsim.road_track --model runs/low_speed_a/candidate_060.npz --tracks A    # 旧模型对照

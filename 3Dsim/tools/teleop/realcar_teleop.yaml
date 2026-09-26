@@ -4,7 +4,7 @@
 #      消除"推 30% 以为 0.15 实际被压 0.10"的错觉;低速键再 ×0.4 = 0.04;
 #   2. 轴/按键索引沿用通用默认(speed 1 / steer 3 / enable 5 / low 4),
 #      ⚠️ 首次接实体手柄必须打印实际 /joy 核对后回填本文件(不得按外壳印刷猜);
-#   3. omega = v·tan(δ)/L:0.10·tan(0.35)/0.36 ≈ 0.101 rad/s,在安全层
+#   3. omega = v·tan(δ)/L:0.10·tan(0.35)/0.33 ≈ 0.101 rad/s,在安全层
 #      max_angular 0.35 之内,转向不会被二次限幅。
 racecar_teleop:
   ros__parameters:
@@ -18,7 +18,7 @@ racecar_teleop:
     max_speed_forward: 0.10    # m/s,= cmd_vel_safety max_linear
     max_speed_reverse: 0.10    # m/s,= cmd_vel_safety max_linear
     max_steering_angle: 0.35   # rad,等效自行车转向角
-    wheelbase: 0.36            # m,卷尺实测(3fad10b)
+    wheelbase: 0.33            # m,卷尺实测(3fad10b)
     low_speed_scale: 0.4
     publish_rate: 20.0
     input_timeout: 0.3

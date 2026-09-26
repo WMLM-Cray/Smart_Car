@@ -14,7 +14,7 @@
 | FastSim 与策略 | [`fastsim/`](fastsim/)、[`runs/`](runs/) | 轻量环境、教师、低速转向训练与评估、导出权重；FastSim 成绩不能代替 Gazebo 或实车验收 |
 | 实车控制和网页 | [`teleop/`](teleop/) | HTTP/WebSocket 遥控、雷达显示、速度闭环、转向策略、看门狗、标定脚本和 systemd 配置记录 |
 | 手柄遥控 | [`racecar_teleop/`](3Dsim/hwcart_sim/src/racecar_teleop/) | 队友的 `/joy`→`/teleop/cmd_vel` 物理速度接口；与实车网页的 PWM 接口不同，接入前需确定唯一的控制仲裁路径 |
-| 网页界面资料 | [`web/`](web/) | 独立界面与预览资料；车上的 HTTP 服务入口是 `teleop/server.py` |
+| 网页界面资料 | [`monitor/`](monitor/) | 独立界面与预览资料；车上的 HTTP 服务入口是 `teleop/server.py` |
 | 仿真与实车对照 | [`3Dsim/tools/sim2real/`](3Dsim/tools/sim2real/)、[`docs/sim2real/`](docs/sim2real/) | 场景和动力学假设对照，按报告的参数版本解释结果 |
 
 本仓库主线保存完整实车测量与验证数据。队友的 `MilkSliceKing/Astrahuaweicar` 仓库同步的是选定部分，两个仓库的 `main` 不保证提交号相同。
@@ -83,7 +83,7 @@ ros2 launch racecar_sim sim_bringup.launch.py use_gui:=false
 
 ### 训练、评估与上车
 
-FastSim 低速训练入口为 `python -m fastsim.low_speed_train`，评估入口为 `python -m fastsim.low_speed_eval`；Gazebo 验证使用 [`steer_policy_node.py`](teleop/steer_policy_node.py) 的仿真模式。当前导出权重是 [`candidate_060.npz`](runs/low_speed_a/candidate_060.npz)，在旧 **0.305 m** 训练假设下得到 FastSim 956/1000 圈；改成 0.33 m 后尚未取得同等验收。Phase B 未启动。现有转角问题与服务器准备见 [研究计划](docs/research/CORNER_TRAINING_SERVER_PLAN_20260924.md)。
+当前路段训练入口为 `python -m fastsim.road_train`，从初期随机速度并检查路段可通性，输出转向与目标速度。旧模型保留作对照。历史低速训练入口为 `python -m fastsim.low_speed_train`，评估入口为 `python -m fastsim.low_speed_eval`；Gazebo 验证使用 [`steer_policy_node.py`](teleop/steer_policy_node.py) 的仿真模式。当前导出权重是 [`candidate_060.npz`](runs/low_speed_a/candidate_060.npz)，在旧 **0.305 m** 训练假设下得到 FastSim 956/1000 圈；改成 0.33 m 后尚未取得同等验收。Phase B 未启动。现有转角问题与服务器准备见 [研究计划](docs/research/CORNER_TRAINING_SERVER_PLAN_20260924.md)。
 
 ### 实车网页与手柄
 

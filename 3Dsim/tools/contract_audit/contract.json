@@ -2,13 +2,13 @@
   "schema_version": 1,
   "status": "review_draft_not_vehicle_authorization",
   "facts": {
-    "wheelbase": {"value": 0.36, "unit": "m", "basis": "user_reported_measurement", "evidence": "3fad10b; user report 2026-09-17; not independently remeasured"},
+    "wheelbase": {"value": 0.33, "unit": "m", "basis": "user_reported_measurement", "evidence": "3fad10b; user report 2026-09-17; not independently remeasured"},
     "lidar_points": {"value": 1667, "basis": "user_reported_realcar_capture", "evidence": "b47af14 and user report"},
     "realcar_rates": {"lidar": 11.997, "imu": 99.94, "encoder": 49.76, "unit": "Hz", "basis": "reported_capture_not_replayed"},
     "driver_motor_offset": {"value": 1540, "unit": "PWM_us", "basis": "reported_deployed_formula", "evidence": "REALCAR_CONTROL_AUDIT / 6bb97d8; no live vehicle verification"}
   },
   "parameters": [
-    {"id":"wheelbase", "unit":"m", "expected":0.36, "bindings":{"sim":"wheelbase","gazebo":"wheel_base","teleop":"wheelbase"}},
+    {"id":"wheelbase", "unit":"m", "expected":0.33, "bindings":{"sim":"wheelbase","gazebo":"wheel_base","teleop":"wheelbase"}},
     {"id":"body_length", "unit":"m", "expected":0.56, "basis":"frozen_model_not_new_measurement", "bindings":{"sim":"length","gazebo":"chassis_length"}},
     {"id":"body_width", "unit":"m", "expected":0.35, "basis":"frozen_model_not_new_measurement", "bindings":{"sim":"width","gazebo":"chassis_width"}},
     {"id":"lidar_rate_target", "unit":"Hz", "expected":12, "bindings":{"sim":"lidar_hz","gazebo":"lidar_hz"}},

@@ -42,7 +42,7 @@ class Parameters:
     max_speed_forward: float = 0.5   # m/s
     max_speed_reverse: float = 0.3   # m/s
     max_steering_angle: float = 0.35  # rad (equivalent bicycle steer angle)
-    wheelbase: float = 0.36           # m
+    wheelbase: float = 0.33           # m
     low_speed_scale: float = 0.4
     publish_rate: float = 20.0        # Hz
     input_timeout: float = 0.3        # s

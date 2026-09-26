@@ -1,3 +1,4 @@
+# 历史入口：当前训练使用 fastsim.road_train，实车闭环使用 steer_policy_node --speed-loop。
 #!/usr/bin/env python3
 """策略上车:订 /scan + /encoder + /IMU_data,20Hz 发 /teleop_cmd_vel。
 

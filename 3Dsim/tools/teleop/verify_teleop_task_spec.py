@@ -37,7 +37,7 @@ P = Parameters(
     enable_button=5, low_speed_button=4,
     deadzone=0.08,
     max_speed_forward=0.5, max_speed_reverse=0.3,
-    max_steering_angle=0.35, wheelbase=0.36,
+    max_steering_angle=0.35, wheelbase=0.33,
     publish_rate=20.0, input_timeout=0.3,
 )
 

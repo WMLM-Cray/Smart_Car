@@ -1,3 +1,4 @@
+# 历史入口：当前训练使用 fastsim.road_train，实车闭环使用 steer_policy_node --speed-loop。
 """PPO 训练:按课程阶段跑,过关自动进下一阶段。
 
     python -m fastsim.train                      # 从 s1 开始,过关后自动接 s2

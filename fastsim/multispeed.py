@@ -1,3 +1,4 @@
+# 历史入口：当前训练使用 fastsim.road_train，实车闭环使用 steer_policy_node --speed-loop。
 """Offline speed-conditioned DAgger experiment; not a deployed car policy.
 
 Run: python -m fastsim.multispeed --iterations 3 --episodes 10 --updates 500

@@ -21,13 +21,13 @@ def npz(tmp_path_factory):
     if not __import__('pathlib').Path(CKPT).exists():
         pytest.skip(f'没有 {CKPT}')
     out = tmp_path_factory.mktemp('p') / 'policy.npz'
-    subprocess.run([sys.executable, 'work/export_policy.py', CKPT, str(out)], check=True)
+    subprocess.run([sys.executable, 'fastsim/legacy/export_policy.py', CKPT, str(out)], check=True)
     return str(out)
 
 
 def test_numpy_policy_matches_training_pipeline(npz):
     """同一条赛道跑 200 步,Policy 和 Student+env 给出的动作必须完全相同。"""
-    from work.dagger import Student, make_net
+    from fastsim.legacy.dagger import Student, make_net
 
     ck = torch.load(CKPT, map_location='cpu')
     dim, frames = int(ck['obs_dim']), int(ck['frames'])

@@ -118,7 +118,7 @@ def speed_at(samples, after, half=0.2):
 
 def verdict(decel, stopped):
     if not stopped:
-        return '一直没停(滑行)'
+        return '观察结束仍在运动，需结合目标 PWM 判断是否持续驱动'
     if decel < COAST_MAX_DECEL:
         return '自由滑行'
     if decel > BRAKE_MIN_DECEL:
@@ -262,7 +262,7 @@ def main():
                     gap = node.guard.gap()
                     if gap is None or gap < args.min_gap:
                         raise Blocked(f'开跑前前方只有 {gap}m,要求 {args.min_gap}m '
-                                      f'—— 滑行段没有防撞,不够不跑')
+                                      f'—— 须留足滑停距离；防撞只切中位，不主动刹车')
                 ramp_to(args.kick)
                 hold(args.kick, args.kick_sec)
                 if abs(node.speed) < MOVING:

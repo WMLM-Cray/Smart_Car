@@ -38,7 +38,7 @@ def _load_params(node):
         max_speed_forward=node.declare_parameter('max_speed_forward', 0.5).value,
         max_speed_reverse=node.declare_parameter('max_speed_reverse', 0.3).value,
         max_steering_angle=node.declare_parameter('max_steering_angle', 0.35).value,
-        wheelbase=node.declare_parameter('wheelbase', 0.36).value,
+        wheelbase=node.declare_parameter('wheelbase', 0.33).value,
         low_speed_scale=node.declare_parameter('low_speed_scale', 0.4).value,
         publish_rate=node.declare_parameter('publish_rate', 20.0).value,
         input_timeout=node.declare_parameter('input_timeout', 0.3).value,

@@ -14,7 +14,7 @@
     车辆按 0.56×0.35m 矩形(历史冻结基线的轮距0.30+轮宽
     0.05 外缘=0.35 不超底盘),锥桶按 0.28×0.28 方底座外接圆 r=0.198,
     路线上每 0.05m 采样点对全部 63 锥逐一计算"矩形-圆"距离;
- 2. 速度/转向满足阿克曼约束:|ω| ≤ v·tan(0.55°)/0.36(冻结参数),
+ 2. 速度/转向满足阿克曼约束:|ω| ≤ v·tan(0.55°)/0.33(冻结参数),
     低速 0.3 m/s;
  3. 分段扩展:--route short|u_right|half|full,先短后长;
  4. 失速/碰撞/偏出 → 立即停车并报告,不硬闯;
@@ -58,7 +58,7 @@ CONE_R = 0.198             # 锥底座 0.28×0.28 方盒的外接圆半径(保�
 MARGIN = 0.10              # 静态余量要求(锥沿 + 0.10m)
 REQ_CLEAR = CONE_R + MARGIN
 ABORT_CLEAR = CONE_R + 0.03   # 运行中触碰锥沿即判碰撞停车
-WHEELBASE = 0.36           # params.yaml wheel_base
+WHEELBASE = 0.33           # params.yaml wheel_base
 MAX_STEER = 0.55           # params.yaml max_steer_angle
 
 BOT_Y, TOP_Y = 0.75, 4.75

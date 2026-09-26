@@ -2,7 +2,7 @@
 
 车上(OrangePi)装不装得上 torch 是未知数,而这个网络就是三层全连接 + Tanh,
 用 numpy 写前向只要六行,不值得为它在车上拖一套深度学习框架。
-权重先在开发机上用 work/export_policy.py 从 .pt 导成 .npz。
+权重先在开发机上用 fastsim/legacy/export_policy.py 从 .pt 导成 .npz。
 
 ROS 那一层在 teleop/policy_node.py:这里只负责"传感器数值 -> (车速, 转角)",
 好处是能在开发机上直接拿仿真数据验证,不用上车,见 fastsim/tests/test_policy.py。

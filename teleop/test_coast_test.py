@@ -54,7 +54,7 @@ def test_never_stopping_reports_none_and_lower_bound_decel():
     v0, stop_t, dist, decel = summarize(rolling)
     assert stop_t is None
     assert decel < 0.2
-    assert verdict(decel, False) == '一直没停(滑行)'
+    assert verdict(decel, False) == '观察结束仍在运动，需结合目标 PWM 判断是否持续驱动'
 
 
 def test_verdict_separates_coast_from_brake():
