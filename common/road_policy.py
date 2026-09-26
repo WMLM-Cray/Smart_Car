@@ -3,7 +3,7 @@
 每帧 53 维:48 扇区 + 编码器速度 + 速度上限 + 偏航角速度 + 上一步转向 + 上一步速度,叠 5 帧。
 输出 2 维:[转向, 速度],都是 ±1。
   转向 a -> 舵机 turn_mid + a·turn_span(和 v1 一样)
-  速度 a -> V_LO + (a+1)/2·(V_HI-V_LO) m/s,交给车上的 PID 闭环;实际再和速度上限取小
+  速度 a -> V_LO + (a+1)/2·(V_HI-V_LO) m/s,设计上交给实车 PID；当前无 road_v2 部署节点。仿真先与速度上限取小
 """
 import numpy as np
 
@@ -13,7 +13,7 @@ SCHEMA = 'road_v2'
 DIM, FRAMES = 53, 5
 SPEED_SCALE = 1.5
 OBS_RANGE = 10.0
-V_LO, V_HI = 0.45, 1.0      # 速度输出范围 m/s:下限是亏电时的平台速度,不输出 0(停车归防撞和人)
+V_LO, V_HI = 0.45, 1.0      # 速度指令范围 m/s:0.45 是建模下限，实际平台按每局参数决定,不输出 0(停车归防撞和人)
 
 
 def action_to_speed(a: float) -> float:

@@ -25,7 +25,7 @@ class CarParams:
     width: float = 0.35             # [假设] 外形 350mm
     rear_overhang: float = 0.13     # [假设] 后轴到车尾
     # 舵机值 -> 等效自行车前轮角(度,左正),2026-09-24 手推实测,
-    # docs/validation/2026-09-24-steering/CONCLUSION.md。不是线性的:近满舵 15 个刻度
+    # docs/实测/2026-09-24-steering/转向标定.md。不是线性的:近满舵 15 个刻度
     # 只多 2~3°。81 那点实测 +0.3° 不可靠,按中位 = 0° 记。点间线性插值。
     steer_curve: tuple = ((21, -21.7), (36, -18.6), (51, -13.4), (66, -5.8), (76, -1.2),
                           (81, 0.0), (86, 1.9), (96, 5.6), (111, 11.9), (126, 17.9),
@@ -46,7 +46,6 @@ class CarParams:
     # 后果不只是"停不住":pwm_mid 是速度映射的零点,偏 10 个 PWM 等于每条指令
     # 都带一个常量油门,而且所有脚本的 neutral_exit() 发的"中位"根本不停车。
     pwm_mid: int = 1540             # [实测 2026-09-22]
-    pwm_fwd_start: int = 1600       # [代码] teleop 注释"can roll";真实起转点随电量变
     # 电调**不主动刹车**。原注释说"低于 1600 会刹停,不是滑行",2026-09-22 晚
     # coast_test 实测推翻:从 0.59 m/s 松到 1545/1530/1510,减速度都是
     # 0.68~0.78 m/s²(纯滚阻),滑 0.25m、0.8s 停下,三个值毫无区别。
@@ -55,10 +54,7 @@ class CarParams:
     # [实测] 0.59 m/s 松油 0.73(2026-09-22);0.91 m/s 松油 0.78、滑 0.56m(2026-09-23,11.24V)。
     # 基本不随车速变(像库仑摩擦),取小的那个:拿它算防撞滑停距离时偏保守。
     coast_decel: float = 0.73       # [实测] 松油自由滑行减速度 m/s²
-    pwm_rev_start: int = 1360       # [代码] teleop 倒车起步
-    pwm_fwd_full: int = 2000        # [代码] teleop 上限
-    pwm_rev_full: int = 910         # [代码] teleop 倒车下限(1360-450)
-    v_fwd_full: float = 3.0         # [假设] PWM 2000 时车速 m/s —— 待落地测速
+    v_fwd_full: float = 3.0         # [假设] 基础 Car 模型速度钳位；road_v2 实际速度由 SpeedPlant 决定
     v_rev_full: float = 1.5         # [假设]
     speed_tau: float = 0.35         # [假设] 电机+电调一阶响应时间常数 s
     accel_max: float = 3.0          # [假设] m/s²
@@ -75,13 +71,11 @@ class CarParams:
     # (同一天先选过 81,复跑改口 80;两者在数据上本来就分不开)。
     # 想钉死就 straight_trim.py --turns 79 80 81 --sec 6 --repeat 5,跑长一点。
     # 2026-09-23 落地测曲线时 80 两次走偏(一次左一次右,多半是摆车角度),
-    # 用户判断整体偏右,改 81(往左 1 个单位 ≈ 0.5°)。
+    # 用户判断整体偏右,改 81；角度须按非线性实测表换算。
     turn_mid: int = 81              # [实测 2026-09-23 用户观察]
     turn_span: int = 60             # [代码] 左右各 60 = 满舵
 
     # --- 策略输出的速度上限(动作 ±1 对应的 m/s),按课程分阶段收紧/放开 ---
-    v_cmd_fwd: float = 1.5
-    v_cmd_rev: float = 0.5
 
     # --- 激光雷达(镭神 M10P,/scan) ---
     lidar_x: float = 0.07           # [代码] base_footprint->laser_link
@@ -120,7 +114,7 @@ class RuleTrackParams(TrackParams):
     # --- 布局:一条大直道 + 两端 180° 大弯 + 回程侧连续 S 弯(规则图 1 的长条形)---
     main_straight_min: float = 6.0      # [规则图1] 主直道明显比其它直段长(由闭合定出来,超范围就重抽)
     main_straight_max: float = 12.5     # [规则] 场地 16.8m,留出两端掉头的余量
-    bend_radius_min: float = 1.0        # [图1] S 弯比圆弯紧得多;下限对车(最小转弯半径0.53m)仍有裕量
+    bend_radius_min: float = 1.0        # [图1] S 弯比圆弯紧得多;下限对车(实测转角对应半径约0.83–0.88m)仍有裕量
     bend_radius_max: float = 1.8        # [图1]
     cross_min: float = 1.5              # [假设] 方角中间那段横直道至少这么长,否则看不出是直角
     height_min: float = 3.5             # [图1] 主直道到回程直道的间距(赛道"厚度")
