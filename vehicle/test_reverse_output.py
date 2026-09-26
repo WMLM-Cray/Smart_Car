@@ -13,7 +13,7 @@ class ReverseOutputTests(unittest.TestCase):
     def setUp(self):
         tree = ast.parse(Path(__file__).with_name('server.py').read_text(encoding='utf-8'))
         # 只保留不碰 ROS 的顶层赋值。原判据是"不含任何调用",但 2026-09-22 起
-        # server.py 的舵机中位改成从 fastsim/params.py 读(避免四个脚本各抄一份
+        # server.py 的舵机中位改成从 common/params.py 读(避免四个脚本各抄一份
         # 84),那一行带了 CarParams() 调用。CarParams 是纯 dataclass 无 ROS 依赖,
         # 所以放行它,别的调用照旧挡掉。
         def safe(node):
@@ -47,3 +47,18 @@ class ReverseOutputTests(unittest.TestCase):
         self.assertFalse(self.ns['compute'](10.1)[2])
         self.state.estop = 0
         self.assertFalse(self.ns['compute'](11.)[2])
+
+
+    def test_all_manual_forward_modes_obey_hard_limit(self):
+        from vehicle.speed_loop import PWM_HARD_MAX
+        self.state.guard = False
+        for mode in range(3):
+            self.state.mode = mode
+            for throttle in (1, 100, 450, 700, 1000):
+                self.state.thr = throttle
+                self.state.last_dir = 1
+                self.state.dir_change_t = 0.
+                for _ in range(self.ns['DUTY_TICKS']):
+                    pwm, _, active = self.ns['compute'](10.1)
+                    self.assertTrue(active)
+                    self.assertLessEqual(pwm, PWM_HARD_MAX)

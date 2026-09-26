@@ -1,4 +1,4 @@
-"""策略模式的放行条件:python3 -m pytest teleop/test_policy_hold.py
+"""策略模式的放行条件:python3 -m pytest vehicle/test_policy_hold.py
 
 这一层管的是"人手上的动作"和"车动不动"的对应关系,错了就是没人推杆车自己开。
 和 test_reverse_output.py 一样,用 AST 摘出 server.py 里不碰 ROS 的部分来跑,
@@ -22,7 +22,7 @@ KEEP = ('State', 'policy_held', 'compute', 'creep_or_pwm', 'handle_cmd')
 def ns():
     tree = ast.parse(Path(__file__).with_name('server.py').read_text(encoding='utf-8'))
     # 只保留不碰 ROS 的顶层赋值。原来的判据是"不含任何调用",但 2026-09-22
-    # 起 server.py 的舵机中位改成从 fastsim/params.py 读(避免四个脚本各抄一份
+    # 起 server.py 的舵机中位改成从 common/params.py 读(避免四个脚本各抄一份
     # 84),那一行带了 CarParams() 调用。CarParams 是纯 dataclass 没有 ROS 依赖,
     # 所以放行它,别的调用照旧挡掉。
     def safe(node):

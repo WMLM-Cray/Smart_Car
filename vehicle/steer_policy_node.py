@@ -1,38 +1,14 @@
 #!/usr/bin/env python3
-"""低速转向策略上车:订 /scan + /encoder + /IMU_data,20Hz 发 /teleop_cmd_vel。
+"""现有单转向模型的 ROS 2 执行节点：订阅雷达、编码器与 IMU，20Hz 输出。
 
-和 policy_node.py 的区别:那个跑的是速度+转向双输出的 fastsim.policy.Policy,
-这个跑 low_speed_policy.SteeringPolicy —— **只出转向**,油门是固定 PWM。
-两者观测维度不同(52x5 vs 53x3),权重不通用,npz 里有 schema 会直接报错。
+使用 common.low_speed_policy（52 维 × 5 帧），不接受 road_v2（53 维 × 5 帧、双输出）。
+--speed-loop 使用编码器 PI 跟踪 --speed；未启用时保留固定 PWM 开环。
+systemd 模板使用闭环、目标 0.7 m/s。直线已标定，转弯和低电量仍需实车验收。
+PWM 硬上限 1620；达不到目标速度也不能提高上限。
 
-速度为什么是固定 PWM 而不是闭环:
-  * 训练时速度就是常数(phase A 全程 target_speed=0.6,每局 mean_speed≈0.597),
-    老师只规划转向,所以车上照着给一个固定油门就是训练时的样子。
-  * 电调在中位附近是自由滑行不是刹车(2026-09-21 实测 PWM 1515~1560 全零、
-    松开后车滑行减速),但闭环要压 PWM 降速这件事本身在这台车上没验过,
-    先不引入。用户明确偏好开环。
-
-PWM 上限硬限在 1620(PWM_HARD_MAX),这是安全线不是标定值:2026-09-21 架空
-试跑时车冲得太快,要求限速。别为了"跑够 0.6m/s"把它往上改 —— 太快先减速再说。
-注意这和当天的扫描结果冲突:那次 1640 及以下都读 0(破静死区),1650 才
-491mm/s。也就是说 1620 以下可能根本带不动车,或者只能跑到 0.6m/s 以下。
-先落地实测 /encoder,跑不动就用占空比降速,不要抬上限。
-
-用法:python3 teleop/steer_policy_node.py runs/policy_s3_steer.npz [--pwm 1600] [--speed 0.6]
-      python3 teleop/steer_policy_node.py runs/candidate_060.npz --speed-loop --speed 0.7
-      python3 teleop/steer_policy_node.py runs/candidate_060.npz --sim --speed 0.45
-
---speed-loop(2026-09-24):油门改走 speed_loop.SpeedLoop 编码器闭环,目标就是 --speed。
-固定 PWM 的车速随电压差 40%(同一个 1610 满电 0.80、11.24V 0.52 m/s),闭环按实测曲线
-调过、直线实车验证过(docs/validation/2026-09-24-pid)。不加这个开关还是原来的固定 PWM。
-
---sim 接队友的 racecar_sim:那边收物理量 Twist 的 /cmd_vel,angular.z 是**偏航角速度**
-不是前轮转角,换算走 fastsim.interop.to_cmd_vel。仿真里也没有 /encoder,车速只能从
-ackermann 控制器自己的里程计取。--pwm 在仿真模式下没有意义,忽略。
-
-和 policy_node.py 一样靠 /policy_enable 心跳放行,松手即停;同一时间只能跑一个,
-两个都发 /teleop_cmd_vel 会互相冲掉(2026-09-21 教训:pwm_sweep 被没停的
-policy_node 冲成一张全 0 的表,不报错)。
+运行：python3 -m vehicle.steer_policy_node models/steering_v1/candidate_060.npz --speed-loop --speed 0.7
+--sim 输出 /cmd_vel 的 m/s 与 rad/s，通过 common.control.to_cmd_vel 换算。
+实车 /teleop_cmd_vel 使用 PWM 与舵机刻度。策略必须收到放行心跳才运行。
 """
 import os
 import signal

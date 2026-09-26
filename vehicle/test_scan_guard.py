@@ -1,4 +1,4 @@
-"""防撞几何的测试:python3 -m pytest teleop/test_scan_guard.py
+"""防撞几何的测试:python3 -m pytest vehicle/test_scan_guard.py
 
 不需要 ROS,自己造 LaserScan 形状的对象。跑在 PC 上就行。
 """

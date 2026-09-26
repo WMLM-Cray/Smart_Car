@@ -6,7 +6,7 @@
   e <0|1> 急停   l <0|1|2> 排挡 P/D/R   y <0|1|2> 模式 Sloth/Roaming/MAD MAX
 输出和 racecar_teleop.py 一样发 /teleop_cmd_vel:linear.x = 电调 PWM,angular.z = 舵机值。
 """
-import base64, hashlib, json, math, os, signal, socket, struct, threading, time
+import base64, hashlib, json, math, os, signal, socket, struct, sys, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -30,18 +30,18 @@ HTML = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'index.html')
 # PWM 约定:中位和转向值从实测参数读取;前进/倒车起点仍按网页遥控设置。
 # ⚠️ 顶速上限放在服务端,不信任浏览器发来的数。数值偏保守,架空实测后再往上调。
 SPEED_MID, FWD_START, REV_START = CarParams().pwm_mid, 1600, 1500
-FWD_CAP = [1610, 1640, 1700]          # Sloth / Roaming / MAD MAX
+FWD_CAP = [1610, 1620, 1620]          # Sloth / Roaming / MAD MAX
 # ⚠️ 倒车:厂家 teleop 用 1360 起步,实车上会窜出去(2026-09-17)。
-# 电调没有渐进区(实测前进 1595->0、1600->470mm/s 一步到位),光调 PWM 保证不了速度,
+# 电调存在起转平台，平台速度随工况变化；手动 PWM 不保证目标车速。
 # 倒车仅保留 PWM 上限；不根据编码器速度截断输出，不能保证实际车速上限。
 REV_CAP = 1470
-# 低速靠占空比:电调解锁就是 470mm/s,1599->0、1600->470 中间没有值(2026-09-17 实测)。
+# 手动低速保留历史占空比方式；实际速度受起转、滞回和滑行影响。
 # 所以摇杆前 CREEP_SPAN 段不调 PWM,而是在起步 PWM 和中位之间按比例通断,
-# 平均速度 ≈ 占空比 x 最低速度。周期 0.3s:再快电调跟不上,再慢车会一顿一顿。
+# 周期 0.3s；占空比与平均速度不保证线性，策略模式另走编码器闭环。
 CREEP_SPAN = 0.45                     # 摇杆前 45% 行程是占空比低速区
 DUTY_TICKS = 6                        # 6 个 20Hz 周期 = 0.3s
-# 舵机中位/满舵幅度从 fastsim/params.py 读,别在这里写死 —— 2026-09-22 之前
-# 四个脚本各抄一份 84,改中位时漏改一个就会两套行为(实测真中位是 83 不是 84)。
+# 舵机中位/满舵幅度从 common/params.py 读,别在这里写死 —— 2026-09-22 之前
+# 四个脚本各抄一份 84,改中位时漏改一个就会两套行为(当前中位为 81)。
 TURN_MID, TURN_SPAN = CarParams().turn_mid, CarParams().turn_span
 DEADMAN = 0.3                         # 这么久没收到 t 就回中位
 GUARD_STOP = 0.25                     # 保险杠前净空小于这个就不许再往前(米)

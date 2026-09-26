@@ -1,4 +1,4 @@
-"""转向策略上车前的口径检查:python3 -m pytest teleop/test_steer_policy.py
+"""转向策略上车前的口径检查:python3 -m pytest vehicle/test_steer_policy.py
 
 observe() 的六个参数里有两对很容易搞反:(speed, target_speed) 和
 (yaw_rate, last_steer)。传反了不会报错 —— 网络照样输出一个数,车照样开,
@@ -108,9 +108,7 @@ def test_schema_guard_rejects_the_wrong_policy(tmp_path):
 
 
 # --- 油门爬升 ---------------------------------------------------------------
-# 2026-09-22 架空实测:从中位一步跳到目标,电调按突加油门保护处理,完全不启动;
-# 爬得太慢(+2/1s)同样不启动,1550 一路爬到 1650 全程不转。+2/0.1s(20 PWM/s)
-# 立刻转。所以爬升速率是双边约束,这几条把它钉住。
+# 20 PWM/s 有实测依据；直接跳变曾使落地车移动，不能依赖电调拒绝指令。
 
 def node_const(name):
     """从源码里取一个模块级常量,不 import(节点 import rclpy)。"""

@@ -1,4 +1,4 @@
-"""看门狗状态机的测试:python3 -m pytest teleop/test_watchdog.py
+"""看门狗状态机的测试:python3 -m pytest vehicle/test_watchdog.py
 
 不需要 ROS,时间全靠手喂。跑在 PC 上就行。
 """

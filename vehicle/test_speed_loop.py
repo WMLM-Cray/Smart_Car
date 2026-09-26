@@ -1,4 +1,4 @@
-"""速度闭环的测试:python3 -m pytest teleop/test_speed_loop.py
+"""速度闭环的测试:python3 -m pytest vehicle/test_speed_loop.py
 
 这些用例针对的是**这台车特有的那个不可逆失败**:PWM 掉到维持点以下车就停,
 而停了之后要重新起步需要更高的破静 PWM。普通 PI 会在超速时一路往下压、压过头
@@ -24,7 +24,7 @@ class Plant:
     """
 
     # PWM->速度用 2026-09-24 落地、静态 12.5V 的 ramp_curve 下降段实测值做分段线性
-    # (docs/validation/2026-09-24-pid)。原来用 9-22 傍晚那条(1584 = 1.245 m/s、
+    # (docs/实测/2026-09-24-pid/闭环标定.md)。原来用 9-22 傍晚那条(1584 = 1.245 m/s、
     # 刹停 1544),之后三次落地测量都对不上,换掉。
     #
     # 实测曲线最要紧的特征是**平台**:刹停点往上到 1602 一直是 ~0.66 m/s,每个 PWM
@@ -144,11 +144,7 @@ def test_reaches_target_from_standstill():
 
 
 def test_startup_ramps_instead_of_jumping():
-    """起步不能从中位一步跳到破静点 —— 电调按突加油门保护处理,根本不启动。
-
-    2026-09-22 架空实测:一步到位不转;+2/1s 这种太慢的爬升也不转;
-    +2/0.1s(20 PWM/s)立刻转。所以这里既卡"不许跳",也卡"别爬太慢"。
-    """
+    """保持已验证的默认爬升行为；突加油门可能突然起步，不能依赖电调拒绝。"""
     cfg = SpeedLoopConfig()
     loop, plant = SpeedLoop(cfg), Plant(cfg)
     trace = run(loop, plant, 0.6, 20)

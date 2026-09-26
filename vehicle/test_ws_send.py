@@ -1,4 +1,4 @@
-"""遥测发送不许被一个收不动的客户端拖住。python3 -m pytest teleop/test_ws_send.py
+"""遥测发送不许被一个收不动的客户端拖住。python3 -m pytest vehicle/test_ws_send.py
 
 server.py 顶层 import rclpy,这里用 AST 只摘 ws_send / log_event 出来跑。
 MSG_DONTWAIT 是 Linux 的,Windows 上跳过(车上跑)。
