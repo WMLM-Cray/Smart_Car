@@ -1,34 +1,14 @@
 #!/usr/bin/env python3
-"""一次跑出三样东西:破静点、刹停点、整条 PWM→速度曲线。落地跑,编码器读速度。
+"""连续缓慢升降 PWM，测量破静点、停止维持点与速度曲线。
 
-## 为什么不用 floor_probe 的分档法
+先从中位逐步升至车动，再升至 --top；随后逐级下降并记录速度。
+持续下降的数据与静止启动阈值不同，需要分别记录；同时记录电池静态电压和测试顺序。
+曾实测下跳 10、20、25 PWM 后仍持续驱动，不能把所有下跳都当作断输出。
+也不能把电调拒绝上跳当保护：单步至 1600 曾使落地车辆移动。
+曲线用于检查闭环与仿真模型，当前 SpeedLoop 未使用前馈表。
 
-`floor_probe.py floor` 每档都是"爬到 kick -> 保持 -> **直接掉到候选值**"。那个
-下跳本身就会让电调断输出,于是每个候选值都读到"停了" —— 测的是"能不能承受
-下跳",不是"能不能维持"。2026-09-22 实测确认测不出来。
-
-这里改成**连续缓慢升降,全程不跳变**:
-
-    中位 --(每 0.1s +2)--> 一直爬到车动起来        = 破静点
-         --(继续爬)------> 到 --top 或够快了
-         --(每 --down-sec 降 1)--> 直到车停下       = 刹停点
-
-降的时候每一档都记速度,顺带就是整条 PWM→速度曲线 —— `speed_loop.py` 的前馈
-要的就是它。全程不跳变还有个好处:电调拒绝突变(见 memory
-esc-rejects-throttle-jumps),分档法本来就容易误判成"带不动"。
-
-三个数都随电量漂,**记一下测的时候电池什么状态**。
-
-用法(车上,落地,前方留够 --max-dist):
-    python3 ramp_curve.py
-    python3 ramp_curve.py --down-sec 0.4                 # 降得更慢,分辨率更高
-    python3 ramp_curve.py --no-guard                     # 场地窄,自己盯着
-
-分段测(一段一趟,每趟 10 米以内,跑完把车拿回起点):
-    python3 ramp_curve.py --top 1600 --seg-hi 1590 --bottom 1580 --down-sec 1.0 --csv /tmp/seg1.csv
-    python3 ramp_curve.py --top 1600 --seg-hi 1580 --bottom 1570 --down-sec 1.0 --csv /tmp/seg2.csv
-起步照常爬过破静点,然后每 0.1s 快速降到 --seg-hi,从那里每档停 --down-sec 慢测。
-前方净空按当前车速留滑停距离(电调不刹车),见 stop_gap()。
+运行：python3 -m calibration.ramp_curve --top 1620 --csv /tmp/curve.csv
+只在场地满足条件时运行；雷达按速度预留滑停距离，松中位不是主动刹车。
 """
 import argparse
 import os
@@ -264,7 +244,7 @@ def main():
     print(f'刹停点(降到这里停住)    {stall}', flush=True)
     if breakaway and stall:
         print(f'滞回                      {breakaway - stall} 个 PWM', flush=True)
-        print(f'\n填 teleop/speed_loop.py 的 SpeedLoopConfig:', flush=True)
+        print(f'\n填 vehicle/speed_loop.py 的 SpeedLoopConfig:', flush=True)
         print(f'    pwm_floor     = {stall + 2}      # 刹停点 {stall} 往上留 2 的余量',
               flush=True)
         print(f'    pwm_breakaway = {breakaway}', flush=True)

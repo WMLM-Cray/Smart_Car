@@ -35,7 +35,7 @@ from rclpy.qos import qos_profile_sensor_data
 
 FRONT_HALF = math.radians(4)     # 取正前方 ±4° 的中位数,单点噪声不算数
 
-# 舵机中位/满舵幅度从 fastsim/params.py 读,别在这里写死 —— 2026-09-22 之前
+# 舵机中位/满舵幅度从 common/params.py 读,别在这里写死 —— 2026-09-22 之前
 # 四个脚本各抄一份 84,改中位时漏改一个就会两套行为(实测真中位是 83 不是 84)。
 SPEED_MID = CarParams().pwm_mid
 TURN_MID = CarParams().turn_mid
@@ -183,7 +183,7 @@ def mode_neutral(node):
         for _ in range(10):
             node.send(SPEED_MID)
             time.sleep(0.05)
-        print('已发 1550(注意:这个值可能本身就不是中位,车若还在动就物理断电)')
+        print(f'已发送中位 {SPEED_MID}；车辆仍需滑行减速')
 
 
 def main():

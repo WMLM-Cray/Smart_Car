@@ -127,9 +127,7 @@ def hold(node, pwm, turn, seconds, no_guard):
 def ramp_to(node, target, no_guard, turn):
     """从中位缓慢爬到 target,每 0.1s +2。
 
-    电调不吃从中位直接跳到高油门这种突变,按突加油门保护处理,根本不启动
-    (2026-09-22 实测:升序扫 1600 起转,降序扫直接给 1620 一点反应都没有)。
-    所有"先把车带起来"的地方都要走这里,不能一步到位。
+    使用已测的 20 PWM/s 爬升。突加油门可能突然起步，不能假定电调会拒绝。
     """
     pwm = PWM_MID
     while pwm < target:
@@ -236,7 +234,7 @@ def main():
         if abs(result[best]) > 1.0:
             step = '调小' if result[best] > 0 else '调大'
             print(f'    还差得远,继续往{step}的方向试', flush=True)
-        print(f'填进 fastsim/params.py 的 turn_mid(现在是 {p.turn_mid})', flush=True)
+        print(f'填进 common/params.py 的 turn_mid(现在是 {p.turn_mid})', flush=True)
     neutral_exit()
 
 

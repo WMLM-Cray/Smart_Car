@@ -59,7 +59,7 @@ def test_never_stopping_reports_none_and_lower_bound_decel():
 
 def test_verdict_separates_coast_from_brake():
     assert verdict(0.5, True) == '自由滑行'
-    assert verdict(4.0, True) == '电调在刹车'
+    assert verdict(4.0, True) == '减速度较大，需排查主动制动、碰撞或测量误差'
     assert verdict(1.5, True) == '介于两者之间'
 
 
@@ -73,7 +73,7 @@ def test_brake_looks_different_from_coast():
     _, _, coast_d, coast_a = summarize(ramp_down(0.60, 0.5))
     _, _, brake_d, brake_a = summarize(ramp_down(0.60, 5.0))
     assert verdict(coast_a, True) == '自由滑行'
-    assert verdict(brake_a, True) == '电调在刹车'
+    assert verdict(brake_a, True) == '减速度较大，需排查主动制动、碰撞或测量误差'
     assert coast_d > brake_d * 5          # 滑行距离差一个量级
 
 

@@ -7,7 +7,7 @@
     python3 turn_center.py            # 从当前配置中位开始,按回车逐步调
     python3 turn_center.py 87         # 直接保持 87
 
-调到前轮目测笔直,把那个值填进 fastsim/params.py 的 turn_mid,并记下是哪台车
+调到前轮目测笔直,把那个值填进 common/params.py 的 turn_mid,并记下是哪台车
 哪次装配 —— 换过舵机或拉杆就要重测。
 """
 import os
