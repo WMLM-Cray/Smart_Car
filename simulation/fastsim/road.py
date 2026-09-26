@@ -82,6 +82,13 @@ LEVELS = (
     # 差别全在这种角上,L6 里它占比小、看不出来(2026-09-26)
     Level('L6h', gap_corners=True, width=(1.3, 1.7), wall_chance=0.0, gap_spacing=(1.2, 1.5),
           decoy_chance=0.5),
+    # 只做评估(放最后,不动前面各级在断点里的下标):L4 去掉胶带段(无边界缺口、单侧无边界)。
+    # 用户 2026-09-25:先不测胶带
+    Level('L4c', width=(0.9, 2.5), angles=(45.0, 90.0, 135.0), r_in=(0.0, 2.0),
+          sharp_chance=0.4, uturn_chance=0.15, jog_chance=0.2, taper_chance=0.15,
+          n_elems=(4, 7), straight=(0.3, 3.0), cone_spacing=(0.4, 1.2)),
+    # 稀桶闭环:L5 里外侧/直道桶距 1.2~1.5 的那三分之一通过率 0.91~0.93,其余 0.97~0.99(v2_i,2026-09-26)
+    Level('L5s', loop=True, straight_spacing=(1.1, 1.5), outer_spacing=(1.1, 1.5)),
 )
 
 
