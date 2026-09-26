@@ -34,8 +34,8 @@ import yaml
 
 from common import low_speed_policy as v1
 from common.params import CarParams
-from simulation.road import CONE, DS, NONE, Road
-from simulation.road_env import Plant, RoadEnv
+from simulation.fastsim.road import CONE, DS, NONE, Road
+from simulation.fastsim.road_env import Plant, RoadEnv
 from common.road_policy import RoadPolicy, speed_to_action
 from training.road_teacher import Teacher, plan
 

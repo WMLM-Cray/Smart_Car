@@ -29,8 +29,8 @@ from concurrent.futures import ProcessPoolExecutor
 import numpy as np
 
 from common.params import CarParams
-from simulation.road import LEVELS, generate, generate_loop
-from simulation.road_env import GOAL_BEFORE_END, Plant, RoadEnv, footprint_clearance
+from simulation.fastsim.road import LEVELS, generate, generate_loop
+from simulation.fastsim.road_env import GOAL_BEFORE_END, Plant, RoadEnv, footprint_clearance
 from training.road_teacher import Teacher, plan
 
 SWEEP_CLEAR = 0.08

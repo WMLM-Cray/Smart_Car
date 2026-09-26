@@ -25,7 +25,7 @@ import math
 import numpy as np
 
 from common.params import RuleTrackParams
-from simulation.track import Track, _resample_closed
+from simulation.fastsim.track import Track, _resample_closed
 
 
 def _layout(rng: np.random.Generator, p: RuleTrackParams):

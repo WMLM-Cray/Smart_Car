@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.10)
+project(racecar_test_assets)
+find_package(ament_cmake REQUIRED)
+install(DIRECTORY models DESTINATION share/${PROJECT_NAME})
+ament_environment_hooks("env-hooks/${PROJECT_NAME}.dsv")
+ament_package()

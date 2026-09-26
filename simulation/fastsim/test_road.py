@@ -4,9 +4,9 @@ import numpy as np
 import pytest
 
 from common.params import CarParams
-from simulation.road import CONE, LEVELS, WALL, build, generate, self_overlaps
+from simulation.fastsim.road import CONE, LEVELS, WALL, build, generate, self_overlaps
 from training.road_check import check
-from simulation.road_env import Plant, RoadEnv, SpeedPlant, footprint_clearance
+from simulation.fastsim.road_env import Plant, RoadEnv, SpeedPlant, footprint_clearance
 from common.road_policy import DIM, FRAMES, V_HI, V_LO, action_to_speed, speed_to_action
 from training.road_teacher import R_MIN, Teacher, plan
 

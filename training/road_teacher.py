@@ -18,8 +18,8 @@ from scipy.interpolate import CubicSpline
 from scipy.optimize import lsq_linear
 
 from common.pwm import steer_to_turn_float
-from simulation.road import CONE, DS, NONE, WALL, Road
-from simulation.road_env import CONTROL_DT, RoadEnv
+from simulation.fastsim.road import CONE, DS, NONE, WALL, Road
+from simulation.fastsim.road_env import CONTROL_DT, RoadEnv
 from common.road_policy import V_HI, speed_to_action
 
 R_MIN = 0.95                # 规划用最小转弯半径 m

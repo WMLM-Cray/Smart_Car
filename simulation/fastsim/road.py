@@ -424,7 +424,7 @@ def generate_loop(rng: np.random.Generator, lv: Level, laps: float = 1.0) -> Roa
     """
     from dataclasses import replace as _replace
     from common.params import RuleTrackParams
-    from simulation.track_rules import make_rule_track
+    from simulation.fastsim.track_rules import make_rule_track
     from training.road_teacher import curvature
     width = rng.uniform(*lv.loop_width)
     bend = rng.uniform(*lv.loop_bend)

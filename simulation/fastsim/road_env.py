@@ -16,10 +16,10 @@ import numpy as np
 
 from common.params import CarParams
 from common.pwm import turn_to_steer
-from simulation.raycast import cast_cones, cast_walls
-from simulation.road import WALL_HEIGHT, Road, inside
+from simulation.fastsim.raycast import cast_cones, cast_walls
+from simulation.fastsim.road import WALL_HEIGHT, Road, inside
 from common.road_policy import V_HI, V_LO, action_to_speed, observe
-from simulation.vehicle import Car
+from simulation.fastsim.vehicle import Car
 
 CONTROL_DT = 0.05
 PHYSICS_DT = 0.01

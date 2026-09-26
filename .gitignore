@@ -5,3 +5,8 @@ __pycache__/
 runs/*
 !runs/说明.md
 *.log
+
+# colcon 生成产物
+simulation/gazebo/build/
+simulation/gazebo/install/
+simulation/gazebo/log/

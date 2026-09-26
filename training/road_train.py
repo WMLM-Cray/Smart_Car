@@ -30,9 +30,9 @@ from pathlib import Path
 
 import numpy as np
 
-from simulation.road import LEVELS
+from simulation.fastsim.road import LEVELS
 from training.road_check import sample_episode
-from simulation.road_env import RoadEnv
+from simulation.fastsim.road_env import RoadEnv
 from common.road_policy import DIM, FRAMES, SCHEMA, History, forward
 from training.road_teacher import Teacher
 

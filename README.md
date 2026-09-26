@@ -5,7 +5,8 @@
 | 目录 | 内容 |
 |---|---|
 | common | 车辆参数、转向映射、观测与策略推理 |
-| simulation | 车辆、雷达、碰撞与路段生成 |
+| simulation/fastsim | 快速车辆、雷达、碰撞与路段仿真 |
+| simulation/gazebo | ROS 2 / Gazebo 最小验证工程 |
 | training | 老师、可通性筛选与 DAgger |
 | evaluation | 路段及 A–D 评估 |
 | vehicle | 网页、旧版策略节点、PID、看门狗 |
@@ -28,3 +29,5 @@ python -m evaluation.road_track --model runs/road_trial/candidate_001.npz --trac
 共享服务器所有任务合计不得超过约定的 17 核。训练命令本身不设置 CPU 配额。
 
 见 [整理说明](docs/整理说明.md)、[实车运行](docs/实车运行.md)、[模型说明](models/模型说明.md)。
+
+Gazebo 构建与验证边界见 [三维仿真说明](simulation/gazebo/说明.md)。

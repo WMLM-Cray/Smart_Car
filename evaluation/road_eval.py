@@ -21,9 +21,9 @@ from concurrent.futures import ProcessPoolExecutor
 import numpy as np
 
 from common import low_speed_policy as v1
-from simulation.road import LEVELS
+from simulation.fastsim.road import LEVELS
 from training.road_check import sample_episode
-from simulation.road_env import RoadEnv
+from simulation.fastsim.road_env import RoadEnv
 from common.road_policy import RoadPolicy, speed_to_action
 from training.road_train import summarize
 
