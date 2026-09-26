@@ -5,7 +5,7 @@
 下面的边界段来自旧仿真几何，尚未与规则图逐桶坐标校准；不可据此
 宣称赛道已通过物理尺寸或可通行性验收。--source uniform 仅作合成对照。
 
-冻结来源:docs/track/fig9A_rebuild5.py.txt(commit 7ba1e08,验收 FAIL=0/exit 0)。
+冻结来源:commit 7ba1e08 的 docs/track/fig9A_rebuild5.py.txt（精简分支已移除，可用 git show 恢复）。
 本轮任务 = 把冻结几何移入正式代码,统一参数来源;CSV、YAML、预览图全部由
 本文件的同一份几何生成,不再有第二处坐标。
 
@@ -30,10 +30,10 @@
 来源标注: rule=规则文字 / dim=尺寸链定案 / frozen=冻结基线决策 /
 asmp=仿真假设 / envchk=包络偏差保留核查。
 
-输出(docs/track/):
+输出(maps/):
   trackA_layout.yaml   坐标清单(params+boundaries+yellow_v_band+cones+zones)
   trackA_cones.csv     id,color,x,y,segment(前三列兼容 track_generator)
-  trackA_topview.png   俯视图(锥桶+编号+黄V禁放带)
+  trackA.png           俯视图(锥桶+编号+黄V禁放带)
 
 用法(WSL):
   python3 tools/trackA/trackA_geometry.py
@@ -375,7 +375,7 @@ def main():
         for b in breaks:
             print("         yellow-V break: %s m" % b)
     print("source: %s; rule only says spacing < 1.5 m" % a.source)
-    print("outputs -> %s : trackA_cones.csv / trackA_layout.yaml / trackA_topview.png" % OUTDIR)
+    print("outputs -> %s : trackA_cones.csv / trackA_layout.yaml / trackA.png" % OUTDIR)
 
 if __name__ == "__main__":
     main()

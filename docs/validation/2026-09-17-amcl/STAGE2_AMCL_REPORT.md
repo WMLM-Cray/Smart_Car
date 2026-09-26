@@ -100,7 +100,7 @@ align_scan.py(本目录归档)粗搜 x,y∈±0.6m(步 0.1)、yaw 全周(步 2°)
 ## 七、异常与坑记录
 
 - fastrtps SHM 坏段残留(open_and_lock_file failed):ros2 service call 挂起、topic info -v 超时;话题层数据流正常,绕行=直接 topic pub/echo(服务不走);
-- /amcl_pose 为 transient_local+reliable(latch),订阅建立即补发最后一帧,**stamp 可落后 ~159s,勿当漂移读**;/particle_cloud 为 SensorDataQoS 仅滤波更新瞬间发布;nav2 humble ParticleCloud 字段=particles[](每粒含 pose+weight),非 poses+顶层 weights;
+- /amcl_pose 为 transient_local+reliable(latch),订阅建立即补发最后一帧,**stamp 可落后 ~159s,勿当漂移读**;/particle_cloud 为 SensorDataQoS 仅滤波更新瞬间发布;nav2 humble ParticleCloud 字段=`particles[]`（每粒含 pose+weight）,非 poses+顶层 weights;
 - scp 回本地后文件 mtime 显示不可信,以字节数判新旧;
 - Bash `A && B & C` 中 `&` 会把 `cd && (...)` 整体后台化,前台相对路径必炸(用分号/绝对路径)。
 
