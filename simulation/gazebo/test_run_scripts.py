@@ -13,10 +13,16 @@
 把这个约定钉住 —— 它们只跑参数校验分支(在起 gzserver 之前就退出),不需要 ROS。
 """
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
+
+# 用 PATH 上的 bash 的完整路径:Windows 上裸写 'bash' 会先命中 System32 下的 bash.exe
+# (WSL 启动器),它看不到 Windows 路径,脚本直接 127;shutil.which 走 PATH,拿到的是 Git Bash
+BASH = shutil.which('bash')
+pytestmark = pytest.mark.skipif(BASH is None, reason='没有 bash')
 
 ROOT = Path(__file__).resolve().parents[2]
 GAZEBO = ROOT / 'simulation' / 'gazebo'
@@ -32,24 +38,24 @@ def run(script, env=None, extra=None):
     for key in ('GUARD', 'SCAN_TIMEOUT', 'POLICY_SPEED', 'WORKER'):
         e.pop(key, None)
     e.update(env or {})
-    cmd = ['bash', str(script), str(WORLD), 'models/road_v2/candidate_167.npz',
+    cmd = [BASH, str(script), str(WORLD), 'models/road_v2/candidate_167.npz',
            '/tmp/_never.yaml', '/tmp/_never.json'] + (extra or [])
-    return subprocess.run(cmd, capture_output=True, text=True, env=e, timeout=60)
+    return subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace', env=e, timeout=60)
 
 
 def test_world_without_state_plugin_is_rejected(tmp_path):
     """没带 gazebo_ros_state 的 world 拿不到 /model_states,打分全空,必须先挡。"""
     bare = tmp_path / 'bare.world'
     bare.write_text('<sdf version="1.6"><world name="w"/></sdf>', encoding='utf-8')
-    r = subprocess.run(['bash', str(S3), str(bare), 'm.npz', '/tmp/x.yaml', '/tmp/x.json'],
-                       capture_output=True, text=True, timeout=60)
+    r = subprocess.run([BASH, str(S3), str(bare), 'm.npz', '/tmp/x.yaml', '/tmp/x.json'],
+                       capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=60)
     assert r.returncode == 2
     assert 'gazebo_ros_state' in r.stderr
 
 
 @pytest.mark.parametrize('script', [ROAD, S3])
 def test_missing_args_is_usage_error(script):
-    r = subprocess.run(['bash', str(script)], capture_output=True, text=True, timeout=60)
+    r = subprocess.run([BASH, str(script)], capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=60)
     assert r.returncode == 2
     assert 'usage' in r.stderr
 
