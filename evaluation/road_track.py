@@ -164,13 +164,15 @@ def run(args):
     env = RoadEnv(road, pl, seed, noise=True)
     if model is None:
         return out
-    if _schema(model) == v1.SCHEMA:
+    # v1 按 schema 前缀认(带速度尺度后缀的也算),观测用模型自己的 scale
+    if _schema(model).startswith(v1.SCHEMA_PREFIX):
         pol, last = v1.SteeringPolicy(model), 0.0
         v_a = speed_to_action(cap)
 
         def act():
             nonlocal last
-            last = pol(v1.observe(env.ranges, env.angles, env.car.v, cap, env.car.yaw_rate, last))
+            last = pol(v1.observe(env.ranges, env.angles, env.car.v, cap, env.car.yaw_rate, last,
+                                  scale=pol.scale))
             return [last, v_a]
     else:
         pol = RoadPolicy(model)

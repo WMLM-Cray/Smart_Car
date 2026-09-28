@@ -39,14 +39,16 @@ def run(args):
     model, seed, level = args
     road, pl, start, _, _ = sample_episode(seed, level)
     env = RoadEnv(road, pl, seed, start, noise=True)
-    if _schema(model) == v1.SCHEMA:
+    # v1 的 schema 带训练时速度尺度后缀(low_speed_steering_v1_s2.4 等),按前缀认,
+    # 观测用模型自己的 scale,不能用模块默认 1.5
+    if _schema(model).startswith(v1.SCHEMA_PREFIX):
         pol, last = v1.SteeringPolicy(model), 0.0
         v_a = speed_to_action(pl.cap)
 
         def act():
             nonlocal last
             last = pol(v1.observe(env.ranges, env.angles, env.car.v, pl.cap,
-                                  env.car.yaw_rate, last))
+                                  env.car.yaw_rate, last, scale=pol.scale))
             return [last, v_a]
     else:
         pol = RoadPolicy(model)

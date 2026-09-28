@@ -1,0 +1,16 @@
+{
+  "mode": "gazebo_margin",
+  "init_weights": "runs/low_speed_a/candidate_060.npz",
+  "out": "runs/sweep2/A_base_margin_s4",
+  "steps": 100000,
+  "round_steps": 50000,
+  "updates": 1500,
+  "seed": 4,
+  "eval_seed_start": 51000000,
+  "eval_count": 30,
+  "target_speed": 0.8,
+  "lookahead": 1.2,
+  "schema": "low_speed_steering_v1",
+  "git_head": "unknown",
+  "current_parameter_model": "CarParams"
+}

@@ -202,8 +202,10 @@ class SteerPolicyNode(Node):
 
         # 逐位对齐 low_speed_train.episode():target_speed 是那个常数,speed 是
         # 编码器实测值,last 是网络上一步 clip 后的原始输出。搞混了车会乱开。
+        # scale 取自模型自带的 schema,不是环境变量 —— 每个模型记着自己训练时的
+        # 速度尺度,选错档时观测通道会整个偏掉,所以这里必须用模型自己那个值。
         obs = observe(self.scan, self.angles, self.speed, self.target_speed,
-                      self.yaw_rate, self.last_steer)
+                      self.yaw_rate, self.last_steer, scale=self.policy.scale)
         action = self.policy(obs)
         self.last_steer = action
         steer = action_to_steer(action, self.p)
