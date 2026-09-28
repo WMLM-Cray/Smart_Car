@@ -6,13 +6,13 @@
 才能保证 Gazebo 里的赛道与 fastsim 验收时**逐点一致** —— 差异只可能来自物理,
 不会来自赛道。
 
-坐标约定(与现有 20 条赛道逐点同构):
-  * Gazebo 的 spawn 是**硬编码**的 (0,0,0)(见 run_road_policy_once.sh),
-    layout 的 start_pose 只被 track_eval.py 用来判过线。
-  * official() 返回的中心线 cen[0] 就是 START 框中心(底边直道),
-    heading[0] 是该点切向。所以整体做「旋转 -heading[0] + 平移 -cen[0]」,
-    起点就落在原点、车头朝 +x,和 spawn 对上。
-  * 不做这一步的后果(2026-09-25 实测):车生成在赛道中段随机位置,往往紧贴
+坐标约定(2026-09-28 定):**保留 maps/ 原坐标**,不旋转不平移 —— Gazebo、FastSim、
+maps 里同一个点坐标相同,失败位置能直接对照(比如 A 左上方角两边都是 (0.5, 4.0))。
+  * official() 返回的中心线 cen[0] 是 START 框中心(底边直道),heading[0] 是该点
+    切向;写进 layout.yaml 的 start_pose(xy + yaw_deg)。
+  * run_road_policy_once.sh / run_s3_policy_once.sh 从 layout 的 start_pose 取 spawn,
+    track_eval.py 也用它判过线 —— 两处用同一个起点,所以不需要归零。
+  * spawn 和赛道对不上的后果(2026-09-25 实测):车生成在赛道中段随机位置,往往紧贴
     锥桶,一启动就被 ScanGuard 判截停 —— 看起来像模型崩了,其实是坐标不匹配。
 
 黄 V:fastsim 验收用的是 `fill_v=True`(沿边界按 0.5m 补桶),这里必须同样传
@@ -109,21 +109,12 @@ TAIL = """    <plugin name="gazebo_ros_state" filename="libgazebo_ros_state.so"/
 
 
 def convert(name: str):
+    """maps/ 原坐标:锥桶、中心线原样,起点 = START 框中心和该点切向。"""
     road, lap_len = official(name, fill_v=True)
     cen = np.asarray(road.centre, float)
-    h0 = float(road.heading[0])
-    c0 = cen[0]
-    # 旋转 -h0 再平移 -c0:起点 -> 原点,车头 -> +x
-    ca, sa = math.cos(-h0), math.sin(-h0)
-    rot = np.array([[ca, -sa], [sa, ca]])
-
-    def xf(pts):
-        pts = np.asarray(pts, float)
-        return (pts - c0) @ rot.T
-
-    cones = xf(road.cones)
-    return dict(name=name, lap_len=lap_len, cones=cones, centre=xf(cen),
-                half=np.asarray(road.half, float))
+    return dict(name=name, lap_len=lap_len, cones=np.asarray(road.cones, float), centre=cen,
+                half=np.asarray(road.half, float),
+                start=(float(cen[0, 0]), float(cen[0, 1]), float(road.heading[0])))
 
 
 def main():
@@ -140,8 +131,10 @@ def main():
         c = convert(name)
         lay_cones = [dict(id=f'c{i}', x=round(float(x), 4), y=round(float(y), 4))
                      for i, (x, y) in enumerate(c['cones'])]
+        sx, sy, syaw = c['start']
         lay = dict(track=f'official {name} (fill_v=True)',
-                   start_pose=dict(xy=[0.0, 0.0], yaw_deg=0.0),
+                   start_pose=dict(xy=[round(sx, 4), round(sy, 4)],
+                                   yaw_deg=round(math.degrees(syaw), 3)),
                    cones=lay_cones)
         (d / 'layout.yaml').write_text(
             yaml.safe_dump(lay, allow_unicode=True, sort_keys=False), encoding='utf-8')

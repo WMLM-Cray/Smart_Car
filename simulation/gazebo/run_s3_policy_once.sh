@@ -71,9 +71,17 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+# spawn 取 layout 的 start_pose(maps/ 原坐标,和 track_eval 判过线用同一个起点);
+# 显式设 SPAWN_X/Y/YAW 可覆盖。
+read -r START_X START_Y START_YAW < <(python3 -c '
+import math, sys, yaml
+s = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))["start_pose"]
+print(s["xy"][0], s["xy"][1], math.radians(s["yaw_deg"]))' "$LAYOUT")   || { echo "读不到 $LAYOUT 的 start_pose" >&2; exit 2; }
+
+
 ros2 launch racecar_sim sim_bringup.launch.py \
   use_gui:=false world:="$WORLD_NAME" \
-  spawn_x:=${SPAWN_X:-0} spawn_y:=${SPAWN_Y:-0} spawn_yaw:=${SPAWN_YAW:-0} >"$LOG" 2>&1 &
+  spawn_x:=${SPAWN_X:-$START_X} spawn_y:=${SPAWN_Y:-$START_Y} spawn_yaw:=${SPAWN_YAW:-$START_YAW} >"$LOG" 2>&1 &
 SIM_PID=$!
 
 for _ in {1..45}; do
