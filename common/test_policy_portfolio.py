@@ -136,3 +136,25 @@ def test_observe_uses_the_given_scale():
     fast = v1.observe(ranges, angles, 1.5, 1.5, 0.0, 0.0, scale=3.0)
     assert slow[48] != fast[48], '速度通道应该随 scale 变化'
     assert abs(slow[48] - 1.0) < 1e-6 and abs(fast[48] - 0.5) < 1e-6
+
+
+@pytest.mark.parametrize('module', ['evaluation.road_eval', 'evaluation.road_track'])
+def test_eval_tools_load_suffixed_v1_schema_with_its_own_scale(module, monkeypatch):
+    """评估工具认带尺度后缀的 v1 schema,观测用模型自己的 scale(以前只认完全相等,s2.4 被当成 road_v2 报错)。"""
+    import importlib
+    mod = importlib.import_module(module)
+    model = str(ROOT / 'models/ladder_500k/rung2_sp1.6/candidate_010.npz')
+    assert v1.SteeringPolicy(model).scale == 2.4
+    seen = []
+    real = v1.observe
+
+    def spy(*a, **k):
+        seen.append(k.get('scale'))
+        return real(*a, **k)
+    monkeypatch.setattr(v1, 'observe', spy)
+    if module == 'evaluation.road_eval':
+        out = mod.run((model, 90_000_000, 'L1'))
+    else:
+        out = mod.run((model, 'A', 95_000_000, 0.5, True))
+    assert out['reason'] in ('goal', 'collision', 'off_track', 'timeout')
+    assert seen and set(seen) == {2.4}
