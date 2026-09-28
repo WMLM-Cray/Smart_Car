@@ -33,7 +33,11 @@ def generate_launch_description():
         open(os.path.join(pkg_share, 'config', 'params.yaml')))['racecar_sim']
     ctrl_tpl = open(os.path.join(
         pkg_share, 'config', 'ros2_control.yaml.in')).read()
-    ctrl_params_path = '/tmp/racecar_ros2_control.yaml'
+    # 每个 ROS 域一份,便于多实例并行验收。并行时多个 gzserver 会同时写同一个
+    # /tmp/racecar_ros2_control.yaml,读到写了一半的文件会让 controller_manager
+    # 起不来。内容其实一样,但撕裂读无法避免,所以按域分文件。
+    ctrl_params_path = '/tmp/racecar_ros2_control_d%s.yaml' % (
+        os.environ.get('ROS_DOMAIN_ID', '0'))
     ctrl_tpl = (ctrl_tpl
                 .replace('__WHEELBASE__', str(float(params['wheel_base'])))
                 .replace('__WHEEL_TRACK__', str(float(params['wheel_track'])))
