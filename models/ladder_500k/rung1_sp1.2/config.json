@@ -1,0 +1,20 @@
+{
+  "mode": "gazebo_margin",
+  "init_weights": "runs/ladder_20260926/rung1_sp1.2/candidate_002.npz",
+  "out": "runs/ladder_long_20260926/rung1_sp1.2",
+  "steps": 500000,
+  "round_steps": 50000,
+  "updates": 1500,
+  "seed": 7,
+  "eval_seed_start": 51000000,
+  "eval_count": 50,
+  "target_speed": 1.2,
+  "speed_set": [
+    1.2
+  ],
+  "lookahead": 1.2,
+  "v_cmd_fwd": null,
+  "schema": "low_speed_steering_v1",
+  "git_head": "unknown",
+  "current_parameter_model": "CarParams"
+}
