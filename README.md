@@ -26,7 +26,6 @@ python -m evaluation.road_eval --help
 python -m evaluation.road_track --model runs/road_trial/candidate_001.npz --tracks A B C D --fill-v
 ```
 
-共享服务器所有任务合计不得超过约定的 17 核。训练命令本身不设置 CPU 配额。
 
 见 [整理说明](docs/整理说明.md)、[实车运行](docs/实车运行.md)、[模型说明](models/模型说明.md)。
 
