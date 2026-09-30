@@ -62,6 +62,8 @@ class Level:
     # 10m 内加一排桶,v2_g 通过率 0.83 -> 0.03:学生看缺口后面像不像路来决定拐不拐,
     # 而训练里缺口后面几乎总是空的(2026-09-26)。实车场地上缺口后面是别的赛段、人、杂物
     decoy_chance: float = 0.0
+    # 方角前那段直道(缓 S 弯后的 / 纯直道)长度;None = 原来的 1.0~3.0 / 1.5~4.0
+    gap_lead: tuple | None = None
 
 
 LEVELS = (
@@ -89,6 +91,11 @@ LEVELS = (
           n_elems=(4, 7), straight=(0.3, 3.0), cone_spacing=(0.4, 1.2)),
     # 稀桶闭环:L5 里外侧/直道桶距 1.2~1.5 的那三分之一通过率 0.91~0.93,其余 0.97~0.99(v2_i,2026-09-26)
     Level('L5s', loop=True, straight_spacing=(1.1, 1.5), outer_spacing=(1.1, 1.5)),
+    # 高速冲向方角:方角前直道加长到 4~7m,车能加到 1.5 m/s 以上再进角。road_v2.5 第 2 档
+    # (限速 2.2)在赛道 A 左上角限速 1.8 时 16 局撞 6~9 局:老师离角 2m 已减到 0.6、打满舵,
+    # 学生还在加速到 1.66、方向几乎不动 —— 训练里方角前直道短,高速进方角的状态几乎没见过(2026-09-29)
+    Level('L6f', gap_corners=True, width=(1.15, 1.5), wall_chance=0.0, gap_spacing=(1.2, 1.5),
+          decoy_chance=0.5, gap_lead=(4.0, 7.0)),
 )
 
 
@@ -205,9 +212,11 @@ def _gap_elements(rng: np.random.Generator, lv: Level) -> list[dict]:
             a = float(rng.uniform(20.0, 45.0)) * (1 if rng.random() < 0.5 else -1)
             out.append(dict(kind='arc', angle=a, r_in=rng.uniform(1.5, 3.0), width=width))
             out.append(dict(kind='arc', angle=-a, r_in=rng.uniform(1.5, 3.0), width=width))
-            out.append(dict(kind='straight', length=rng.uniform(1.0, 3.0), width=width))
+            out.append(dict(kind='straight', length=rng.uniform(*(lv.gap_lead or (1.0, 3.0))),
+                            width=width))
         else:
-            out.append(dict(kind='straight', length=rng.uniform(1.5, 4.0), width=width))
+            out.append(dict(kind='straight', length=rng.uniform(*(lv.gap_lead or (1.5, 4.0))),
+                            width=width))
         sign = 1 if rng.random() < 0.5 else -1
         out.append(dict(kind='arc', angle=90.0 * sign, r_in=rng.uniform(0.0, 0.1), width=width,
                         # 外角方角的桶距 0.4~1.5 全覆盖:只练稀桶时车学会了"方角 = 稀桶",

@@ -95,3 +95,20 @@ def test_teacher_label_is_what_the_car_would_send():
     t = Teacher(env, plan(road, 0, 0.0, CarParams().width, pl))
     a = t()
     assert a.shape == (2,) and np.all(np.abs(a) <= 1)
+
+
+def test_l6f_is_a_narrow_sparse_square_corner_after_a_long_lead_in():
+    """L6f:路宽 1.15~1.5、外侧稀桶;方角前若是缓 S 弯或纯直道,那段直道 4~7m(约六成的角),
+    若是急弯(45/90°)后的短直道则照旧 0.5~2.5m。其余关卡 gap_lead=None,抽取顺序不变。"""
+    lv = next(l for l in LEVELS if l.name == 'L6f')
+    assert lv.gap_lead == (4.0, 7.0) and lv.width == (1.15, 1.5) and lv.gap_spacing == (1.2, 1.5)
+    assert all(l.gap_lead is None for l in LEVELS if l.name != 'L6f')
+    leads = []
+    for seed in range(10):
+        road = generate(np.random.default_rng(seed), lv)
+        for i, e in enumerate(road.elems):
+            if e.get('gap_corner') is not None:
+                assert road.elems[i - 1]['kind'] == 'straight'
+                leads.append(road.elems[i - 1]['length'])
+    assert all(4.0 <= x <= 7.0 or 0.5 <= x <= 2.5 for x in leads)
+    assert sum(4.0 <= x <= 7.0 for x in leads) >= len(leads) // 3
