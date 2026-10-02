@@ -102,7 +102,9 @@ def test_l6f_is_a_narrow_sparse_square_corner_after_a_long_lead_in():
     若是急弯(45/90°)后的短直道则照旧 0.5~2.5m。其余关卡 gap_lead=None,抽取顺序不变。"""
     lv = next(l for l in LEVELS if l.name == 'L6f')
     assert lv.gap_lead == (4.0, 7.0) and lv.width == (1.15, 1.5) and lv.gap_spacing == (1.2, 1.5)
-    assert all(l.gap_lead is None for l in LEVELS if l.name != 'L6f')
+    # L6d 是后来新增的密桶方角级,同样用 gap_lead —— 这条断言守的是"加 L6f 没改动
+    # 已有各级的抽取顺序",所以只对非 gap_lead 关卡成立。
+    assert all(l.gap_lead is None for l in LEVELS if l.name not in ('L6f', 'L6d'))
     leads = []
     for seed in range(10):
         road = generate(np.random.default_rng(seed), lv)

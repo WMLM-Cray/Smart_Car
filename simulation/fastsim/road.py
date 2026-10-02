@@ -64,6 +64,17 @@ class Level:
     decoy_chance: float = 0.0
     # 方角前那段直道(缓 S 弯后的 / 纯直道)长度;None = 原来的 1.0~3.0 / 1.5~4.0
     gap_lead: tuple | None = None
+    # --- 闭环形状旋钮(只有 loop=True 用)。None = 沿用 RuleTrackParams 默认值,历史行为逐位不变。
+    # 2026-09-29:此前 generate_loop 只暴露 width/bend/桶距,其余形状参数全锁在默认值上,
+    # 于是不管抽多少种子,闭环永远是同一个"长条形矩形回路"家族(24 条叠图实测)。
+    # 这几个旋钮把形状空间打开,让"直角区 / 大圆弯掉头 / 台阶组数 / 长短边比例"真的随机。
+    loop_height: tuple | None = None      # 主直道到回程直道的间距(赛道"厚度")
+    loop_square_end: tuple | None = None  # 端部做成方角(两个直角)的概率范围
+    loop_right_angle: tuple | None = None # 回程折角里直角的比例范围,其余抽 45°/135°
+    loop_s_bends: tuple | None = None     # 回程台阶组数范围(每组 2 个镜像对 = 4 个弯)
+    loop_main: tuple | None = None        # 主直道长度范围(闭合解出来,超范围重抽)
+    loop_bend_max: float | None = None    # S 弯半径上限(默认 1.8)
+    loop_turn_angles: tuple | None = None # 折角可选角度(默认 45/90/135)
 
 
 LEVELS = (
@@ -96,6 +107,35 @@ LEVELS = (
     # 学生还在加速到 1.66、方向几乎不动 —— 训练里方角前直道短,高速进方角的状态几乎没见过(2026-09-29)
     Level('L6f', gap_corners=True, width=(1.15, 1.5), wall_chance=0.0, gap_spacing=(1.2, 1.5),
           decoy_chance=0.5, gap_lead=(4.0, 7.0)),
+    # --- 以下为本次新增,一律追加在末尾,不动已有各级的下标(断点里的 level 是下标)---
+    # spica 主训练级:闭环规则赛道,弯更紧。bend 下限 = max(半宽, bend-0.25) ≈ 0.9,
+    # 即中心线曲率地板被压到 v1 训练时的 1.0 以下(实测 92% 的赛道 R_min < 1.0,
+    # 28% < 车的转弯极限 0.83),而路宽不动(窄是另一个失效轴,不混进来)。
+    # 老师 25/25 出圈,标签存在。2026-09-28
+    Level('L5c', loop=True, loop_bend=(0.9, 1.2)),
+    # --- 闭环形状家族(2026-09-29)---
+    # 起因:闭环赛道的形状空间没打开 —— generate_loop 只暴露
+    # width/bend/桶距,其余形状参数全锁在 RuleTrackParams 默认值上,24 条叠图是同一个长条形家族。
+    # 旋钮在 Level 的 loop_* 字段,None = 老行为逐位不变。下面是几个"有价值"的家族:
+    # 硬标准 = 老师能过(标签存在)、形状确实不同、R_min 不塌到车极限 0.83m 以下。
+    # 直角为主:端部方角 + 全直角台阶 + 只抽 90°,高度拉大让直角区看得出来
+    Level('L5ra', loop=True, loop_bend=(0.9, 1.2), loop_square_end=(1.0, 1.0),
+          loop_right_angle=(1.0, 1.0), loop_turn_angles=(90.0,),
+          loop_height=(5.0, 7.0), loop_s_bends=(2, 3)),
+    # 大圆弯掉头:端部不用方角,折角只抽 45/135,柔和,和 L5ra 是两个极端
+    Level('L5rd', loop=True, loop_bend=(0.9, 1.2), loop_square_end=(0.0, 0.0),
+          loop_right_angle=(0.0, 0.0), loop_turn_angles=(45.0, 135.0),
+          loop_height=(4.0, 5.5), loop_s_bends=(2, 2)),
+    # 台阶密集:回程侧 4~5 组连续 S 弯(规则图 1 的样子),主直道拉长才塞得下
+    Level('L5ms', loop=True, loop_bend=(0.9, 1.2), loop_s_bends=(4, 5),
+          loop_height=(6.0, 8.0), loop_main=(9.0, 14.0)),
+    # 接近方形:短主直道 + 大高度,和长条形是两种家族
+    Level('L5sq', loop=True, loop_bend=(0.9, 1.2), loop_height=(7.0, 9.0),
+          loop_main=(7.0, 10.0), loop_s_bends=(2, 2)),
+    # C 的失败点:(0.5,4.2) 密桶方角(b062-b063 0.50m),学生按"方角=稀桶"直接撞上去。
+    # 与 L6f 相反:外侧桶距压到 0.45~0.65(生成器默认 0.4~1.5 只覆盖到 1.5,密端太稀)。
+    Level('L6d', gap_corners=True, width=(1.2, 1.6), wall_chance=0.0, gap_spacing=(0.45, 0.65),
+          decoy_chance=0.5, gap_lead=(2.0, 5.0)),
 )
 
 
@@ -114,18 +154,31 @@ class Road:
     # 官方赛道:路面 = 外边界多边形内、内边界多边形外。给了就用它判出界,不用半宽 ——
     # 方角处车走进角落是合法的,但离平滑后的中心线超过半宽(2026-09-25 赛道 A 全判成出界)
     region: tuple | None = None
+    # 左右各自的半宽。官方赛道的走廊并不以中心线对称:A 在左下直角弯左侧只剩 0.48m、
+    # 右侧有 1.65m(总宽 2.13m),旧的 half = min(左,右) 把右边 1.16m 白白扔掉,规划可行域
+    # 只剩 0.019m —— A 上全灭的直接原因(2026-09-29)。给 None 就退回对称的 half。
+    half_left: np.ndarray | None = None
+    half_right: np.ndarray | None = None
 
     @property
     def normal(self) -> np.ndarray:
         return np.stack([-np.sin(self.heading), np.cos(self.heading)], axis=1)
 
     @property
+    def half_l(self) -> np.ndarray:
+        return self.half if self.half_left is None else self.half_left
+
+    @property
+    def half_r(self) -> np.ndarray:
+        return self.half if self.half_right is None else self.half_right
+
+    @property
     def left(self) -> np.ndarray:
-        return self.centre + self.normal * self.half[:, None]
+        return self.centre + self.normal * self.half_l[:, None]
 
     @property
     def right(self) -> np.ndarray:
-        return self.centre - self.normal * self.half[:, None]
+        return self.centre - self.normal * self.half_r[:, None]
 
     @property
     def length(self) -> float:
@@ -444,9 +497,31 @@ def generate_loop(rng: np.random.Generator, lv: Level, laps: float = 1.0) -> Roa
     from training.road_teacher import curvature
     width = rng.uniform(*lv.loop_width)
     bend = rng.uniform(*lv.loop_bend)
+    # 形状旋钮:None 就整条不传,RuleTrackParams 的默认值原样生效 —— 老配置逐位不变。
+    # 传了就抽一次;末三个参数在 _layout 里是逐元素抽的,所以这里抽到的是"整条赛道"的设定。
+    def _pick(name, default):
+        r = getattr(lv, name)
+        if r is None:
+            return default
+        return rng.uniform(*r)
+    shape = {}
+    if lv.loop_height is not None:
+        shape['height_min'] = shape['height_max'] = _pick('loop_height', None)
+    if lv.loop_square_end is not None:
+        shape['square_end_chance'] = _pick('loop_square_end', None)
+    if lv.loop_right_angle is not None:
+        shape['right_angle_ratio'] = _pick('loop_right_angle', None)
+    if lv.loop_s_bends is not None:
+        n = int(round(_pick('loop_s_bends', None)))
+        shape['s_bends_min'] = shape['s_bends_max'] = n
+    if lv.loop_main is not None:
+        shape['main_straight_min'], shape['main_straight_max'] = lv.loop_main
+    if lv.loop_turn_angles is not None:
+        shape['turn_angles'] = tuple(lv.loop_turn_angles)
     p = _replace(RuleTrackParams(), width=width, bend_radius_min=max(width / 2, bend - 0.25),
-                 bend_radius_max=1.8, n_boards=5,
-                 end_radius=(width / 2, width / 2 + 0.25) if rng.random() < lv.sharp_end_chance else None)
+                 bend_radius_max=1.8 if lv.loop_bend_max is None else lv.loop_bend_max, n_boards=5,
+                 end_radius=(width / 2, width / 2 + 0.25) if rng.random() < lv.sharp_end_chance else None,
+                 **shape)
     # 上限留规则默认 1.8:全部弯都压到 bend 附近时台阶/S 弯挤成一团,本车(R>=0.83m)过不去,
     # 作废率 34~44%(2026-09-25 试过)。只把下限放低,偶尔出尖角。
     tr = make_rule_track(rng, p)
