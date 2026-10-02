@@ -84,7 +84,10 @@ def plan(road: Road, i0: int, d0: float, car_width: float, pl,
     在 0.25m 一个的粗网格上解,再三次样条插回 5cm。粗点的边界取它前后半格内
     最紧的那个,插值后才不会在尖内角处越界。
     horizon  只规划前方这么远(m),None = 到路终点
-    r_min    5cm 路线上允许的最小半径(粗网格照样按 R_MIN 摊弯)
+    r_min    5cm 路线上允许的最小半径。**地板和闸是同一个值**:粗网格的目标函数按它
+             摊弯(`over = |κ|·r_min`),插回 5cm 后再按它拒绝(`|κ| > 1/r_min`)。
+             2026-09-30 之前这两处一个用参数、一个用模块常量,于是"只放宽闸"看着
+             毫无效果 —— 地板没跟着动。合并成一个,改一处就是改一处。
     a_lat    弯中横向加速度上限,决定标签里弯中能跑多快(见 A_LAT)
     """
     i1 = len(road.half) if horizon is None else min(len(road.half), i0 + int(horizon / DS) + 1)
