@@ -36,7 +36,7 @@ from common import low_speed_policy as v1
 from common.params import CarParams
 from simulation.fastsim.road import CONE, DS, NONE, Road
 from simulation.fastsim.road_env import Plant, RoadEnv
-from common.road_policy import RoadPolicy, speed_to_action
+from common.road_policy import DEFAULT_ENC, RoadPolicy, spec_of, speed_to_action
 from training.road_teacher import Teacher, plan
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -105,7 +105,6 @@ def official(name: str, fill_v: bool = False, laps: int = LAPS) -> tuple[Road, f
     area = 0.5 * np.sum(cen[:, 0] * np.roll(cen[:, 1], -1) - np.roll(cen[:, 0], -1) * cen[:, 1])
     if area < 0:                                    # 统一逆时针(底边直道朝 +x)
         cen = cen[::-1].copy()
-
     def dist(pts, edge):
         return np.min(np.hypot(pts[:, None, 0] - edge[None, :, 0], pts[:, None, 1] - edge[None, :, 1]), axis=1)
     half = np.minimum(dist(cen, od), dist(cen, idn))
@@ -146,7 +145,11 @@ def run(args):
     model, name, seed, cap, fill_v = args
     road, lap_len = official(name, fill_v)
     rng = np.random.default_rng(seed)
-    pl = replace(Plant.sample(rng), cap=cap)
+    # 速度契约跟模型走(见 common/road_policy.py):v_hi=3 的模型要按 3 的区间观测/解码
+    enc = DEFAULT_ENC
+    if model is not None and not _schema(model).startswith(v1.SCHEMA_PREFIX):
+        enc = spec_of(_schema(model))
+    pl = replace(Plant.sample(rng, enc), cap=cap)
     out = dict(track=name, seed=seed, cap=cap, v_plateau=pl.v_plateau, v_top=pl.v_top)
     # 通过性:老师用同一组车辆参数跑
     P = plan(road, 0, 0.0, CarParams().width, pl)

@@ -1,6 +1,8 @@
 """Pure-logic tests for the simulation-only road_v2 runtime."""
 import ast
+import contextlib
 import math
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -13,6 +15,18 @@ from common.road_policy import action_to_speed, observe
 from common.road_runtime import RoadRuntime
 
 NODE = Path(__file__).with_name('road_policy_node.py')
+
+
+@contextlib.contextmanager
+def _temp_model(schema):
+    """写一个形状正确、schema 可控的最小 .npz,用来验参数守卫。"""
+    with tempfile.TemporaryDirectory() as d:
+        path = Path(d) / 'model.npz'
+        np.savez(path, schema=schema,
+                 w0=np.zeros((256, 265), np.float32), w1=np.zeros((256, 256), np.float32),
+                 w2=np.zeros((2, 256), np.float32), b0=np.zeros(256, np.float32),
+                 b1=np.zeros(256, np.float32), b2=np.zeros(2, np.float32))
+        yield str(path)
 
 
 class FakePolicy:
@@ -98,25 +112,38 @@ class RoadRuntimeTests(unittest.TestCase):
 
 
 class NodeArgumentGuardTests(unittest.TestCase):
-    """main() 在 import rclpy 之前就拒绝:没设域、实车域 42、训练范围外的速度上限。"""
+    """main() 在 import rclpy 之前就拒绝:没设域、实车域 42、模型训练范围外的速度上限。"""
 
-    def run_main(self, domain, *args):
+    def run_main(self, domain, model, *args):
         from unittest import mock
         from vehicle import road_policy_node
         env = {} if domain is None else {'ROS_DOMAIN_ID': domain}
         with mock.patch.dict('os.environ', env, clear=True):
             with self.assertRaises(SystemExit) as cm:
-                road_policy_node.main([str(NODE), *args])
+                road_policy_node.main([str(model), *args])
         return str(cm.exception)
 
     def test_rejects_unset_and_car_domain(self):
-        self.assertIn('simulation only', self.run_main(None))
-        self.assertIn('simulation only', self.run_main('42'))
+        self.assertIn('simulation only', self.run_main(None, NODE))
+        self.assertIn('simulation only', self.run_main('42', NODE))
 
     def test_rejects_speed_cap_outside_training_range(self):
-        for cap in ('0.3', '1.2'):
-            with self.subTest(cap=cap):
-                self.assertIn('training range', self.run_main('60', '--speed-cap', cap))
+        # 速度区间是模型自描述的(schema 后缀),不再是全局常量。
+        with _temp_model('spica_v3') as model:
+            for cap in ('0.3', '1.2'):
+                with self.subTest(cap=cap):
+                    self.assertIn('training range', self.run_main('60', model, '--speed-cap', cap))
+
+    def test_speed_cap_range_follows_the_model(self):
+        # 同一个 2.5:对 v_hi=1.0 的模型越界,对 v_hi=3.0 的模型合法 —— 这是这次解锁的核心。
+        from common.road_policy import spec_of
+        narrow, wide = spec_of('spica_v3'), spec_of('spica_v3_s3_v0.45-3')
+        self.assertEqual((narrow.v_lo, narrow.v_hi), (0.45, 1.0))
+        self.assertEqual((wide.v_lo, wide.v_hi), (0.45, 3.0))
+        self.assertFalse(narrow.v_lo <= 2.5 <= narrow.v_hi)
+        self.assertTrue(wide.v_lo <= 2.5 <= wide.v_hi)
+        with _temp_model('spica_v3_s3_v0.45-3') as model:
+            self.assertIn('training range', self.run_main('60', model, '--speed-cap', '3.5'))
 
     def test_sim_domain_and_valid_cap_pass_the_guards(self):
         # 过了域和上限检查,停在"模型文件不存在"这一步

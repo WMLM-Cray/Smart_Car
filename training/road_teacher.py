@@ -20,15 +20,19 @@ from scipy.optimize import lsq_linear
 from common.pwm import steer_to_turn_float
 from simulation.fastsim.road import CONE, DS, NONE, WALL, Road
 from simulation.fastsim.road_env import CONTROL_DT, RoadEnv
-from common.road_policy import V_HI, speed_to_action
+from common.road_policy import speed_to_action
 
 R_MIN = 0.95                # 规划用最小转弯半径 m
 # 车身两侧到边界至少留这么多(规划时)。锥桶立在边界线上,半径 0.14 要额外扣;
 # 再加 0.05 给入弯时车头外甩(车头在后轴前 0.43m)。
 SIDE_MARGIN = {NONE: 0.10, WALL: 0.15, CONE: 0.14 + 0.15}
 STEP = 5                    # 每隔几个中心线点取一个规划点(0.25m)
-A_LAT = 0.30                # 老师过弯的横向加速度上限 m/s²:R=1m 的弯限到 ~0.55,实际平台速度由每局参数决定，可能高于此值
-                            # (原来 0.6 -> 0.78,弯前基本不减速;用户 2026-09-25 指出)
+# 老师过弯"愿意用"的横向加速度 m/s²,决定标签里弯中能跑多快:v = sqrt(A_LAT/R)。
+# 车物理抓地上限 a_lat_max = 7.85(0.8g)。原来 0.30 比物理保守 26 倍,R=1m 的弯只
+# 规划到 0.55 m/s —— 这是压在动作空间之后的第二道闸,标签本身就从不要求快。
+# 2026-09-28 提到 6.0(物理的 76%,留 sim2real 余量):L5c 上老师均速 0.94 -> 2.11 m/s,
+# 仍然 100% 出圈。A_LAT 是标签的上限,设小了策略物理上就快不起来。
+A_LAT = 6.0
 A_DEC = 0.45                # 计划减速度,比实测滑行 0.68~0.78 保守得多
 # 以上两个和 SPEED_MARGIN 是 2026-09-26 从 0.35/0.6/0 收紧的:L5 的失败多是满速冲进弯
 # (松油晚了致命、早了无害,MSE 对两边一样罚)。老师在 A-D 上两圈只慢 0~1.8s
@@ -147,7 +151,7 @@ class Teacher:
         # privileged=False:老师按名义车辆参数算(学生看不到这一局的延迟/增益/中位/纯滞后/满电速度),
         # 真实偏差靠每拍重规划吸收。标签就只取决于学生看得到的东西。
         self.pl = env.pl if privileged else replace(env.pl, lag=0.5, steer_gain=1.0, servo_offset=0.0,
-                                                    dead_time=0.275, v_top=V_HI)
+                                                    dead_time=0.275, v_top=env.pl.enc.v_hi)
 
     def _replan(self):
         env, car = self.env, self.env.car
@@ -187,4 +191,4 @@ class Teacher:
         # 速度看 (纯滞后 + 一拍) 之后要到的地方
         ahead = P.s[self.j] + v * (pl.dead_time + CONTROL_DT * (pl.lag + 1)) + SPEED_MARGIN
         kv = min(len(P.v) - 1, int(np.searchsorted(P.s, ahead)))
-        return np.array([steer_a, speed_to_action(float(P.v[kv]))], np.float32)
+        return np.array([steer_a, speed_to_action(float(P.v[kv]), env.pl.enc)], np.float32)

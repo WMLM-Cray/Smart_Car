@@ -6,7 +6,7 @@ import numpy as np
 from common.control import to_cmd_vel
 from common.params import CarParams
 from common.pwm import action_to_steer
-from common.road_policy import RoadPolicy, action_to_speed, observe
+from common.road_policy import DEFAULT_ENC, RoadPolicy, action_to_speed, observe
 
 
 class RoadRuntime:
@@ -15,6 +15,9 @@ class RoadRuntime:
     def __init__(self, policy, speed_cap=1.0, sensor_timeout=0.3, enable_timeout=0.3,
                  params=None):
         self.policy = policy
+        # 速度契约跟着模型走:RoadPolicy 从 schema 反解(见 common/road_policy.py)。
+        # 假策略(测试用)没有 enc,退回默认区间。
+        self.enc = getattr(policy, 'enc', DEFAULT_ENC)
         self.speed_cap = float(speed_cap)
         self.sensor_timeout = float(sensor_timeout)
         self.enable_timeout = float(enable_timeout)
@@ -78,9 +81,9 @@ class RoadRuntime:
             return (0.0, 0.0)
 
         obs = observe(self.scan, self.angles, self.speed, self.speed_cap,
-                      self.yaw_rate, self.last_action)
+                      self.yaw_rate, self.last_action, scale=self.enc.scale)
         action = np.clip(np.asarray(self.policy(obs), dtype=np.float32).reshape(2), -1.0, 1.0)
         self.last_action[:] = action
         steer = action_to_steer(float(action[0]), self.params)
-        target_speed = min(action_to_speed(float(action[1])), self.speed_cap)
+        target_speed = min(action_to_speed(float(action[1]), self.enc), self.speed_cap)
         return to_cmd_vel(target_speed, steer, self.params)

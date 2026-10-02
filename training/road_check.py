@@ -29,6 +29,7 @@ from concurrent.futures import ProcessPoolExecutor
 import numpy as np
 
 from common.params import CarParams
+from common.road_policy import DEFAULT_ENC
 from simulation.fastsim.road import LEVELS, generate, generate_loop
 from simulation.fastsim.road_env import GOAL_BEFORE_END, Plant, RoadEnv, footprint_clearance
 from training.road_teacher import Teacher, plan
@@ -88,14 +89,18 @@ def check(road, pl, start) -> tuple[bool, str, object]:
     return True, 'ok', P
 
 
-def sample_episode(seed: int, level: str, max_tries: int = 200):
-    """抽一局能通过三层检查的 (路, 车辆参数, 起点, 规划)。返回值附带作废原因计数。"""
+def sample_episode(seed: int, level: str, max_tries: int = 200, enc=DEFAULT_ENC):
+    """抽一局能通过三层检查的 (路, 车辆参数, 起点, 规划)。返回值附带作废原因计数。
+
+    enc 是这一局的速度契约(观测尺度 + 动作解码区间);三层检查里老师就是按它开车的,
+    所以标签存在的速度范围和学生能表达的范围一致。
+    """
     rng = np.random.default_rng(seed)
     lv = next(l for l in LEVELS if l.name == level)
     rejects = collections.Counter()
     for _ in range(max_tries):
         road = generate_loop(rng, lv) if lv.loop else generate(rng, lv)
-        pl = Plant.sample(rng)
+        pl = Plant.sample(rng, enc)
         start = sample_start(rng, road, recovery=rng.random() < 0.5)
         ok, why, P = check(road, pl, start)
         if ok:

@@ -33,16 +33,48 @@ import numpy as np
 from simulation.fastsim.road import LEVELS
 from training.road_check import sample_episode
 from simulation.fastsim.road_env import RoadEnv
-from common.road_policy import DIM, FRAMES, SCHEMA, History, forward
+from common.road_policy import (DEFAULT_ENC, DIM, FRAMES, SCHEMA_SPICA, SPEED_SCALE,
+                                V_HI, V_LO, Encoding, History, forward, suffix_of)
+from common.spica import load_init
 from training.road_teacher import Teacher
 
 TRAIN_SEED0, SELECT_SEED0 = 10_000_000, 50_000_000
-SPEED_BINS = ((0.45, 0.6), (0.6, 0.8), (0.8, 1.01))
 PROMOTE_ALL, PROMOTE_BIN = 0.95, 0.90
 
 
-def run_episode(seed, level, weights=None, beta=0.0, collect=False):
-    road, pl, start, P, rejects = sample_episode(seed, level)
+def load_ckpt(path, **kw):
+    """torch.load 的兼容包装:torch>=2.0 才有 weights_only 关键字,老版本没有。
+
+    2026-09-29:WSL 重启后环境从 torch 2.x 掉回 1.8.0a0,直接传 weights_only
+    会 TypeError 崩在 --resume 上。断点是自己的产物(可信),所以老版本下不给这个参数。
+    """
+    import torch
+    try:
+        return torch.load(path, **kw)
+    except TypeError:
+        kw.pop('weights_only', None)
+        return torch.load(path, **kw)
+
+
+def speed_bins(enc):
+    """把契约的速度区间等分成三档,只用于日志分档统计(不是模型档位 —— 模型只有一个)。"""
+    lo, hi = enc.v_lo, enc.v_hi
+    cut = [lo + (hi - lo) * k / 3 for k in range(4)]
+    cut[-1] += 1e-6                 # 上界含端点
+    return tuple(zip(cut[:-1], cut[1:]))
+
+
+def run_episode(seed, level, weights=None, beta=0.0, collect=False, enc=DEFAULT_ENC):
+    """跑一局。这一级的种子抽不出可通赛道时返回 None —— 调用方按"作废局"计数。
+
+    以前这里 except RuntimeError 就退回 L5c,把"新形状族生成失败"伪装成"L5c 训练成功":
+    几何实验里任何一级的作废率都被抹平成 0,结论不可信。
+    现在如实上报,由 _collect 计入 invalid。作废率高的族不该进训练,先测出来再说。
+    """
+    try:
+        road, pl, start, P, rejects = sample_episode(seed, level, enc=enc)
+    except RuntimeError:
+        return None
     env = RoadEnv(road, pl, seed, start, noise=True)
     teacher = Teacher(env, P)
     hist = History()
@@ -74,15 +106,32 @@ def _job(args):
     return run_episode(*args)
 
 
-def summarize(rows):
+def _collect(ex, jobs):
+    """跑一批 episode,把抽不出赛道的作废局过滤掉。
+
+    作废局由 run_episode 返回 None。以前静默退回 L5c,作废率永远是 0;
+    现在必须让调用方看见 —— 否则"这个形状族能不能用"这个问题永远测不出来。
+    """
+    rows = list(ex.map(_job, jobs))
+    return [r for r in rows if r is not None], sum(r is None for r in rows)
+
+
+def summarize(rows, enc=DEFAULT_ENC, invalid=0):
+    """统计一批局。invalid = 赛道没抽出来、没跑成的局数。
+
+    作废局不进 success 的分母(它连车都没起步),但必须单独报出来:
+    collect 的 by_cap 是"训练时采样成功率",作废率高说明这一级该退出训练。
+    """
     ok = [r['reason'] == 'goal' for r in rows]
     out = dict(episodes=len(rows), success=float(np.mean(ok)) if rows else 0.0,
                reasons={k: sum(r['reason'] == k for r in rows)
                         for k in sorted({r['reason'] for r in rows})})
+    if invalid:
+        out['invalid'] = invalid
     bins = {}
-    for lo, hi in SPEED_BINS:
+    for lo, hi in speed_bins(enc):
         sel = [r['reason'] == 'goal' for r in rows if lo <= r['cap'] < hi]
-        bins[f'{lo:.2f}-{min(hi, 1.0):.2f}'] = (float(np.mean(sel)) if sel else None, len(sel))
+        bins[f'{lo:.2f}-{min(hi, enc.v_hi):.2f}'] = (float(np.mean(sel)) if sel else None, len(sel))
     out['by_cap'] = bins
     return out
 
@@ -144,9 +193,9 @@ def weights_of(net):
             [l.bias.detach().numpy().copy() for l in layers])
 
 
-def export(net, path):
+def export(net, path, enc=DEFAULT_ENC):
     w, b = weights_of(net)
-    np.savez(path, schema=SCHEMA, **{f'w{i}': w[i] for i in range(3)},
+    np.savez(path, schema=SCHEMA_SPICA + suffix_of(enc), **{f'w{i}': w[i] for i in range(3)},
              **{f'b{i}': b[i] for i in range(3)})
 
 
@@ -174,7 +223,14 @@ def main():
     ap.add_argument('--ema', type=float, default=0.0,
                     help='权重滑动平均系数(每次更新);>0 时采样/评估/导出都用平均后的权重。'
                          '单个存档在赛道 A 方角上忽好忽坏(v2_f 第 10 轮 100%%、第 25 轮 0%%)')
+    ap.add_argument('--speed-scale', type=float, default=SPEED_SCALE,
+                    help=f'观测里速度通道的归一化尺度(训练契约,不是部署速度;默认 {SPEED_SCALE})')
+    ap.add_argument('--v-hi', type=float, default=V_HI,
+                    help=f'动作空间能表达的最高目标速度 m/s(默认 {V_HI};设小了策略物理上快不起来)')
     a = ap.parse_args()
+    enc = Encoding(scale=a.speed_scale, v_lo=V_LO, v_hi=a.v_hi)
+    if enc.v_hi <= enc.v_lo:
+        raise SystemExit(f'--v-hi {enc.v_hi} 必须大于 --v-lo {enc.v_lo}')
 
     import torch
     torch.set_num_threads(a.torch_threads)
@@ -191,7 +247,7 @@ def main():
     replay = Replay(a.replay)
     batch_rng = np.random.default_rng(a.seed + 1)
     if a.resume:
-        s = torch.load(ckpt, map_location='cpu', weights_only=False)
+        s = load_ckpt(ckpt, map_location='cpu', weights_only=False)
         net.load_state_dict(s['net'])
         ema.load_state_dict(s.get('ema', s['net']))
         opt.load_state_dict(s['opt'])
@@ -207,18 +263,17 @@ def main():
         raise SystemExit(f'{a.out} 里已经有断点,续训加 --resume,新实验换目录')
     else:
         cfg = {k: str(v) if isinstance(v, Path) else v for k, v in vars(a).items()}
-        cfg.update(schema=SCHEMA, levels=[l.name for l in LEVELS],
+        cfg.update(schema=SCHEMA_SPICA + suffix_of(enc), enc=tuple(enc),
+                   levels=[l.name for l in LEVELS],
                    git_head=os.popen('git rev-parse HEAD').read().strip())
         (a.out / 'config.json').write_text(json.dumps(cfg, indent=1), encoding='utf-8')
         if a.init is not None:
-            with np.load(a.init) as z:
-                if str(z['schema']) != SCHEMA:
-                    raise SystemExit(f'{a.init} 不是 {SCHEMA}')
-                with torch.no_grad():
-                    for i, k in enumerate((0, 2, 4)):
-                        net[k].weight.copy_(torch.from_numpy(z[f'w{i}']))
-                        net[k].bias.copy_(torch.from_numpy(z[f'b{i}']))
-                ema.load_state_dict(net.state_dict())
+            w = load_init(a.init)          # v1 会自动重排成 spica(见 common/spica.py)
+            with torch.no_grad():
+                for i, k in enumerate((0, 2, 4)):
+                    net[k].weight.copy_(torch.from_numpy(w[f'w{i}']))
+                    net[k].bias.copy_(torch.from_numpy(w[f'b{i}']))
+            ema.load_state_dict(net.state_dict())
 
     log = open(a.out / 'train.log', 'a', encoding='utf-8', buffering=1)
 
@@ -242,15 +297,15 @@ def main():
                     level = next(l for l in LEVELS if l.name == name)
                 else:
                     level = LEVELS[lv] if lv == 0 or rng.random() < 0.7 else LEVELS[int(rng.integers(lv))]
-                jobs.append((state['next_seed'], level.name, wts, beta, True))
+                jobs.append((state['next_seed'], level.name, wts, beta, True, enc))
                 state['next_seed'] += 1
             t0 = time.time()
-            rows = []
-            for x, y, row in ex.map(_job, jobs):
+            rows, invalid = _collect(ex, jobs)
+            for x, y, row in rows:
                 replay.add(x, y)
-                rows.append(row)
             t_collect = time.time() - t0
-
+            # collect 的 rows 是 (xs, ys, row) 三元组,统计只要 row
+            meta = [row for _, _, row in rows]
             wy = torch.tensor([1.0, 0.5])
             t0 = time.time()
             losses = []
@@ -271,22 +326,24 @@ def main():
             wts = weights_of(pol)
             level = LEVELS[lv].name
             ev_levels = a.eval_levels.split(',') if a.eval_levels else [level]
-            ev = list(ex.map(_job, [(SELECT_SEED0 + i, ev_levels[i % len(ev_levels)], wts, 0.0, False)
-                                    for i in range(a.eval_count)]))
-            summ = summarize(ev)
+            ev, ev_invalid = _collect(ex, [(SELECT_SEED0 + i, ev_levels[i % len(ev_levels)],
+                                            wts, 0.0, False, enc)
+                                           for i in range(a.eval_count)])
+            summ = summarize(ev, enc, ev_invalid)
             if a.eval_levels:
-                summ['by_level'] = {n: summarize([e for e in ev if e['level'] == n])['success']
+                summ['by_level'] = {n: summarize([e for e in ev if e['level'] == n], enc)['success']
                                     for n in ev_levels}
             t_eval = time.time() - t0
 
-            export(pol, a.out / f'candidate_{r:03d}.npz')
+            export(pol, a.out / f'candidate_{r:03d}.npz', enc)
             report = dict(round=r, level=level, beta=beta, samples=replay.size,
-                          loss=float(np.mean(losses[-200:])), collect=summarize(rows),
+                          loss=float(np.mean(losses[-200:])), collect=summarize(meta, enc, invalid),
                           eval=summ, seconds=dict(collect=t_collect, update=t_update, eval=t_eval),
                           episodes=ev)
             (a.out / f'eval_{r:03d}.json').write_text(json.dumps(report, indent=1), encoding='utf-8')
+            bad = f' invalid={invalid}' if invalid else ''
             say(f'round {r} {level} beta={beta:.2f} samples={replay.size} loss={report["loss"]:.4f} '
-                f'eval={summ["success"]:.3f} {summ.get("by_level", "")} {summ["by_cap"]} {summ["reasons"]} '
+                f'eval={summ["success"]:.3f}{bad} {summ.get("by_level", "")} {summ["by_cap"]} {summ["reasons"]} '
                 f'[{t_collect:.0f}s/{t_update:.0f}s/{t_eval:.0f}s]')
             state['history'].append(dict(round=r, level=level, success=summ['success']))
             if a.mix is None and promoted(summ) and lv + 1 < len(LEVELS):
