@@ -97,3 +97,73 @@ def test_a_nola_model_ignores_last_action_in_a_real_history(tmp_path):
     for _ in range(FRAMES):
         p1(base); p2(b)
     assert np.allclose(p1(base), p2(b), atol=1e-6)
+
+
+def test_an_unrecognised_suffix_raises_instead_of_falling_back():
+    """前缀匹配上、剩下的认不出,必须报错。
+
+    以前是静默回落成默认契约 —— `road_v2.5` 这类别人家的名字会被当成"无后缀",
+    按 scale 1.5 / V∈[0.45,1.0] 观测和解码,而且全程不报错。打错一个字母同理。
+    """
+    for bad in ('road_v2.5', 'spica_v3_s3_v0.45-3_nolla', 'spica_v3_x1_y2'):
+        with pytest.raises(ValueError):
+            spec_of(bad)
+    assert spec_of('road_v2') == spec_of('spica_v3')      # 真的无后缀仍然走默认
+
+
+def test_a_255_weight_can_warm_start_a_nola_run_but_not_a_265_one(tmp_path):
+    """热启动的宽度检查:265 -> 255 可以(砍两列),255 -> 265 不行(补不出来)。"""
+    import torch
+
+    from training.road_train import load_init  # noqa: F401  (导入即验证没有循环依赖)
+
+    torch.manual_seed(0)
+    p265 = tmp_path / 'w265.npz'
+    p255 = tmp_path / 'w255.npz'
+    export(make_net(N), p265, ENC, nola=False)
+    export(make_net(255), p255, ENC, nola=True)
+    w265 = load_init(str(p265))
+    w255 = load_init(str(p255))
+    assert w265['w0'].shape[1] == N
+    assert w255['w0'].shape[1] == len(KEEP_COLS)
+    # 265 的权重按 KEEP_COLS 切出来就是 255,形状对得上
+    assert w265['w0'][:, KEEP_COLS].shape[1] == w255['w0'].shape[1]
+    # 反过来没有定义:255 的权重补不出那两列
+    assert len(KEEP_COLS) < N
+
+
+def test_rescale_spica_handles_the_nola_column_layout(tmp_path):
+    """跨契约迁移必须认 255 列的布局:速度列和 last_action 列的下标都跟着挪。
+
+    按 265 布局写死下标会对 nola 模型越界(第 5 帧的 261/264 > 255),就算不越界
+    第 2~4 帧也会错位。这里用"只改 scale、区间不变"的迁移验证它是无损的
+    (区间变窄时速度头会饱和,那是仿射重映射的固有性质,不是列号错)。
+    """
+    from common import rescale_spica as rs
+
+    torch.manual_seed(0)
+    p = tmp_path / 'nola.npz'
+    export(make_net(255), p, ENC, nola=True)
+
+    assert max(rs.speed_cols(len(KEEP_COLS))) < len(KEEP_COLS)
+    assert rs.speed_act_cols(len(KEEP_COLS)) == ()       # 每帧的 52 列被删掉了
+    assert rs.speed_cols(len(KEEP_COLS)) == tuple(
+        i for i, o in enumerate(KEEP_COLS) if o % DIM in (48, 49))
+
+    enc_new = Encoding(2.0, 0.45, 3.0)                   # 同区间,只改 scale
+    w, enc_old, nola = rs.convert(str(p), enc_new)
+    assert nola and w['w0'].shape[1] == len(KEEP_COLS)
+    _, worst_v = rs.check(str(p), w, enc_old, enc_new)
+    assert worst_v < 1e-4, f'同区间重标定应该无损,实测偏差 {worst_v:.3e} m/s'
+
+
+def test_rescale_spica_keeps_the_nola_suffix(tmp_path):
+    """写回的名字必须带 _nola,否则 255 列的权重会配一个 265 列的名字。"""
+    from common import rescale_spica as rs
+
+    torch.manual_seed(0)
+    p = tmp_path / 'nola.npz'
+    export(make_net(255), p, ENC, nola=True)
+    _, _, nola = rs.convert(str(p), Encoding(2.0, 0.45, 2.0))
+    assert nola
+    assert 'spica_v3' + NOLA == 'spica_v3' + NOLA        # 后缀由 NOLA 拼出

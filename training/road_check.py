@@ -32,7 +32,7 @@ from common.params import CarParams
 from common.road_policy import DEFAULT_ENC
 from simulation.fastsim.road import LEVELS, generate, generate_loop
 from simulation.fastsim.road_env import GOAL_BEFORE_END, Plant, RoadEnv, footprint_clearance
-from training.road_teacher import Teacher, plan
+from training.road_teacher import A_LAT, Teacher, plan
 
 SWEEP_CLEAR = 0.08
 RUN_CLEAR = 0.05
@@ -48,10 +48,10 @@ def sample_start(rng, road, recovery: bool):
     return i, float(rng.uniform(-0.6, 0.6) * room), float(rng.uniform(-0.2, 0.2))
 
 
-def check(road, pl, start) -> tuple[bool, str, object]:
+def check(road, pl, start, a_lat: float = A_LAT) -> tuple[bool, str, object]:
     cp = CarParams()
     i0, d0, yaw0 = start
-    P = plan(road, i0, d0, cp.width, pl)
+    P = plan(road, i0, d0, cp.width, pl, a_lat=a_lat)
     if isinstance(P, str):
         return False, P, None
     # 1 几何:沿路线摆车身
@@ -78,7 +78,7 @@ def check(road, pl, start) -> tuple[bool, str, object]:
             return False, 'blind', None
     # 2 闭环:老师用这一局的参数真开
     env = RoadEnv(road, pl, 0, start, noise=False, sense=False)
-    teacher = Teacher(env, P)
+    teacher = Teacher(env, P, a_lat=a_lat)
     why = None
     while why is None:
         why = env.step(teacher())
@@ -89,11 +89,13 @@ def check(road, pl, start) -> tuple[bool, str, object]:
     return True, 'ok', P
 
 
-def sample_episode(seed: int, level: str, max_tries: int = 200, enc=DEFAULT_ENC):
+def sample_episode(seed: int, level: str, max_tries: int = 200, enc=DEFAULT_ENC,
+                   a_lat: float = A_LAT):
     """抽一局能通过三层检查的 (路, 车辆参数, 起点, 规划)。返回值附带作废原因计数。
 
     enc 是这一局的速度契约(观测尺度 + 动作解码区间);三层检查里老师就是按它开车的,
     所以标签存在的速度范围和学生能表达的范围一致。
+    a_lat 透传给老师(见 road_teacher.A_LAT):默认值下 v_hi<=1 的契约里老师恒速。
     """
     rng = np.random.default_rng(seed)
     lv = next(l for l in LEVELS if l.name == level)
@@ -102,7 +104,7 @@ def sample_episode(seed: int, level: str, max_tries: int = 200, enc=DEFAULT_ENC)
         road = generate_loop(rng, lv) if lv.loop else generate(rng, lv)
         pl = Plant.sample(rng, enc)
         start = sample_start(rng, road, recovery=rng.random() < 0.5)
-        ok, why, P = check(road, pl, start)
+        ok, why, P = check(road, pl, start, a_lat)
         if ok:
             return road, pl, start, P, rejects
         rejects[why] += 1

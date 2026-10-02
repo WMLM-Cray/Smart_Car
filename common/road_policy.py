@@ -9,6 +9,9 @@
 历史模型(road_v2 / spica_v3)不改名、不改码就能加载,逐位不变。
     road_v2 / spica_v3              scale 1.5, V ∈ [0.45, 1.0]
     spica_v3_s3_v0.45-3             scale 3.0, V ∈ [0.45, 3.0]
+前缀之后**要么什么都不剩,要么是一个能认出的后缀** —— 其余一律报错,不回落。
+`road_v2.5` 这种前缀能匹配、剩下的 `.5` 认不出的名字,静默按默认契约跑会拿错尺度
+观测、拿错区间解码,而且全程不报错;打错一个字母的后缀同理。
 scale 是**训练时**观测里速度通道的归一化尺度,不是部署速度(同 v1 的 SPEED_SCALE)。
 V_HI 是动作空间能表达的最高目标速度 —— 它设小了,策略物理上就快不起来。
 见 docs/spica方案.md §3.2。
@@ -59,6 +62,8 @@ def spec_of(schema) -> Encoding:
     """schema -> Encoding。无后缀(只带前缀)返回默认,历史模型逐位不变。
 
     `_nola` 只描述网络输入宽度,不参与速度契约,先剥掉再匹配后缀。
+    剥掉之后还有剩余又匹配不上后缀的,是打错的名字(或别人家的命名),报错而不是
+    当成默认契约 —— 静默回落会让整个模型按错的尺度和区间跑,不报错。
     """
     s = str(schema)
     prefix = next((p for p in SCHEMA_PREFIXES if s.startswith(p)), None)
@@ -67,8 +72,13 @@ def spec_of(schema) -> Encoding:
     rest = s[len(prefix):]
     if rest.endswith(NOLA):
         rest = rest[:-len(NOLA)]
+    if not rest:
+        return DEFAULT_ENC
     m = _SUFFIX.match(rest)
-    return DEFAULT_ENC if m is None else Encoding(float(m['scale']), float(m['lo']), float(m['hi']))
+    if m is None:
+        raise ValueError(f'schema {s} 的后缀 {rest!r} 不认识'
+                         f'(能认的是 {_SUFFIX.pattern!r},或什么都不带 = 默认契约)')
+    return Encoding(float(m['scale']), float(m['lo']), float(m['hi']))
 
 
 def suffix_of(enc: Encoding) -> str:

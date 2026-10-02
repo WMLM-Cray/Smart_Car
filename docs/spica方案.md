@@ -155,7 +155,8 @@ L5 的重规划失败 1235 次(每局平均 31 次)值得单独留意:老师每�
 
 ```python
 # training/road_teacher.py
-A_LAT = 0.30    # 老师过弯的横向加速度上限
+A_LAT = 0.30    # 老师过弯的横向加速度上限(模块默认,与历史行为逐位一致)
+# 放开要走 plan(..., a_lat=) / road_train --a-lat / 评估脚本 --a-lat
 ```
 
 而车的物理极限是 `a_lat_max = 7.85 m/s²`(0.8g)。**老师的 0.30 比车的能力保守 26 倍。**
@@ -613,6 +614,12 @@ python -m training.road_train --out runs/spica_a \
 
 **A_LAT 从 0.30 提到 6.0,均圈时 30.97s → 13.40s(2.3 倍),仍然 100% 出圈。**
 
+**但 6.0 不是默认值,是显式参数。** 模块默认仍是 0.30:`A_LAT` 只有在 `v_hi` 明显大于 1
+时才有区别 —— `v_hi=1.0` 的默认契约下 `sqrt(6R) >= 1.0` 只要 `R >= 0.17m`,任何弯都不减速,
+等于把 09-26 修掉的"满速冲进弯"放回来。所以放开速度时**必须连 `--a-lat` 一起传**:
+`road_train --speed-scale 3.0 --v-hi 3.0 --a-lat 6.0`。评估要复现同一批局,也得传同一个值
+(`road_eval` 不走三层检查所以无关;`eval_speed` / `goal_check` / `road_track` 有 `--a-lat`)。
+
 ### 6.3 落地方式:schema 自描述,不改历史模型
 
 `common/road_policy.py` 现在把 (scale, v_lo, v_hi) 编进 schema 后缀:
@@ -631,7 +638,7 @@ spica_v3_s3_v0.45-3             scale 3.0, V ∈ [0.45, 3.0]
 |---|---|
 | `common/road_policy.py` | `Encoding` NamedTuple + `spec_of`/`suffix_of`;`action_to_speed`/`speed_to_action`/`observe` 接受 enc/scale |
 | `simulation/fastsim/road_env.py` | `Plant.enc` 字段;`Plant.sample(rng, enc)`;`v_top` 随 `enc.v_hi` 缩放;观测/解码走 `pl.enc` |
-| `training/road_teacher.py` | `A_LAT` 0.30 → 6.0;输出编码走 `env.pl.enc` |
+| `training/road_teacher.py` | `A_LAT` 变成 `plan`/`Teacher` 的参数(模块默认仍 0.30);输出编码走 `env.pl.enc` |
 | `training/road_check.py` | `sample_episode(..., enc=)` 透传 |
 | `training/road_train.py` | `--speed-scale` / `--v-hi`;`speed_bins(enc)` 取代硬编码 `SPEED_BINS`;导出带后缀 |
 | `evaluation/road_eval.py` | 按模型 schema 采样,cap 分布与模型能力一致 |
@@ -646,6 +653,7 @@ spica_v3_s3_v0.45-3             scale 3.0, V ∈ [0.45, 3.0]
    但 3.0 的刹车距离 `3.0²/(2·0.45) = 10.0m` 仍超过 8m 窗口。
    实测 3.0 下老师 100% 出圈,所以**暂不动**;要再往上提速时才需要。
 2. **`A_LAT = 6.0` 是 sim 值,实车未标定。** 物理上限 7.85,取 76% 留 sim2real 余量。
+   默认值保持 0.30 也意味着:**忘了传 `--a-lat` 的重训会静默退到旧速度标签。**
 3. **闭环干扰(风险 7)在高速度下未复测。** 1.0 以内靠 48 扇区隐式处理够用,
    3.0 下认错弯的代价更大。**这是下一次验收要盯的。**
 4. **实车 `--speed-cap` 与 PWM 标定**:3.0 m/s 需 PWM 1680,实测只到 1618,

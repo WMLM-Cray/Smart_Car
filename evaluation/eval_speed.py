@@ -29,6 +29,7 @@ from common.road_policy import DEFAULT_ENC, Encoding, RoadPolicy, spec_of, speed
 from simulation.fastsim.road import LEVELS
 from simulation.fastsim.road_env import Plant, RoadEnv
 from training.road_check import sample_episode
+from training.road_teacher import A_LAT
 
 SEED0 = 71_000_000
 
@@ -39,7 +40,7 @@ def _schema(path):
 
 
 def run(args):
-    model, seed, level, speed = args
+    model, seed, level, speed, a_lat = args
     schema = _schema(model)
     is_v1 = schema.startswith(v1.SCHEMA_PREFIX)
     # 观测/动作契约必须覆盖目标速度,否则 cap=3.0 会被观测 clip 成 1.0,且
@@ -47,7 +48,9 @@ def run(args):
     enc = Encoding(scale=max(speed, 1.5), v_lo=0.45, v_hi=max(speed, 1.0))
     if not is_v1:
         enc = spec_of(schema)          # v2/spica 用模型自己的契约
-    road, pl, start, _, _ = sample_episode(seed, level, enc=enc)
+    # a_lat 只影响三层检查里老师怎么开(即"这一局收不收"),不影响学生的动作解码。
+    # 默认 0.30 与 main 逐位一致;要复现按别的 a_lat 训出来的模型得传同一个值。
+    road, pl, start, _, _ = sample_episode(seed, level, enc=enc, a_lat=a_lat)
     # 把这一局的 cap / v_top 钉到目标速度。注意 pl.enc 就是 enc,action_to_speed
     # 用的也是它,两者必须一致 —— 否则 v_a 解出来的物理速度不是 speed。
     pl = replace(pl, cap=speed, v_top=max(pl.v_top, speed), enc=enc)
@@ -84,9 +87,10 @@ def main():
     ap.add_argument('--workers', type=int, default=10)
     ap.add_argument('--seed-start', type=int, default=SEED0)
     ap.add_argument('--out', default=None)
+    ap.add_argument('--a-lat', type=float, default=A_LAT, help='老师的弯中横向加速度上限(见 road_teacher.A_LAT)')
     a = ap.parse_args()
 
-    jobs = [(a.model, a.seed_start + i, a.level, a.speed) for i in range(a.count)]
+    jobs = [(a.model, a.seed_start + i, a.level, a.speed, a.a_lat) for i in range(a.count)]
     with ProcessPoolExecutor(a.workers) as ex:
         rows = list(ex.map(run, jobs))
     ok = np.array([r['reason'] == 'goal' for r in rows])

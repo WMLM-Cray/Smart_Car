@@ -28,11 +28,17 @@ R_MIN = 0.85                # 规划用最小转弯半径 m(车极限 0.828;0.95
 SIDE_MARGIN = {NONE: 0.10, WALL: 0.15, CONE: 0.14 + 0.15}
 STEP = 5                    # 每隔几个中心线点取一个规划点(0.25m)
 # 老师过弯"愿意用"的横向加速度 m/s²,决定标签里弯中能跑多快:v = sqrt(A_LAT/R)。
-# 车物理抓地上限 a_lat_max = 7.85(0.8g)。原来 0.30 比物理保守 26 倍,R=1m 的弯只
-# 规划到 0.55 m/s —— 这是压在动作空间之后的第二道闸,标签本身就从不要求快。
-# 2026-09-28 提到 6.0(物理的 76%,留 sim2real 余量):L5c 上老师均速 0.94 -> 2.11 m/s,
-# 仍然 100% 出圈。A_LAT 是标签的上限,设小了策略物理上就快不起来。
-A_LAT = 6.0
+# 车物理抓地上限 a_lat_max = 7.85(0.8g,params.py 里标的是 [假设],实车没量过)。
+#
+# 默认 0.30 = main 上的历史行为,逐位不变。这个值比物理保守 26 倍,R=1m 的弯只规划到
+# 0.55 m/s —— 它是压在动作空间之后的第二道闸,标签本身就从不要求快。2026-09-26 的
+# "满速冲进弯"就是按它收紧的(见下面的 A_DEC/SPEED_MARGIN 注释)。
+#
+# 要放开得显式传 `a_lat`(road_train 的 `--a-lat`)。注意:它只有在 v_hi 明显大于 1 时
+# 才有区别 —— v_hi=1.0 的默认契约下 sqrt(6R) >= 1.0 只要 R >= 0.17m,任何弯都不减速。
+# 2026-09-28 在 L5c 契约上量到:v_hi=3.0 配 A_LAT 0.30->6.0,老师均速 0.94 -> 2.11 m/s、
+# 均圈时 30.97 -> 13.40 s,仍 100% 出圈。
+A_LAT = 0.30
 A_DEC = 0.45                # 计划减速度,比实测滑行 0.68~0.78 保守得多
 # 以上两个和 SPEED_MARGIN 是 2026-09-26 从 0.35/0.6/0 收紧的:L5 的失败多是满速冲进弯
 # (松油晚了致命、早了无害,MSE 对两边一样罚)。老师在 A-D 上两圈只慢 0~1.8s
@@ -71,13 +77,15 @@ def curvature(pts: np.ndarray, gap: int = 3) -> np.ndarray:
 
 
 def plan(road: Road, i0: int, d0: float, car_width: float, pl,
-         horizon: float | None = None, r_min: float = R_MIN) -> Plan | str:
+         horizon: float | None = None, r_min: float = R_MIN,
+         a_lat: float = A_LAT) -> Plan | str:
     """返回 Plan,或者失败原因字符串('too_narrow' / 'curvature' / 'plan_error')。
 
     在 0.25m 一个的粗网格上解,再三次样条插回 5cm。粗点的边界取它前后半格内
     最紧的那个,插值后才不会在尖内角处越界。
     horizon  只规划前方这么远(m),None = 到路终点
     r_min    5cm 路线上允许的最小半径(粗网格照样按 R_MIN 摊弯)
+    a_lat    弯中横向加速度上限,决定标签里弯中能跑多快(见 A_LAT)
     """
     i1 = len(road.half) if horizon is None else min(len(road.half), i0 + int(horizon / DS) + 1)
     margin = np.vectorize(SIDE_MARGIN.get)
@@ -117,7 +125,7 @@ def plan(road: Road, i0: int, d0: float, car_width: float, pl,
         if not np.all(np.isfinite(d)):      # bvls 偶尔除零给出 NaN(2026-09-25 训练第 42 轮崩过)
             return 'plan_error'
         kap = curvature(c + d[:, None] * n, gap=1)
-        over = np.abs(kap[1:-1]) * R_MIN
+        over = np.abs(kap[1:-1]) * r_min
         if over.max() <= 0.9:           # 粗网格留 10%,插值回 5cm 后曲率会略涨
             break
         w = w * (1 + 4 * np.maximum(0, over - 0.8) ** 2)      # 超限处加权,把弯摊开
@@ -131,7 +139,7 @@ def plan(road: Road, i0: int, d0: float, car_width: float, pl,
         return 'curvature'
     s = np.concatenate([[0], np.cumsum(np.hypot(*np.diff(pts, axis=0).T))])
     v_top = min(pl.cap, pl.v_top)
-    v = np.minimum(v_top, np.sqrt(A_LAT / np.maximum(np.abs(kap), 1e-6)))
+    v = np.minimum(v_top, np.sqrt(a_lat / np.maximum(np.abs(kap), 1e-6)))
     for i in range(len(v) - 2, -1, -1):     # 倒推:前面要慢,这里就得提前松油
         v[i] = min(v[i], math.sqrt(v[i + 1] ** 2 + 2 * A_DEC * (s[i + 1] - s[i])))
     return Plan(pts, s, kap, v, np.minimum(hi_all, -lo_all), dense)
@@ -146,10 +154,12 @@ class Teacher:
     重规划失败(车已偏到规划不出来)就沿用旧路线,计入 fails。
     """
 
-    def __init__(self, env: RoadEnv, pl_: Plan, replan: bool = True, privileged: bool = True):
+    def __init__(self, env: RoadEnv, pl_: Plan, replan: bool = True, privileged: bool = True,
+                 a_lat: float = A_LAT):
         self.env, self.plan = env, pl_
         self.j = 0
         self.replan, self.n, self.fails = replan, 0, 0
+        self.a_lat = a_lat
         # privileged=False:老师按名义车辆参数算(学生看不到这一局的延迟/增益/中位/纯滞后/满电速度),
         # 真实偏差靠每拍重规划吸收。标签就只取决于学生看得到的东西。
         self.pl = env.pl if privileged else replace(env.pl, lag=0.5, steer_gain=1.0, servo_offset=0.0,
@@ -158,7 +168,7 @@ class Teacher:
     def _replan(self):
         env, car = self.env, self.env.car
         i, d = env.road.project((car.x, car.y), env.idx)
-        P = plan(env.road, i, d, env.cp.width, self.pl, HORIZON, R_REPLAN)
+        P = plan(env.road, i, d, env.cp.width, self.pl, HORIZON, R_REPLAN, self.a_lat)
         if isinstance(P, str):
             self.fails += 1
             return

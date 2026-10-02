@@ -6,6 +6,7 @@ import pytest
 
 from common import low_speed_policy as v1
 from common.policy_portfolio import (LADDER, calibrated, select, select_path)
+from training.road_teacher import A_LAT
 
 ROOT = __import__('pathlib').Path(__file__).resolve().parents[1]
 
@@ -155,6 +156,6 @@ def test_eval_tools_load_suffixed_v1_schema_with_its_own_scale(module, monkeypat
     if module == 'evaluation.road_eval':
         out = mod.run((model, 90_000_000, 'L1'))
     else:
-        out = mod.run((model, 'A', 95_000_000, 0.5, True))
+        out = mod.run((model, 'A', 95_000_000, 0.5, True, A_LAT))
     assert out['reason'] in ('goal', 'collision', 'off_track', 'timeout')
     assert seen and set(seen) == {2.4}

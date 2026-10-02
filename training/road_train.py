@@ -36,7 +36,7 @@ from simulation.fastsim.road_env import RoadEnv
 from common.road_policy import (DEFAULT_ENC, DIM, FRAMES, KEEP_COLS, NOLA, SCHEMA_SPICA, SPEED_SCALE,
                                 V_HI, V_LO, Encoding, History, drop_last_action, forward, suffix_of)
 from common.spica import load_init
-from training.road_teacher import Teacher
+from training.road_teacher import A_LAT, Teacher
 
 TRAIN_SEED0, SELECT_SEED0 = 10_000_000, 50_000_000
 PROMOTE_ALL, PROMOTE_BIN = 0.95, 0.90
@@ -64,7 +64,8 @@ def speed_bins(enc):
     return tuple(zip(cut[:-1], cut[1:]))
 
 
-def run_episode(seed, level, weights=None, beta=0.0, collect=False, enc=DEFAULT_ENC):
+def run_episode(seed, level, weights=None, beta=0.0, collect=False, enc=DEFAULT_ENC,
+                a_lat=A_LAT):
     """跑一局。这一级的种子抽不出可通赛道时返回 None —— 调用方按"作废局"计数。
 
     以前这里 except RuntimeError 就退回 L5c,把"新形状族生成失败"伪装成"L5c 训练成功":
@@ -72,11 +73,11 @@ def run_episode(seed, level, weights=None, beta=0.0, collect=False, enc=DEFAULT_
     现在如实上报,由 _collect 计入 invalid。作废率高的族不该进训练,先测出来再说。
     """
     try:
-        road, pl, start, P, rejects = sample_episode(seed, level, enc=enc)
+        road, pl, start, P, rejects = sample_episode(seed, level, enc=enc, a_lat=a_lat)
     except RuntimeError:
         return None
     env = RoadEnv(road, pl, seed, start, noise=True)
-    teacher = Teacher(env, P)
+    teacher = Teacher(env, P, a_lat=a_lat)
     hist = History()
     rng = np.random.default_rng(seed + 1)
     xs, ys = [], []
@@ -236,6 +237,10 @@ def main():
     ap.add_argument('--drop-last-action', action='store_true',
                     help='网络输入层物理上不含 last_action 两列(265->255)。观测向量仍是 53 维,'
                          '只是那两列接不进去 —— 真"删"不是"置零"。见 road_policy.NOLA。')
+    ap.add_argument('--a-lat', type=float, default=A_LAT,
+                    help=f'老师过弯的横向加速度上限 m/s²,决定标签里弯中能跑多快(默认 {A_LAT})。'
+                         f'只有 v_hi 明显大于 1 时才有区别:v_hi=1.0 下 sqrt(A_LAT·R) 恒大于 1,'
+                         f'老师不减速。放开速度要连这个一起提(见 road_teacher.A_LAT)。')
     a = ap.parse_args()
     enc = Encoding(scale=a.speed_scale, v_lo=V_LO, v_hi=a.v_hi)
     if enc.v_hi <= enc.v_lo:
@@ -275,15 +280,24 @@ def main():
     else:
         cfg = {k: str(v) if isinstance(v, Path) else v for k, v in vars(a).items()}
         cfg.update(schema=SCHEMA_SPICA + suffix_of(enc) + (NOLA if nola else ''), enc=tuple(enc),
-                   n_in=n_in, levels=[l.name for l in LEVELS],
+                   n_in=n_in, a_lat=a.a_lat, levels=[l.name for l in LEVELS],
                    git_head=os.popen('git rev-parse HEAD').read().strip())
         (a.out / 'config.json').write_text(json.dumps(cfg, indent=1), encoding='utf-8')
         if a.init is not None:
             w = load_init(a.init)          # v1 会自动重排成 spica(见 common/spica.py)
+            n0 = w['w0'].shape[1]
+            if n0 not in (DIM * FRAMES, len(KEEP_COLS)):
+                raise SystemExit(f'{a.init} 的输入层是 {n0} 列,既不是 {DIM * FRAMES}(带 last_action)'
+                                 f'也不是 {len(KEEP_COLS)}(_nola);认不出来')
+            if n0 == len(KEEP_COLS) and n_in == DIM * FRAMES:
+                # 反过来是拿 255 列的权重去补两列,补不出东西 —— 那两列的网络权重
+                # 在 _nola 模型里根本不存在,没有"恢复"一说。
+                raise SystemExit(f'{a.init} 是 {len(KEEP_COLS)} 列(_nola),这次训练是 '
+                                 f'{DIM * FRAMES} 列:带 last_action 的网络接不了 _nola 权重')
             with torch.no_grad():
                 for i, k in enumerate((0, 2, 4)):
                     wi = torch.from_numpy(w[f'w{i}'])
-                    if nola and i == 0:
+                    if i == 0 and n0 == DIM * FRAMES and nola:
                         wi = wi[:, KEEP_COLS]   # 只砍输入层那两列,不是置零
                     net[k].weight.copy_(wi)
                     net[k].bias.copy_(torch.from_numpy(w[f'b{i}']))
@@ -311,7 +325,7 @@ def main():
                     level = next(l for l in LEVELS if l.name == name)
                 else:
                     level = LEVELS[lv] if lv == 0 or rng.random() < 0.7 else LEVELS[int(rng.integers(lv))]
-                jobs.append((state['next_seed'], level.name, wts, beta, True, enc))
+                jobs.append((state['next_seed'], level.name, wts, beta, True, enc, a.a_lat))
                 state['next_seed'] += 1
             t0 = time.time()
             rows, invalid = _collect(ex, jobs)
@@ -341,7 +355,7 @@ def main():
             level = LEVELS[lv].name
             ev_levels = a.eval_levels.split(',') if a.eval_levels else [level]
             ev, ev_invalid = _collect(ex, [(SELECT_SEED0 + i, ev_levels[i % len(ev_levels)],
-                                            wts, 0.0, False, enc)
+                                            wts, 0.0, False, enc, a.a_lat)
                                            for i in range(a.eval_count)])
             summ = summarize(ev, enc, ev_invalid)
             if a.eval_levels:

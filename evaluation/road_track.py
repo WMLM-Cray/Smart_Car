@@ -45,7 +45,7 @@ from common.params import CarParams
 from simulation.fastsim.road import CONE, DS, NONE, Road
 from simulation.fastsim.road_env import Plant, RoadEnv
 from common.road_policy import DEFAULT_ENC, RoadPolicy, spec_of, speed_to_action
-from training.road_teacher import Teacher, plan
+from training.road_teacher import A_LAT, Teacher, plan
 
 ROOT = Path(__file__).resolve().parents[1]
 MAPS = ROOT / 'maps'
@@ -217,7 +217,7 @@ def _schema(path):
 
 
 def run(args):
-    model, name, seed, cap, fill_v = args
+    model, name, seed, cap, fill_v, a_lat = args
     road, lap_len = official(name, fill_v)
     rng = np.random.default_rng(seed)
     # 速度契约跟模型走(见 common/road_policy.py):v_hi=3 的模型要按 3 的区间观测/解码
@@ -226,13 +226,13 @@ def run(args):
         enc = spec_of(_schema(model))
     pl = replace(Plant.sample(rng, enc), cap=cap)
     out = dict(track=name, seed=seed, cap=cap, v_plateau=pl.v_plateau, v_top=pl.v_top)
-    # 通过性:老师用同一组车辆参数跑
-    P = plan(road, 0, 0.0, CarParams().width, pl)
+    # 通过性:老师用同一组车辆参数跑(它只解释"这条路老师过不过得去",不是学生成绩)
+    P = plan(road, 0, 0.0, CarParams().width, pl, a_lat=a_lat)
     if isinstance(P, str):
         out['teacher'] = P
     else:
         env = RoadEnv(road, pl, seed, noise=False, sense=False)
-        t = Teacher(env, P)
+        t = Teacher(env, P, a_lat=a_lat)
         why = None
         while why is None:
             why = env.step(t())
@@ -280,8 +280,9 @@ def main():
     ap.add_argument('--tracks', nargs='+', default=['A', 'B', 'C', 'D'])
     ap.add_argument('--fill-v', action='store_true', help='黄 V 也排锥桶(测黄 V 以外的部分)')
     ap.add_argument('--out', default=None)
+    ap.add_argument('--a-lat', type=float, default=A_LAT, help='老师的弯中横向加速度上限(见 road_teacher.A_LAT)')
     a = ap.parse_args()
-    jobs = [(a.model, t, a.seed_start + i, cap, a.fill_v)
+    jobs = [(a.model, t, a.seed_start + i, cap, a.fill_v, a.a_lat)
             for t in a.tracks for cap in a.caps for i in range(a.count)]
     with ProcessPoolExecutor(a.workers) as ex:
         rows = list(ex.map(run, jobs))

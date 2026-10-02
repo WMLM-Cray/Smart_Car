@@ -29,6 +29,7 @@ from concurrent.futures import ProcessPoolExecutor
 import numpy as np
 
 from evaluation.eval_speed import run, wilson
+from training.road_teacher import A_LAT
 
 # 老师实测:cap 3.0/3.2 都是均速 2.177,是这条赛道族的速度天花板(饱和,再加 cap
 # 也不涨)。干净率判据不看它,只用来算"接近上限"的比例。
@@ -45,10 +46,11 @@ def main():
     ap.add_argument('--target', type=float, default=0.95)
     ap.add_argument('--seed-start', type=int, default=71_000_000)
     ap.add_argument('--out', default=None)
+    ap.add_argument('--a-lat', type=float, default=A_LAT, help='老师的弯中横向加速度上限(见 road_teacher.A_LAT)')
     a = ap.parse_args()
 
     speeds = [float(x) for x in a.speeds.split(',')]
-    jobs = [(a.model, a.seed_start + i, a.level, s)
+    jobs = [(a.model, a.seed_start + i, a.level, s, a.a_lat)
             for s in speeds for i in range(a.count)]
     with ProcessPoolExecutor(a.workers) as ex:
         rows = list(ex.map(run, jobs))
