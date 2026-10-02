@@ -32,7 +32,7 @@ from common.params import CarParams
 from common.road_policy import DEFAULT_ENC
 from simulation.fastsim.road import LEVELS, generate, generate_loop
 from simulation.fastsim.road_env import GOAL_BEFORE_END, Plant, RoadEnv, footprint_clearance
-from training.road_teacher import A_LAT, Teacher, plan
+from training.road_teacher import A_LAT, R_MIN, Teacher, plan
 
 SWEEP_CLEAR = 0.08
 RUN_CLEAR = 0.05
@@ -48,10 +48,10 @@ def sample_start(rng, road, recovery: bool):
     return i, float(rng.uniform(-0.6, 0.6) * room), float(rng.uniform(-0.2, 0.2))
 
 
-def check(road, pl, start, a_lat: float = A_LAT) -> tuple[bool, str, object]:
+def check(road, pl, start, a_lat: float = A_LAT, r_min: float = R_MIN) -> tuple[bool, str, object]:
     cp = CarParams()
     i0, d0, yaw0 = start
-    P = plan(road, i0, d0, cp.width, pl, a_lat=a_lat)
+    P = plan(road, i0, d0, cp.width, pl, r_min=r_min, a_lat=a_lat)
     if isinstance(P, str):
         return False, P, None
     # 1 几何:沿路线摆车身
