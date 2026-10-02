@@ -22,7 +22,7 @@ from simulation.fastsim.road import CONE, DS, NONE, WALL, Road
 from simulation.fastsim.road_env import CONTROL_DT, RoadEnv
 from common.road_policy import speed_to_action
 
-R_MIN = 0.95                # 规划用最小转弯半径 m
+R_MIN = 0.85                # 规划用最小转弯半径 m(车极限 0.828;0.95 是代码闸不是物理墙)
 # 车身两侧到边界至少留这么多(规划时)。锥桶立在边界线上,半径 0.14 要额外扣;
 # 再加 0.05 给入弯时车头外甩(车头在后轴前 0.43m)。
 SIDE_MARGIN = {NONE: 0.10, WALL: 0.15, CONE: 0.14 + 0.15}
@@ -81,8 +81,10 @@ def plan(road: Road, i0: int, d0: float, car_width: float, pl,
     """
     i1 = len(road.half) if horizon is None else min(len(road.half), i0 + int(horizon / DS) + 1)
     margin = np.vectorize(SIDE_MARGIN.get)
-    hi_all = road.half[i0:i1] - car_width / 2 - margin(road.mat_left[i0:i1])
-    lo_all = -(road.half[i0:i1] - car_width / 2 - margin(road.mat_right[i0:i1]))
+    # 左右分开取余量:官方赛道走廊不对称(A 左下直角弯左侧 0.48m、右侧 1.65m),
+    # 用 min(左,右) 会把宽的那侧白扔掉,可行域塌成一条线(2026-09-29)。
+    hi_all = road.half_l[i0:i1] - car_width / 2 - margin(road.mat_left[i0:i1])
+    lo_all = -(road.half_r[i0:i1] - car_width / 2 - margin(road.mat_right[i0:i1]))
     idx = np.arange(0, len(hi_all), STEP)
     if idx[-1] != len(hi_all) - 1:
         idx = np.r_[idx, len(hi_all) - 1]
