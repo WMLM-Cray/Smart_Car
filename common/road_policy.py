@@ -29,6 +29,20 @@ V_LO, V_HI = 0.45, 1.0      # 无后缀 schema 的默认速度契约:0.45 是建
 # spica 是同一套观测/网络的顶层层级名(无后缀 = 和 road_v2 逐位等价),见 common/spica.py
 SCHEMA_PREFIXES = (SCHEMA, SCHEMA_SPICA)
 
+# 2026-09-30:schema 尾部加这个后缀 = **网络输入层物理上不含 last_action 两列**。
+# 环境照旧吐 53 维观测(不动 DIM,免得动到 v1 兼容和 rescale_spica),网络只接 255 列。
+# 为什么是"删"不是"置零":置零后网络收到的输入分布是它从没见过的(训练时该列标准差
+# 约 0.4,突然恒 0)= OOD,闭环全灭(SS_zl 0.000);删列则连这一列都不存在,不存在 OOD。
+# 动机:该通道让策略"抄上一步",闭环里退化成自激反馈环
+# (官方赛道 A 上 0/30 -> 剪断后 30/30,α≈0.4 相变)。
+NOLA = '_nola'
+# 每帧第 51/52 列是 last_action[0]/[1];展平缓冲是帧主序,所以帧内偏移就是 i % DIM
+KEEP_COLS = np.array([i for i in range(DIM * FRAMES) if (i % DIM) not in (51, 52)], dtype=np.intp)
+
+
+def drop_last_action(schema) -> bool:
+    return str(schema).endswith(NOLA)
+
 
 class Encoding(NamedTuple):
     """一局/一个模型的速度契约:观测里速度通道的归一化尺度 + 动作解码出的速度区间。"""
@@ -42,12 +56,17 @@ _SUFFIX = re.compile(r'^_s(?P<scale>[0-9.]+)_v(?P<lo>[0-9.]+)-(?P<hi>[0-9.]+)$')
 
 
 def spec_of(schema) -> Encoding:
-    """schema -> Encoding。无后缀(只带前缀)返回默认,历史模型逐位不变。"""
+    """schema -> Encoding。无后缀(只带前缀)返回默认,历史模型逐位不变。
+
+    `_nola` 只描述网络输入宽度,不参与速度契约,先剥掉再匹配后缀。
+    """
     s = str(schema)
     prefix = next((p for p in SCHEMA_PREFIXES if s.startswith(p)), None)
     if prefix is None:
         raise ValueError(f'不认识的 schema {s}')
     rest = s[len(prefix):]
+    if rest.endswith(NOLA):
+        rest = rest[:-len(NOLA)]
     m = _SUFFIX.match(rest)
     return DEFAULT_ENC if m is None else Encoding(float(m['scale']), float(m['lo']), float(m['hi']))
 
@@ -88,7 +107,13 @@ class History:
 
 
 def forward(w, b, x):
-    """两层 tanh + 线性输出,clip 到 ±1。w/b 是三层的权重列表。"""
+    """两层 tanh + 线性输出,clip 到 ±1。w/b 是三层的权重列表。
+
+    输入宽度由 w[0] 自己决定:255 列 = 无 last_action 的模型(见 KEEP_COLS)。
+    这样所有调用点都不用改,`_nola` 模型和普通模型走同一条路径。
+    """
+    if w[0].shape[1] != x.shape[-1]:
+        x = x[..., KEEP_COLS]
     for i in range(2):
         x = np.tanh(x @ w[i].T + b[i])
     return np.clip(x @ w[2].T + b[2], -1, 1)

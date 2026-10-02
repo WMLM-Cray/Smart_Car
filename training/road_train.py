@@ -33,8 +33,8 @@ import numpy as np
 from simulation.fastsim.road import LEVELS
 from training.road_check import sample_episode
 from simulation.fastsim.road_env import RoadEnv
-from common.road_policy import (DEFAULT_ENC, DIM, FRAMES, SCHEMA_SPICA, SPEED_SCALE,
-                                V_HI, V_LO, Encoding, History, forward, suffix_of)
+from common.road_policy import (DEFAULT_ENC, DIM, FRAMES, KEEP_COLS, NOLA, SCHEMA_SPICA, SPEED_SCALE,
+                                V_HI, V_LO, Encoding, History, drop_last_action, forward, suffix_of)
 from common.spica import load_init
 from training.road_teacher import Teacher
 
@@ -148,10 +148,13 @@ class Replay:
     被 OOM 杀过两次(2026-09-25)。现在不拼接、断点里只存下标,数组单独 np.save。
     """
 
-    def __init__(self, cap):
+    def __init__(self, cap, keep=None):
         self.x = np.zeros((cap, DIM * FRAMES), np.float16)
         self.y = np.zeros((cap, 2), np.float32)
         self.size = self.ptr = 0
+        # 池里永远存满 265 列(和普通模型同布局,断点可互换);
+        # _nola 模型只在取样时切列 —— 训练输入是 255,池子仍是 265。
+        self.keep = keep
 
     def add(self, x, y):
         for i in range(0, len(x), len(self.x)):
@@ -163,7 +166,8 @@ class Replay:
 
     def batch(self, rng, n):
         i = rng.integers(0, self.size, n)
-        return self.x[i].astype(np.float32), self.y[i]
+        x = self.x[i].astype(np.float32)
+        return (x if self.keep is None else x[:, self.keep]), self.y[i]
 
     def save(self, out):
         for name, arr in (('replay_x', self.x), ('replay_y', self.y)):
@@ -180,10 +184,11 @@ class Replay:
         self.size, self.ptr = n, meta['ptr'] % len(self.x)
 
 
-def make_net():
+def make_net(n_in=DIM * FRAMES):
+    """n_in=265 是原架构;255 = 输入层不含 last_action 两列(见 road_policy.KEEP_COLS)。"""
     import torch
     from torch import nn
-    return nn.Sequential(nn.Linear(DIM * FRAMES, 256), nn.Tanh(),
+    return nn.Sequential(nn.Linear(n_in, 256), nn.Tanh(),
                          nn.Linear(256, 256), nn.Tanh(), nn.Linear(256, 2))
 
 
@@ -193,9 +198,10 @@ def weights_of(net):
             [l.bias.detach().numpy().copy() for l in layers])
 
 
-def export(net, path, enc=DEFAULT_ENC):
+def export(net, path, enc=DEFAULT_ENC, nola=False):
     w, b = weights_of(net)
-    np.savez(path, schema=SCHEMA_SPICA + suffix_of(enc), **{f'w{i}': w[i] for i in range(3)},
+    schema = SCHEMA_SPICA + suffix_of(enc) + (NOLA if nola else '')
+    np.savez(path, schema=schema, **{f'w{i}': w[i] for i in range(3)},
              **{f'b{i}': b[i] for i in range(3)})
 
 
@@ -227,24 +233,29 @@ def main():
                     help=f'观测里速度通道的归一化尺度(训练契约,不是部署速度;默认 {SPEED_SCALE})')
     ap.add_argument('--v-hi', type=float, default=V_HI,
                     help=f'动作空间能表达的最高目标速度 m/s(默认 {V_HI};设小了策略物理上快不起来)')
+    ap.add_argument('--drop-last-action', action='store_true',
+                    help='网络输入层物理上不含 last_action 两列(265->255)。观测向量仍是 53 维,'
+                         '只是那两列接不进去 —— 真"删"不是"置零"。见 road_policy.NOLA。')
     a = ap.parse_args()
     enc = Encoding(scale=a.speed_scale, v_lo=V_LO, v_hi=a.v_hi)
     if enc.v_hi <= enc.v_lo:
         raise SystemExit(f'--v-hi {enc.v_hi} 必须大于 --v-lo {enc.v_lo}')
+    nola = bool(a.drop_last_action)
+    n_in = len(KEEP_COLS) if nola else DIM * FRAMES
 
     import torch
     torch.set_num_threads(a.torch_threads)
     torch.manual_seed(a.seed)
     rng = np.random.default_rng(a.seed)
-    net = make_net()
+    net = make_net(n_in)
     opt = torch.optim.Adam(net.parameters(), lr=a.lr)
-    ema = make_net()
+    ema = make_net(n_in)
     ema.load_state_dict(net.state_dict())
     a.out.mkdir(parents=True, exist_ok=True)
     ckpt = a.out / 'latest.pt'
     state = dict(round=0, level=[l.name for l in LEVELS].index(a.start_level),
                  next_seed=TRAIN_SEED0, replay=None, history=[])
-    replay = Replay(a.replay)
+    replay = Replay(a.replay, keep=KEEP_COLS if nola else None)
     batch_rng = np.random.default_rng(a.seed + 1)
     if a.resume:
         s = load_ckpt(ckpt, map_location='cpu', weights_only=False)
@@ -263,15 +274,18 @@ def main():
         raise SystemExit(f'{a.out} 里已经有断点,续训加 --resume,新实验换目录')
     else:
         cfg = {k: str(v) if isinstance(v, Path) else v for k, v in vars(a).items()}
-        cfg.update(schema=SCHEMA_SPICA + suffix_of(enc), enc=tuple(enc),
-                   levels=[l.name for l in LEVELS],
+        cfg.update(schema=SCHEMA_SPICA + suffix_of(enc) + (NOLA if nola else ''), enc=tuple(enc),
+                   n_in=n_in, levels=[l.name for l in LEVELS],
                    git_head=os.popen('git rev-parse HEAD').read().strip())
         (a.out / 'config.json').write_text(json.dumps(cfg, indent=1), encoding='utf-8')
         if a.init is not None:
             w = load_init(a.init)          # v1 会自动重排成 spica(见 common/spica.py)
             with torch.no_grad():
                 for i, k in enumerate((0, 2, 4)):
-                    net[k].weight.copy_(torch.from_numpy(w[f'w{i}']))
+                    wi = torch.from_numpy(w[f'w{i}'])
+                    if nola and i == 0:
+                        wi = wi[:, KEEP_COLS]   # 只砍输入层那两列,不是置零
+                    net[k].weight.copy_(wi)
                     net[k].bias.copy_(torch.from_numpy(w[f'b{i}']))
             ema.load_state_dict(net.state_dict())
 
@@ -335,7 +349,7 @@ def main():
                                     for n in ev_levels}
             t_eval = time.time() - t0
 
-            export(pol, a.out / f'candidate_{r:03d}.npz', enc)
+            export(pol, a.out / f'candidate_{r:03d}.npz', enc, nola)
             report = dict(round=r, level=level, beta=beta, samples=replay.size,
                           loss=float(np.mean(losses[-200:])), collect=summarize(meta, enc, invalid),
                           eval=summ, seconds=dict(collect=t_collect, update=t_update, eval=t_eval),
