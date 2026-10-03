@@ -102,3 +102,12 @@ def test_speed_at_tells_driving_from_coasting():
     assert speed_at(coasting, 1.0) < 0.2
     assert speed_at([], 1.0) is None
     assert speed_at(driving, 5.0) is None                                  # 超出记录范围
+
+
+def test_brake_candidate_returns_to_neutral_before_stopping():
+    """低于中位的候选值:快停时回中位,不然停住后接着发就是倒车。"""
+    from calibration.coast_test import BRAKE_RELEASE, PWM_MID, coast_cmd
+    assert coast_cmd(1400, 0.9) == 1400
+    assert coast_cmd(1400, BRAKE_RELEASE - 0.01) == PWM_MID
+    assert coast_cmd(1400, -0.05) == PWM_MID           # 已经在往后走
+    assert coast_cmd(1580, 0.0) == 1580                 # 中位以上照旧(看是否接着出力)

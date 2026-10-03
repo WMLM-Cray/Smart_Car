@@ -283,9 +283,8 @@ function release(){ nx=0; ny=0; brake=0; active=false; stickPid=null;
 function setxy(e){
   const r=stick.getBoundingClientRect();
   let dx=e.clientX-r.left-R, dy=e.clientY-r.top-R;
-  const m=Math.hypot(dx,dy);
-  if(m>MAX){ dx=dx/m*MAX; dy=dy/m*MAX; }
-  nx=dx/MAX; ny=-dy/MAX; place();
+  /* 油门、转向各自到 ±1(方形):原来按圆截断,边开边转最多半舵,推到最左最右油门又是 0(2026-09-29) */
+  nx=Math.max(-1,Math.min(1,dx/MAX)); ny=Math.max(-1,Math.min(1,-dy/MAX)); place();
 }
 stick.addEventListener('pointerdown',e=>{
   src='stick';

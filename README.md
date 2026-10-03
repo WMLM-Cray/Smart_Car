@@ -1,6 +1,6 @@
 # Auto Car
 
-当前链路：实测参数 → 路段仿真 → DAgger → 独立评估。v2已经入实车
+当前链路：实测参数 → 路段仿真 → DAgger → 独立评估。实车节点 vehicle/road_car_node.py(2026-09-29 起开机自启,现跑 road_v2.5/candidate_b036、限速 0.7,见 docs/实车运行.md)。
 
 | 目录 | 内容 |
 |---|---|

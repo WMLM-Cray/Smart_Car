@@ -78,6 +78,20 @@ class SpeedLoopConfig:
     floor_bump_up: int = 6          # 速度塌了,一次把 floor 抬这么多 PWM
     collapse_frac: float = 0.5      # 速度掉到目标的这个比例以下算"塌了"
     hold_frac: float = 0.8          # 到过目标的这个比例才开始判"塌"(躲开起步加速段)
+    # 2026-09-29 实车:弯道擦地/蹭墙的减速也会被判成"塌了",floor 只升不降,
+    # 一路顶到 pwm_max,之后不管目标多少都按上限跑。两道约束:
+    #   1 floor 不超过起步封顶 pwm_breakaway + start_margin(维持点不会高于起步点)
+    #   2 输出压在 floor 上、车速仍超出目标 overspeed_margin 以上 —— floor 显然高过了
+    #     维持点(在平台之上还是减不下来),按 floor_relax 往回退,最低退到初值 pwm_floor。
+    #     不低于初值,所以不会像"往下探"那样把车探停。
+    overspeed_margin: float = 0.2   # m/s
+    # 起步时学破静点:车连续 move_frames 拍在动,就把 floor 设成当时的 PWM - floor_below_break。
+    # 电调上电状态不同,整条曲线差 ~40 PWM(2026-09-30,12.40V:破静 1552/维持 1544 vs 1594/1586),
+    # 写死 floor 1590 在低位时最低就是 1.37 m/s。破静到维持实测差 6~12(09-22 3/4 电 1604/1598),
+    # 取 4 宁高勿低:floor 高一点只是平台上多几 mm/s,低于维持点就一冲一停。
+    floor_below_break: int = 4
+    move_frames: int = 2            # 一帧"在动"可能是编码器毛刺(静止时 ±200mm/s)
+    floor_relax: float = 2.0        # PWM/s
     # 起步时如果到了 pwm_breakaway 还不动,允许继续往上爬到这里为止。
     # 破静点也可能漂,写死 1594 后若实际起转点更高,还要继续往上爬。
     # 车不动时无法靠 floor 自标定判断实际起转点。
@@ -125,6 +139,7 @@ class SpeedLoop:
     def __init__(self, cfg: SpeedLoopConfig | None = None):
         self.cfg = cfg or SpeedLoopConfig()
         self.floor = float(self.cfg.pwm_floor)      # 学出来的值,跨 reset 保留
+        self.floor_base = self.floor                # 最近一次起步学到的值:floor 往回退的下限
         self.reset()
 
     def reset(self):
@@ -133,12 +148,17 @@ class SpeedLoop:
         self.last_pwm = float(self.cfg.pwm_mid)
         self.stalled = True         # 起步前当作停着
         self.reached = False        # 本轮有没有跑到过目标附近(自标定的武装条件)
+        self.launching = True       # 还没确认起步(没学破静点)
+        self.moving_n = 0           # 连续几拍在动
         # floor 是学出来的,cfg.pwm_floor 只是初值。**不在 reset 里清掉学到的值**
         # 的话换目标速度就会丢标定 —— 所以只在第一次构造时初始化,见 __init__。
 
     def _adapt_floor(self, target, measured, dt):
         """快上慢下地学 pwm_floor(刹停点)。它随电量差 50 个 PWM,写死必然失效。"""
         c = self.cfg
+        if (self.last_pwm <= self.floor + 1e-6 and measured > target + c.overspeed_margin
+                and self.floor > self.floor_base):
+            self.floor = max(self.floor_base, self.floor - c.floor_relax * dt)
         if measured >= target * c.hold_frac:
             self.reached = True             # 这一轮确实跑到过目标附近
             return
@@ -150,8 +170,15 @@ class SpeedLoop:
         # floor 估得远低于真值时,PI 会在真刹停点附近来回震(实测复现:floor 信 1546、
         # 真值 1598,输出在 1594~1598 之间摆,速度 0.24 <-> 0.51 循环),而输出从来
         # 没靠近过 1546,自标定永远不触发。那正是这个模块存在的理由 —— 一冲一停。
-        self.floor = min(float(c.pwm_max), max(self.floor, self.last_pwm + c.floor_bump_up))
+        self.floor = min(float(min(c.pwm_max, c.pwm_breakaway + c.start_margin)),
+                         max(self.floor, self.last_pwm + c.floor_bump_up))
         self.reached = False                # 重新武装,等它再跑起来
+
+    def _learn_breakaway(self):
+        c = self.cfg
+        self.floor = self.floor_base = float(min(c.pwm_breakaway + c.start_margin,
+                                                 max(c.pwm_mid + 2, self.last_pwm - c.floor_below_break)))
+        self.launching = False
 
     def update(self, target: float, measured: float, dt: float) -> float:
         c = self.cfg
@@ -164,6 +191,9 @@ class SpeedLoop:
         # 起步爬升:输出还在 pwm_floor 以下时,只许连续往上爬,不许一步跳到
         # breakaway。原来这里是 max(pwm_breakaway, last_pwm),从中位直接跳 54 个
         # PWM —— 电调按突加油门保护处理,车一动不动,现象和"带不动"一模一样。
+        self.moving_n = self.moving_n + 1 if measured >= c.stall_speed else 0
+        if self.launching and self.moving_n >= c.move_frames:
+            self._learn_breakaway()
         if self.last_pwm < self.floor:
             start = max(self.last_pwm, float(c.launch_from))
             self.last_pwm = min(self.floor, start + c.up_rate * dt)
@@ -198,10 +228,10 @@ class SpeedLoop:
                                       / max(c.ki, 1e-9)))
 
         if self.stalled:
-            # 起步:爬到破静 PWM;还不动就继续爬,但封顶在 breakaway + start_margin。
+            # 起步:按 up_rate 往上爬直到车动,封顶在 breakaway + start_margin。
+            # 不再一步跳到 pwm_breakaway:学到的 floor 可能比它低 40(低位电调),跳过去就是突加油门。
             # **不积分** —— 架空时编码器恒读 0,积分会一路冲顶,一落地就窜出去。
-            pwm = min(float(c.pwm_breakaway + c.start_margin),
-                      max(float(c.pwm_breakaway), self.last_pwm + c.up_rate * dt))
+            pwm = min(float(c.pwm_breakaway + c.start_margin), self.last_pwm + c.up_rate * dt)
         else:
             self._adapt_floor(target, measured, dt)
             # 积分只在没顶到 floor 时累积。顶在 floor 上说明已经减无可减

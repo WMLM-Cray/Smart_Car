@@ -42,14 +42,14 @@ STRAY_SCRIPTS = (
     'coast_test.py', 'esc_rearm.py', 'floor_probe.py', 'pwm_sweep.py',
     'loop_test.py', 'stair_scan.py', 'drain.py',
     'ramp_curve.py', 'straight_trim.py', 'turn_center.py', 'encoder_check.py',
-    'hold_enable.py', 'policy_node.py', 'steer_policy_node.py',
+    'hold_enable.py', 'policy_node.py', 'steer_policy_node.py', 'road_car_node.py',
 )
 REQUIRED_UNITS = ('racecar-chassis', 'racecar-watchdog', 'racecar-web')
 # 2026-09-23:GNOME 桌面没人碰 20 分钟就挂起(不管 SSH/脚本),唤醒后话题、驱动 fd 全正常,
 # 电调却不响应 —— 这里其余检查全过,查不出来。用户已经 mask 掉,这里只盯着它别被改回去。
 SLEEP_UNITS = ('sleep.target', 'suspend.target', 'hibernate.target', 'hybrid-sleep.target')
 SENSORS = {'/encoder': 20, '/scan': 8, '/IMU_data': 30}   # 最低 Hz,实测 34/12/55
-KNOWN_CMD_PUBS = {'teleop_watchdog', 'web_teleop', 'steer_policy_node', 'carready'}
+KNOWN_CMD_PUBS = {'teleop_watchdog', 'web_teleop', 'steer_policy_node', 'road_car_node', 'carready'}
 WINDOW = 2.0
 WAIT = 90.0
 HEAL_AFTER = 20.0       # 重启后实测 4s 就齐,20s 还没有就不是"发现慢"了
