@@ -42,6 +42,23 @@ def test_sharp_corner_in_a_wide_corridor_is_planned_within_the_turning_radius():
     assert np.all(np.abs(p.d) <= p.bound + 1e-3)
 
 
+def test_the_planning_gate_is_injectable():
+    """`plan(..., r_min=)` 与 `check(..., r_min=)` 必须真的改变规划结果。
+
+    踩过的坑:`plan` 的默认参数在 **def 时**就绑定了 `R_MIN`,所以
+    `road_teacher.R_MIN = x` 这种 monkeypatch 对已定义好的函数一点用没有 ——
+    一个"0.95 vs 0.85"的测量跑完全程其实两臂都是 0.85,数字还逐位相同。
+    要换闸只能走参数。
+    """
+    road = corridor(1.4)
+    tight = plan(road, 0, 0.0, CarParams().width, Plant(), r_min=0.95)
+    loose = plan(road, 0, 0.0, CarParams().width, Plant(), r_min=0.85)
+    assert not isinstance(tight, str) and not isinstance(loose, str)
+    assert np.max(np.abs(tight.kappa)) <= 1 / 0.95 + 1e-9
+    assert np.max(np.abs(loose.kappa)) > np.max(np.abs(tight.kappa)), \
+        '放宽闸必须解出更急的路线,否则参数没接上'
+
+
 def test_too_narrow_sharp_corner_is_rejected():
     # 0.6m 宽的尖直角:扣掉车宽和余量已经没有横向空间
     assert plan(corridor(0.6), 0, 0.0, CarParams().width, Plant()) == 'too_narrow'
@@ -102,7 +119,9 @@ def test_l6f_is_a_narrow_sparse_square_corner_after_a_long_lead_in():
     若是急弯(45/90°)后的短直道则照旧 0.5~2.5m。其余关卡 gap_lead=None,抽取顺序不变。"""
     lv = next(l for l in LEVELS if l.name == 'L6f')
     assert lv.gap_lead == (4.0, 7.0) and lv.width == (1.15, 1.5) and lv.gap_spacing == (1.2, 1.5)
-    assert all(l.gap_lead is None for l in LEVELS if l.name != 'L6f')
+    # L6d 是后来新增的密桶方角级,同样用 gap_lead —— 这条断言守的是"加 L6f 没改动
+    # 已有各级的抽取顺序",所以只对非 gap_lead 关卡成立。
+    assert all(l.gap_lead is None for l in LEVELS if l.name not in ('L6f', 'L6d'))
     leads = []
     for seed in range(10):
         road = generate(np.random.default_rng(seed), lv)

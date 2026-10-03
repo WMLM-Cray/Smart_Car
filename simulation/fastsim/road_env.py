@@ -18,7 +18,7 @@ from common.params import CarParams
 from common.pwm import turn_to_steer
 from simulation.fastsim.raycast import cast_cones, cast_walls
 from simulation.fastsim.road import WALL_HEIGHT, Road, inside
-from common.road_policy import V_HI, V_LO, action_to_speed, observe
+from common.road_policy import DEFAULT_ENC, Encoding, action_to_speed, observe
 from simulation.fastsim.vehicle import Car
 
 CONTROL_DT = 0.05
@@ -42,15 +42,17 @@ class Plant:
     launch_delay: float = 1.5       # 起步在死区里空等 s
     lidar_yaw: float = 0.0          # 雷达安装偏角 rad
     cap: float = 0.7                # 速度上限(网页设的),策略看得到
+    enc: Encoding = DEFAULT_ENC     # 这一局的速度契约(观测尺度 + 动作解码区间),由训练配置决定
 
     @staticmethod
-    def sample(rng: np.random.Generator) -> 'Plant':
+    def sample(rng: np.random.Generator, enc: Encoding = DEFAULT_ENC) -> 'Plant':
         return Plant(steer_rate=rng.uniform(3.5, 7.0), steer_gain=rng.uniform(0.9, 1.1),
                      servo_offset=rng.uniform(-1.0, 1.0), lag=int(rng.integers(0, 2)),
-                     v_plateau=rng.uniform(0.45, 0.70), v_top=rng.uniform(0.85, 1.1),
+                     v_plateau=rng.uniform(0.45, 0.70), v_top=rng.uniform(0.85, 1.1) * enc.v_hi,
                      accel_up=rng.uniform(0.4, 1.0), decel=rng.uniform(0.68, 0.78),
                      dead_time=rng.uniform(0.2, 0.35), launch_delay=rng.uniform(0.5, 3.0),
-                     lidar_yaw=math.radians(rng.uniform(-1.0, 1.0)), cap=rng.uniform(V_LO, V_HI))
+                     lidar_yaw=math.radians(rng.uniform(-1.0, 1.0)),
+                     cap=rng.uniform(enc.v_lo, enc.v_hi), enc=enc)
 
 
 class SpeedPlant:
@@ -95,8 +97,8 @@ class RoadEnv:
         self.speed = SpeedPlant(pl)
         self.idx = i0
         self.t, self.next_scan = 0.0, 0.0
-        self.pending = [(0.0, V_LO)] * pl.lag       # 指令延迟队列
-        self.cmd = (0.0, V_LO)
+        self.pending = [(0.0, pl.enc.v_lo)] * pl.lag       # 指令延迟队列
+        self.cmd = (0.0, pl.enc.v_lo)
         n = car_params.lidar_points
         self.angles = -math.pi + np.arange(n) * (2 * math.pi / n)
         self.min_clear = math.inf
@@ -136,14 +138,15 @@ class RoadEnv:
         n = self.noise
         enc = self.car.v + (self.rng.normal(0, 0.02) if n else 0.0)
         gyro = self.car.yaw_rate + (self.rng.normal(0, self.cp.gyro_sigma) if n else 0.0)
-        return observe(self.ranges, self.angles, enc, self.pl.cap, gyro, self.last)
+        return observe(self.ranges, self.angles, enc, self.pl.cap, gyro, self.last,
+                       scale=self.pl.enc.scale)
 
     # ---- 一拍 ----
     def step(self, action) -> str | None:
         """执行一拍 50ms。返回 None 继续,或结束原因 goal/collision/off_track/timeout。"""
         a = np.clip(np.asarray(action, np.float32), -1, 1)
         self.last = a
-        self.pending.append((float(a[0]), action_to_speed(float(a[1]))))
+        self.pending.append((float(a[0]), action_to_speed(float(a[1]), self.pl.enc)))
         self.cmd = self.pending.pop(0)
         steer_a, v_cmd = self.cmd
         pl = self.pl

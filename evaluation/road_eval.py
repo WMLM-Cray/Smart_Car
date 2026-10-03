@@ -24,7 +24,7 @@ from common import low_speed_policy as v1
 from simulation.fastsim.road import LEVELS
 from training.road_check import sample_episode
 from simulation.fastsim.road_env import RoadEnv
-from common.road_policy import RoadPolicy, speed_to_action
+from common.road_policy import DEFAULT_ENC, RoadPolicy, spec_of, speed_to_action
 from training.road_train import summarize
 
 TEST_SEED0 = 90_000_000
@@ -37,11 +37,15 @@ def _schema(path):
 
 def run(args):
     model, seed, level = args
-    road, pl, start, _, _ = sample_episode(seed, level)
+    schema = _schema(model)
+    # 采样必须用模型自己的速度契约:cap 的分布要和模型能表达的速度范围一致,
+    # 否则评估一个 v_hi=3 的模型时它永远看不到高速档,数字没有意义。
+    enc = DEFAULT_ENC if schema.startswith(v1.SCHEMA_PREFIX) else spec_of(schema)
+    road, pl, start, _, _ = sample_episode(seed, level, enc=enc)
     env = RoadEnv(road, pl, seed, start, noise=True)
     # v1 的 schema 带训练时速度尺度后缀(low_speed_steering_v1_s2.4 等),按前缀认,
     # 观测用模型自己的 scale,不能用模块默认 1.5
-    if _schema(model).startswith(v1.SCHEMA_PREFIX):
+    if schema.startswith(v1.SCHEMA_PREFIX):
         pol, last = v1.SteeringPolicy(model), 0.0
         v_a = speed_to_action(pl.cap)
 

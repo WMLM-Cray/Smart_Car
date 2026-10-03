@@ -23,8 +23,13 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from common.road_policy import V_HI, V_LO, RoadPolicy
+from common.road_policy import RoadPolicy, spec_of
 from common.road_runtime import RoadRuntime
+
+
+def _schema(path):
+    with np.load(path) as z:
+        return str(z['schema'])
 
 
 CMD_TOPIC = '/cmd_vel'
@@ -39,8 +44,9 @@ CAR_DOMAIN = '42'           # vehicle/ros_env.sh
 def parser():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('model', help='road_v2 .npz checkpoint')
-    p.add_argument('--speed-cap', type=float, default=1.0,
-                   help=f'maximum commanded speed in m/s ({V_LO}..{V_HI}, the training range; default: 1.0)')
+    p.add_argument('--speed-cap', type=float, default=None,
+                   help='maximum commanded speed in m/s (must be within the model\'s own '
+                        'training range, see its schema suffix; default: the model\'s v_hi)')
     p.add_argument('--sensor-timeout', type=float, default=0.3,
                    help='maximum age of each scan/odometry/IMU sample in sim seconds')
     p.add_argument('--enable-timeout', type=float, default=0.3,
@@ -127,12 +133,17 @@ def main(argv=None):
     if domain is None or domain == CAR_DOMAIN:
         raise SystemExit(f'simulation only: set ROS_DOMAIN_ID to the sim domain (run_sim.sh default 60), '
                          f'not unset and not the car domain {CAR_DOMAIN}')
-    if not V_LO <= args.speed_cap <= V_HI:
-        raise SystemExit(f'--speed-cap must be within the training range {V_LO}..{V_HI} m/s')
     if args.sensor_timeout <= 0.0 or args.enable_timeout <= 0.0:
         raise SystemExit('timeouts must be positive')
     if not Path(args.model).is_file():
         raise SystemExit(f'model file not found: {args.model}')
+
+    enc = spec_of(_schema(args.model))      # 速度区间是模型自描述的,不再写死
+    if args.speed_cap is None:
+        args.speed_cap = enc.v_hi
+    if not enc.v_lo <= args.speed_cap <= enc.v_hi:
+        raise SystemExit(f'--speed-cap {args.speed_cap} must be within this model\'s training '
+                         f'range {enc.v_lo}..{enc.v_hi} m/s (from its schema)')
 
     import rclpy
     from rclpy.signals import SignalHandlerOptions
