@@ -1,0 +1,12 @@
+[Unit]
+Description=Auto Car: feed ESC neutral 1540 once the chassis driver is up (ESC latches neutral at power-on)
+After=racecar-chassis.service
+# 底盘重启时跟着重跑:驱动重启后要重新喂中位
+PartOf=racecar-chassis.service
+[Service]
+Type=oneshot
+User=orange-pi
+WorkingDirectory=/home/orange-pi/autocar
+ExecStart=/bin/bash -c 'source vehicle/ros_env.sh && exec python3 -m vehicle.esc_neutral_boot'
+[Install]
+WantedBy=racecar-chassis.service

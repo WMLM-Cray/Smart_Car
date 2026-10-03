@@ -22,18 +22,11 @@ MODEL=$2
 LAYOUT=$3
 OUTPUT=$4
 
-if ! grep -q 'gazebo_ros_state' "$WORLD_SOURCE"; then
-  echo "world source lacks gazebo_ros_state; use the *_sim.world variant so /model_states is available" >&2
-  exit 2
-fi
-
 # v2 仿真节点没有防撞:road_runtime 里根本没有 ScanGuard(带 guard 的是队友分支
 # feat/road-v2-car-node 上的实车节点 road_car_node.py,还没并进来)。所以 GUARD
 # 无处可传。这不是小事 —— 我们所有 Gazebo 验收都是 guard=0.25 口径,而这条路上
-# 没有 guard,跑出来的圈数/撞锥数**和 v1 的不可比**。不静默吞掉,设了就报错,
-# 免得产出一批看着正常、实则换了口径的数字。
-#
-# 放在这里而不是起完仿真再判:gzserver 起来要一分多钟,参数错误不该等那么久。
+# 没有 guard,跑出来的圈数/撞锥数**和 v1 的不可比**。不静默吞掉,设了就报错。
+# 这个纯参数错误先于任何路径/内容预检,以便调用方可稳定校验脚本接口。
 if [[ -n "${GUARD:-}" ]]; then
   echo "v2 仿真节点没有防撞(GUARD=$GUARD 无处可传);" >&2
   echo "本轮的撞锥统计是纯物理碰撞,和 v1 的 guard=0.25 口径不可比。" >&2
@@ -41,20 +34,57 @@ if [[ -n "${GUARD:-}" ]]; then
   exit 5
 fi
 
+for input in "$WORLD_SOURCE" "$MODEL" "$LAYOUT"; do
+  if [[ ! -f "$input" || ! -r "$input" ]]; then
+    echo "required input is missing or unreadable: $input" >&2
+    exit 2
+  fi
+done
+
+if ! grep -q 'gazebo_ros_state' "$WORLD_SOURCE"; then
+  echo "world source lacks gazebo_ros_state; use the *_sim.world variant so /model_states is available" >&2
+  exit 2
+fi
+
+# Fail before starting the expensive Gazebo process if the scorer's layout is
+# malformed. official_to_gazebo.py is the supported producer for A-D layouts.
+python3 - "$LAYOUT" <<'PY'
+import math
+import sys
+import yaml
+
+try:
+    layout = yaml.safe_load(open(sys.argv[1], encoding='utf-8'))
+    start = layout['start_pose']
+    xy = start['xy']
+    yaw = float(start['yaw_deg'])
+    cones = layout['cones']
+    valid = (isinstance(xy, list) and len(xy) == 2
+             and all(math.isfinite(float(v)) for v in (*xy, yaw))
+             and isinstance(cones, list) and len(cones) >= 3
+             and all({'id', 'x', 'y'} <= set(c) for c in cones))
+except (OSError, ValueError, TypeError, KeyError, yaml.YAMLError):
+    valid = False
+if not valid:
+    raise SystemExit(f'invalid track_eval layout: {sys.argv[1]}')
+PY
+
 REPO=$(cd "$(dirname "$0")/../.." && pwd)
 WS="$REPO/simulation/gazebo"
 LOG="${OUTPUT%.json}.launch.log"
 
-WORKER=${WORKER:-}
-if [[ -n "$WORKER" ]]; then
-  ROS_DOMAIN_ID=$((43 + WORKER))
-  GAZEBO_PORT=$((11345 + WORKER))
-  WORLD_NAME="codex_road_eval_w${WORKER}.world"
-else
-  ROS_DOMAIN_ID=43
-  GAZEBO_PORT=11345
-  WORLD_NAME="codex_road_eval.world"
+WORKER=${WORKER:-0}
+if [[ ! "$WORKER" =~ ^[0-9]+$ ]] || (( WORKER > 16 )); then
+  echo "WORKER must be an integer from 0 to 16 (reserved evaluation slots)" >&2
+  exit 2
 fi
+# run_sim.sh defaults to domain 60 / port 11360. Shared-server domains 43-50
+# and 84 belong to other workers; use our disjoint 61-77 / 11361-11377 range.
+# WORKER=0 is also the no-argument default, so the normal and parallel forms
+# cannot accidentally alias a different world filename for the same domain.
+ROS_DOMAIN_ID=$((61 + WORKER))
+GAZEBO_PORT=$((11300 + ROS_DOMAIN_ID))
+WORLD_NAME="codex_road_eval_w${WORKER}.world"
 WORLD="$WS/install/racecar_sim/share/racecar_sim/worlds/$WORLD_NAME"
 
 source /opt/ros/humble/setup.bash || true

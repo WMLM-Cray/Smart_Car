@@ -5,6 +5,8 @@
 已测松油减速度约 0.73–0.78 m/s²；下跳 10、20、25 PWM 曾仍持续驱动。
 尚不能把所有下跳都视为断输出，也不能只凭较大减速度断言电调主动刹车。
 雷达在加速及记录阶段预留滑停距离；触发防撞时切中位，截断结果不能当作候选 PWM 的完整响应。
+候选值可以低于中位(测刹车):电调可能刹车也可能直接倒车,车速降到 BRAKE_RELEASE 就回中位,
+不等停稳(停住后接着发就是倒车,雷达只看前方)。所以停车耗时/距离含最后一小段滑行。
 
 运行：python3 -m calibration.coast_test --help
 """
@@ -38,6 +40,7 @@ def stop_gap(v: float) -> float:
 
 
 COAST_MAX = 8.0         # 滑行段最多记这么久(秒),再不停就是没停
+BRAKE_RELEASE = 0.15    # m/s,低于中位的候选值:降到这个速度就回中位
 
 # 减速度分档。滚阻+传动阻力大概 0.3~0.8 m/s²;电调刹车是量级上的区别。
 COAST_MAX_DECEL = 1.0   # 小于这个算自由滑行
@@ -90,6 +93,13 @@ def verdict(decel, stopped):
     if decel > BRAKE_MIN_DECEL:
         return '减速度较大，需排查主动制动、碰撞或测量误差'
     return '介于两者之间'
+
+
+def coast_cmd(cmd: int, speed: float) -> int:
+    """滑行段这一拍发什么。低于中位(刹车/倒车)时车快停就回中位,之后一直中位(cmd 被换掉)。"""
+    if cmd < PWM_MID and abs(speed) < BRAKE_RELEASE:
+        return PWM_MID
+    return cmd
 
 
 class Blocked(Exception):
@@ -250,6 +260,7 @@ def main():
                         if gap is None or gap < stop_gap(node.speed):
                             cmd, cut = PWM_MID, True
                             print(f'  防撞:前方 {gap}m,切中位', flush=True)
+                    cmd = coast_cmd(cmd, node.speed)
                     node.send(cmd)
                     time.sleep(0.05)
                     with node.lock:

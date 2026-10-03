@@ -153,6 +153,8 @@ class Bridge(Node):
         self.pub = self.create_publisher(Twist, topic, 5)
         self.enable_pub = self.create_publisher(Bool, '/policy_enable', 1)
         self.create_subscription(Odometry, '/encoder', self.on_enc, 10)
+        # 策略模式下油门/转向是策略节点发的,这里不发;订阅回来给网页显示真实 PWM(2026-09-29)
+        self.create_subscription(Twist, topic, self.on_cmd, 5)
         self.create_subscription(Odometry, '/odom_combined', self.on_odom, 10)
         self.create_subscription(Imu, '/IMU_data', self.on_imu, 10)
         self.guard = ScanGuard()
@@ -161,6 +163,11 @@ class Bridge(Node):
         self.last_held = False
         self.create_timer(0.05, self.tick)
         self.get_logger().info(f'publishing to {topic}, http://0.0.0.0:{PORT}')
+
+    def on_cmd(self, m):
+        with S.lock:
+            if S.policy:
+                S.pwm, S.turn = round(m.linear.x), round(m.angular.z)
 
     def on_enc(self, m):
         with S.lock:

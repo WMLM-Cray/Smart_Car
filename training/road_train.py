@@ -34,8 +34,9 @@ from simulation.fastsim.road import LEVELS
 from training.road_check import sample_episode
 from simulation.fastsim.road_env import RoadEnv
 from common.road_policy import (DEFAULT_ENC, DIM, FRAMES, KEEP_COLS, NOLA, SCHEMA_SPICA, SPEED_SCALE,
-                                V_HI, V_LO, Encoding, History, drop_last_action, forward, suffix_of)
-from common.spica import load_init
+                                V_HI, V_LO, Encoding, History, drop_last_action, forward, spec_of,
+                                suffix_of)
+from common.spica import is_v1, load_init
 from training.road_teacher import A_LAT, Teacher
 
 TRAIN_SEED0, SELECT_SEED0 = 10_000_000, 50_000_000
@@ -65,7 +66,7 @@ def speed_bins(enc):
 
 
 def run_episode(seed, level, weights=None, beta=0.0, collect=False, enc=DEFAULT_ENC,
-                a_lat=A_LAT):
+                a_lat=A_LAT, cap_max=None, robust=False):
     """跑一局。这一级的种子抽不出可通赛道时返回 None —— 调用方按"作废局"计数。
 
     以前这里 except RuntimeError 就退回 L5c,把"新形状族生成失败"伪装成"L5c 训练成功":
@@ -73,10 +74,11 @@ def run_episode(seed, level, weights=None, beta=0.0, collect=False, enc=DEFAULT_
     现在如实上报,由 _collect 计入 invalid。作废率高的族不该进训练,先测出来再说。
     """
     try:
-        road, pl, start, P, rejects = sample_episode(seed, level, enc=enc, a_lat=a_lat)
+        road, pl, start, P, rejects = sample_episode(seed, level, enc=enc, a_lat=a_lat,
+                                                     cap_max=cap_max)
     except RuntimeError:
         return None
-    env = RoadEnv(road, pl, seed, start, noise=True)
+    env = RoadEnv(road, pl, seed, start, noise=True, robust=robust)
     teacher = Teacher(env, P, a_lat=a_lat)
     hist = History()
     rng = np.random.default_rng(seed + 1)
@@ -241,6 +243,10 @@ def main():
                     help=f'老师过弯的横向加速度上限 m/s²,决定标签里弯中能跑多快(默认 {A_LAT})。'
                          f'只有 v_hi 明显大于 1 时才有区别:v_hi=1.0 下 sqrt(A_LAT·R) 恒大于 1,'
                          f'老师不减速。放开速度要连这个一起提(见 road_teacher.A_LAT)。')
+    ap.add_argument('--cap-max', type=float, default=None,
+                    help='课程分档:每局速度上限只在 [v_lo, 这个值] 里抽;默认到契约的 v_hi')
+    ap.add_argument('--robust-noise', action='store_true',
+                    help='采样和评估都加实车见过的噪声:编码器单帧毛刺、雷达整段缺失')
     a = ap.parse_args()
     enc = Encoding(scale=a.speed_scale, v_lo=V_LO, v_hi=a.v_hi)
     if enc.v_hi <= enc.v_lo:
@@ -284,6 +290,11 @@ def main():
                    git_head=os.popen('git rev-parse HEAD').read().strip())
         (a.out / 'config.json').write_text(json.dumps(cfg, indent=1), encoding='utf-8')
         if a.init is not None:
+            init_schema = str(np.load(a.init)['schema'])
+            if not is_v1(init_schema) and spec_of(init_schema) != enc:
+                # 契约不同的权重直接灌进来,速度通道和速度输出就全按错的尺度解释了,不报错。
+                raise SystemExit(f'{a.init} 的契约是 {spec_of(init_schema)},这次训练是 {enc}:'
+                                 f'先用 python -m common.rescale_spica 换算再热启动')
             w = load_init(a.init)          # v1 会自动重排成 spica(见 common/spica.py)
             n0 = w['w0'].shape[1]
             if n0 not in (DIM * FRAMES, len(KEEP_COLS)):
@@ -325,7 +336,8 @@ def main():
                     level = next(l for l in LEVELS if l.name == name)
                 else:
                     level = LEVELS[lv] if lv == 0 or rng.random() < 0.7 else LEVELS[int(rng.integers(lv))]
-                jobs.append((state['next_seed'], level.name, wts, beta, True, enc, a.a_lat))
+                jobs.append((state['next_seed'], level.name, wts, beta, True, enc, a.a_lat,
+                             a.cap_max, a.robust_noise))
                 state['next_seed'] += 1
             t0 = time.time()
             rows, invalid = _collect(ex, jobs)
@@ -355,7 +367,8 @@ def main():
             level = LEVELS[lv].name
             ev_levels = a.eval_levels.split(',') if a.eval_levels else [level]
             ev, ev_invalid = _collect(ex, [(SELECT_SEED0 + i, ev_levels[i % len(ev_levels)],
-                                            wts, 0.0, False, enc, a.a_lat)
+                                            wts, 0.0, False, enc, a.a_lat, a.cap_max,
+                                            a.robust_noise)
                                            for i in range(a.eval_count)])
             summ = summarize(ev, enc, ev_invalid)
             if a.eval_levels:

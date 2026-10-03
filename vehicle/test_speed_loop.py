@@ -228,20 +228,24 @@ def test_floor_rises_when_the_real_stall_point_is_higher():
     cfg = SpeedLoopConfig()
     loop, plant = SpeedLoop(cfg), Plant(cfg)
     run(loop, plant, 0.6, 10)
-    assert loop.floor == cfg.pwm_floor
+    assert loop.floor > Plant.TRUE_STALL           # 起步学到的(不再是写死的初值)
     plant.stall, plant.brk = 1600, 1606
     trace = run(loop, plant, 0.6, 30)
     assert loop.floor >= 1600, f'没抬上去,还在 {loop.floor}'
     assert stops(trace, cfg) == 0 and plant.v >= cfg.stall_speed
 
 
-def test_floor_does_not_move_when_the_estimate_is_already_good():
-    """真刹停点和初值一致时,floor 不该乱动 —— 不往下探是刻意的设计。"""
+def test_floor_does_not_move_after_it_is_learned():
+    """起步学到 floor 之后,稳定跟目标时 floor 不该乱动 —— 不往下探是刻意的设计。
+    破静和维持只差 5(比实测的 6~12 还紧)时,学到的 floor 也不能低于维持点。"""
     cfg = SpeedLoopConfig()
     loop = SpeedLoop(cfg)
     plant = Plant(cfg, stall=cfg.pwm_floor - 1, brk=cfg.pwm_breakaway)
-    run(loop, plant, 0.6, 30)
-    assert loop.floor == cfg.pwm_floor
+    run(loop, plant, 0.6, 5)
+    learned = loop.floor
+    assert learned >= plant.stall
+    trace = run(loop, plant, 0.6, 25)
+    assert loop.floor == learned and stops(trace, cfg) == 0
 
 
 def test_floor_never_probes_downward():
@@ -256,6 +260,97 @@ def test_floor_never_probes_downward():
     before = loop.floor
     run(loop, plant, 0.20, 30)                 # 0.2 m/s 远低于 0.56 的平台
     assert loop.floor >= before
+
+
+def run_with_corners(loop, plant, target, seconds, every=5.0, length=1.0, drag=0.2):
+    """每 every 秒有 length 秒车被外力拖慢(急弯擦地、蹭墙):那段时间车速按 drag 衰减。
+    这不是 PWM 不够 —— floor 自标定不该把它当成"塌了"。"""
+    out, t = [], 0.0
+    for _ in range(int(seconds / DT)):
+        pwm = loop.update(target, plant.v, DT)
+        v = plant.step(pwm, DT)
+        if t % every > every - length:
+            plant.v = v = v * (1 - (1 - drag) * DT / 0.2)
+        out.append((pwm, v))
+        t += DT
+    return out
+
+
+@pytest.mark.parametrize('target', [0.5, 0.7, 0.9])
+def test_corner_slowdowns_do_not_ratchet_floor_to_max(target):
+    """2026-09-29 实车:road_v2 节点限速 0.5,跑一阵后不管限速多少都冲到很快。
+    原因:每次弯道减速都被当成"塌了"抬 floor,floor 只升不降,一路顶到 pwm_max。"""
+    cfg = SpeedLoopConfig()
+    loop, plant = SpeedLoop(cfg), Plant(cfg)
+    trace = run_with_corners(loop, plant, target, 120)
+    assert loop.floor <= cfg.pwm_breakaway + cfg.start_margin
+    straight = [v for i, (_, v) in enumerate(trace) if i * DT > 60 and (i * DT) % 5.0 < 3.5]
+    assert max(straight) <= max(target, Plant.CURVE[1][1]) + 0.25, max(straight)
+
+
+def test_floor_relaxes_back_when_it_overshoots_the_plateau():
+    """floor 已经被抬过头(1614,平台之上):输出压在 floor 上、车速还比目标高出一截,
+    floor 要往回退,但不低于初值(不往下探到把车探停)。"""
+    cfg = SpeedLoopConfig()
+    loop, plant = SpeedLoop(cfg), Plant(cfg)
+    run(loop, plant, 0.5, 5)
+    loop.floor = cfg.pwm_breakaway + cfg.start_margin
+    trace = run(loop, plant, 0.5, 30)
+    assert cfg.pwm_floor <= loop.floor < 1608
+    assert trace[-1][1] <= 0.5 + cfg.overspeed_margin + 0.05
+    assert stops(trace, cfg) == 0
+
+
+class LowPlant(Plant):
+    """电调"低位"状态(2026-09-30 实测,12.40V):整条曲线比高位低 ~42 PWM,平台速度不变。
+    破静 1552、最低维持 1544;1580≈0.95、1590≈1.37 m/s。"""
+    CURVE = [(p - 42, v) for p, v in Plant.CURVE]
+    TRUE_STALL = 1543
+    TRUE_BREAK = 1552
+
+
+@pytest.mark.parametrize('target', [0.6, 0.7, 0.9])
+def test_low_state_esc_follows_target_instead_of_floor_speed(target):
+    """低位时 floor 写死 1590 = 最低 1.37 m/s,当天策略跟不住 0.6/0.7。起步时要学到破静点,
+    floor 放到它下面,车才能跟目标。"""
+    cfg = SpeedLoopConfig()
+    loop, plant = SpeedLoop(cfg), LowPlant(cfg)
+    trace = run(loop, plant, target, 30)
+    steady = [v for _, v in trace[len(trace) // 2:]]
+    assert max(steady) <= max(target, 0.67) + 0.15, max(steady)
+    assert loop.floor < 1560 and loop.floor > LowPlant.TRUE_STALL
+    assert stops(trace, cfg) == 0
+
+
+def test_high_state_learned_floor_stays_above_stall():
+    cfg = SpeedLoopConfig()
+    loop, plant = SpeedLoop(cfg), Plant(cfg)
+    trace = run(loop, plant, 0.7, 30)
+    assert Plant.TRUE_STALL < loop.floor <= cfg.pwm_breakaway + cfg.start_margin
+    assert stops(trace, cfg) == 0
+
+
+def test_standstill_encoder_spike_does_not_teach_a_low_floor():
+    """编码器静止时偶尔单帧蹦 ±200mm/s:一帧"在动"不能当成起步了。"""
+    cfg = SpeedLoopConfig()
+    loop, plant = SpeedLoop(cfg), Plant(cfg)
+    for i in range(int(3 / DT)):
+        v = 0.2 if i == 5 else plant.v          # 第 5 拍(还在死区里)一帧毛刺
+        loop.update(0.7, v, DT)
+        plant.step(loop.last_pwm, DT)
+    assert loop.floor > Plant.TRUE_STALL
+
+
+def test_relearns_after_esc_power_cycle_changes_state():
+    """同一个节点里电调重上电、从低位变高位:下一次起步要重新学到高位的破静点。"""
+    cfg = SpeedLoopConfig()
+    loop = SpeedLoop(cfg)
+    run(loop, LowPlant(cfg), 0.7, 15)
+    assert loop.floor < 1560
+    loop.reset()
+    trace = run(loop, Plant(cfg), 0.7, 30)
+    assert loop.floor > Plant.TRUE_STALL
+    assert stops(trace[int(8 / DT):], cfg) == 0
 
 
 def test_floor_survives_a_target_change():

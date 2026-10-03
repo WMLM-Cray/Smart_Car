@@ -102,13 +102,18 @@ def test_a_nola_model_ignores_last_action_in_a_real_history(tmp_path):
 def test_an_unrecognised_suffix_raises_instead_of_falling_back():
     """前缀匹配上、剩下的认不出,必须报错。
 
-    以前是静默回落成默认契约 —— `road_v2.5` 这类别人家的名字会被当成"无后缀",
+    以前是静默回落成默认契约 —— `road_v2.6` 这类没登记的名字会被当成"无后缀",
     按 scale 1.5 / V∈[0.45,1.0] 观测和解码,而且全程不报错。打错一个字母同理。
     """
-    for bad in ('road_v2.5', 'spica_v3_s3_v0.45-3_nolla', 'spica_v3_x1_y2'):
+    for bad in ('road_v2.6', 'road_v2.5_nola', 'spica_v3_s3_v0.45-3_nolla', 'spica_v3_x1_y2'):
         with pytest.raises(ValueError):
             spec_of(bad)
     assert spec_of('road_v2') == spec_of('spica_v3')      # 真的无后缀仍然走默认
+
+
+def test_road_v25_is_an_alias_of_the_s3_v045_3_contract():
+    """road_v2.5(车上在用的 b036)只登记别名,不改文件:和 spica_v3_s3_v0.45-3 同一个契约(#19)。"""
+    assert spec_of('road_v2.5') == spec_of('spica_v3_s3_v0.45-3') == Encoding(3.0, 0.45, 3.0)
 
 
 def test_a_255_weight_can_warm_start_a_nola_run_but_not_a_265_one(tmp_path):

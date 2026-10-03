@@ -55,6 +55,10 @@ class Encoding(NamedTuple):
 
 
 DEFAULT_ENC = Encoding()
+# 别名:文件里已经写死 schema、发出去用了的模型,不改名,契约登记在这里(#19)。
+# road_v2.5 是 2026-09 的 v2.5 模型线(车上在用 road_v2.5/candidate_b036),和 spica_v3_s3_v0.45-3
+# 是同一个契约:观测速度按 3.0 归一化、动作速度 0.45~3.0、265 列输入。新模型一律用后缀导出。
+ALIASES = {'road_v2.5': Encoding(3.0, 0.45, 3.0)}
 _SUFFIX = re.compile(r'^_s(?P<scale>[0-9.]+)_v(?P<lo>[0-9.]+)-(?P<hi>[0-9.]+)$')
 
 
@@ -66,6 +70,8 @@ def spec_of(schema) -> Encoding:
     当成默认契约 —— 静默回落会让整个模型按错的尺度和区间跑,不报错。
     """
     s = str(schema)
+    if s in ALIASES:
+        return ALIASES[s]
     prefix = next((p for p in SCHEMA_PREFIXES if s.startswith(p)), None)
     if prefix is None:
         raise ValueError(f'不认识的 schema {s}')

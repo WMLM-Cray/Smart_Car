@@ -20,10 +20,13 @@ class CarParams:
     # L=0.36 -> 0.850。策略对轴距很敏感,改完要重新评估,别直接信旧的完赛率。
     #
     # 2026-09-24 用户拍板统一用 0.33,Gazebo 的 racecar_sim/config/params.yaml 同步改了。
-    wheelbase: float = 0.33         # [实测 2026-09-22]
-    length: float = 0.56            # [假设] 外形 560mm(规则外形尺寸)
-    width: float = 0.35             # [假设] 外形 350mm
-    rear_overhang: float = 0.13     # [假设] 后轴到车尾
+    # 2026-09-30 用户按雷达圆心逐项量(车身前端 0.24、后端 0.20,前轮再伸出 0.03、后轮 0.01):
+    # 前轴在雷达前 0.205、后轴在雷达后 0.145 -> 轴距 0.35;最前端(前轮)离后轴 0.415,
+    # 最后端(后轮)在后轴后 0.065 -> 长 0.48。车尾里程计展开再伸出 0.17,是中间一根细杆,不进车体矩形。
+    wheelbase: float = 0.35         # [实测 2026-09-30]
+    length: float = 0.48            # [实测 2026-09-30] 后轮 -> 前轮外沿
+    width: float = 0.35             # [实测 2026-09-30] 车身宽 350mm
+    rear_overhang: float = 0.065    # [实测 2026-09-30] 后轴到车尾(后轮外沿)
     # 舵机值 -> 等效自行车前轮角(度,左正),2026-09-24 手推实测,
     # docs/实测/2026-09-24-steering/转向标定.md。不是线性的:近满舵 15 个刻度
     # 只多 2~3°。81 那点实测 +0.3° 不可靠,按中位 = 0° 记。点间线性插值。
@@ -78,8 +81,8 @@ class CarParams:
     # --- 策略输出的速度上限(动作 ±1 对应的 m/s),按课程分阶段收紧/放开 ---
 
     # --- 激光雷达(镭神 M10P,/scan) ---
-    lidar_x: float = 0.07           # [代码] base_footprint->laser_link
-    lidar_z: float = 0.21           # [假设] 扫描平面离地高度
+    lidar_x: float = 0.145          # [实测 2026-09-30] 后轴 -> 雷达(厂家 TF 写的 0.07 不对)
+    lidar_z: float = 0.28           # [实测 2026-09-30] 扫描平面离地高度
     lidar_hz: float = 12.0          # [实测] 11.99 Hz
     lidar_points: int = 1667        # [实测] LaserScan ranges 长度,增量 2π/1667
     lidar_min: float = 0.15         # [代码] min_range
@@ -98,9 +101,11 @@ class CarParams:
 class TrackParams:
     width: float = 1.5              # [规则] 赛道宽 1.5m(规则第2-6页;圆形赛道内径1.25/外径2.75 也是这个宽)
     cone_spacing: float = 1.15      # [图1量得] 锥桶间距 ≈ 赛道宽/1.32,约 1.1-1.15m
-    cone_base_radius: float = 0.14  # [假设] 队友用 0.28m 方块代替锥桶
-    cone_top_radius: float = 0.025  # [假设]
-    cone_height: float = 0.63       # [假设]
+    # 2026-10-01 用户:比赛用最常见的 70cm 雪糕桶。底座方板很薄、在雷达平面(0.28)以下,不建模;
+    # 锥身底/顶直径按这类桶常见规格 ~28cm / ~5cm 取,雷达高度处截面直径 ~19cm。
+    cone_base_radius: float = 0.14  # [常见规格] 锥身底部直径 ~28cm
+    cone_top_radius: float = 0.025  # [常见规格] 顶口直径 ~5cm
+    cone_height: float = 0.70       # [用户 2026-10-01] 70cm 雪糕桶
     mean_radius: float = 6.0        # 随机环形赛道平均半径 m
     shape_noise: float = 0.25       # 半径扰动幅度(相对)
     min_curvature_radius: float = 1.6  # 中心线最小曲率半径;需 > 半宽 + 车最小转弯半径裕量
