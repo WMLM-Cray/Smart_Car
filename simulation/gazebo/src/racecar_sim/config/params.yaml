@@ -14,7 +14,7 @@ racecar_sim:
   ground_clearance: 0.06      # [假设] 底盘离地间隙(假设)
   wheel_radius: 0.09          # [实测 2026-09-16] 车轮半径(轮径180mm,用户卷尺核实与本值一致)
   wheel_width: 0.05           # [假设] 轮宽(假设)
-  wheel_base: 0.33            # [实测 2026-09-22 用户复量,2026-09-24 定为统一值,和 common/params.py 同一个数](原 0.36 为 09-16 记录;出厂源码 0.305 是别的车)
+  wheel_base: 0.35            # [实测 2026-09-30 用户按雷达位置逐项量,和 common/params.py 同一个数](09-22 记 0.33;原 0.36 为 09-16 记录;出厂源码 0.305 是别的车)
   wheel_track: 0.28           # [用户确认 2026-09-24] 左右轮中心距 28cm；与前后轴距 33cm 分开
   max_steer_angle: 0.55       # [假设] 车轮关节限位；不是等效自行车角，需验证转弯半径
   # --- 质量 ---
@@ -24,8 +24,8 @@ racecar_sim:
   # laser_link / IMU_link 按[源码契约]保留厂家值(z=0),不挂传感器;
   # laser_sensor_link / imu_sensor_link = 实际安装高度(下面 z 值,假设待实测),
   # 传感器消息 frame_id 用 *_sensor_link,与真实测量位置一致
-  laser_x: 0.07               # [源码] base_footprint 前向偏移(厂家 TF)
-  laser_z: 0.21               # [假设] laser_sensor_link 离地高度(假设,待量)
+  laser_x: 0.145              # [实测 2026-09-30] 后轴 -> 雷达(厂家 TF 写 0.07,不对)
+  laser_z: 0.28               # [实测 2026-09-30] laser_sensor_link 离地高度
   camera_x: 0.24              # [假设] 相机前向偏移(假设;相机无厂家 TF)
   camera_z: 0.24              # [假设] 相机离地高度(假设)
   imu_x: 0.1653               # [源码] base_footprint→IMU_link x(厂家 TF)

@@ -14,7 +14,7 @@ from dataclasses import dataclass, replace
 
 import numpy as np
 
-from common.params import CarParams
+from common.params import CarParams, TrackParams
 from common.pwm import turn_to_steer
 from simulation.fastsim.raycast import cast_cones, cast_walls
 from simulation.fastsim.road import WALL_HEIGHT, Road, inside
@@ -24,6 +24,7 @@ from simulation.fastsim.vehicle import Car
 CONTROL_DT = 0.05
 PHYSICS_DT = 0.01
 OBS_RANGE = 10.0
+TRACK = TrackParams()
 GOAL_BEFORE_END = 1.0       # 离路终点这么远就算到达
 # 加强噪声(robust=True)。实车:编码器静止时偶尔单帧蹦 ±200mm/s(ramp_curve 被骗过);
 # 雷达 USB 掉过线、会被人/杂物挡一段。概率是拍脑袋的量级,不是实测
@@ -131,7 +132,7 @@ class RoadEnv:
                 r = cast_walls(origin, dirs, w[near], WALL_HEIGHT, p.lidar_max)
         if len(self.road.cones):
             r = np.minimum(r, cast_cones(origin, dirs, self.road.cones, self.road.cone_radius,
-                                         0.025, 0.63, OBS_RANGE + 0.5))
+                                         TRACK.cone_top_radius, TRACK.cone_height, OBS_RANGE + 0.5))
         return r
 
     def _scan(self):
