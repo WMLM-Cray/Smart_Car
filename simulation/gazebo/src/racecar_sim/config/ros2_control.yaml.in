@@ -40,6 +40,9 @@ ackermann_steering_controller:
     rear_wheel_track: __WHEEL_TRACK__
     front_wheels_radius: __WHEEL_RADIUS__
     rear_wheels_radius: __WHEEL_RADIUS__
+    # sim_wiring forwards geometry_msgs/Twist to reference_unstamped; keep this
+    # explicit because controller releases may default to TwistStamped.
+    use_stamped_vel: false
     open_loop: false           # 闭环:轮速反馈参与运动学
     use_sim_time: true
     # 里程计 TF:steering_controllers_library 默认 enable_odom_tf=false

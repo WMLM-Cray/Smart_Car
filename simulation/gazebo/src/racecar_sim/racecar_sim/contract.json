@@ -1,66 +1,50 @@
 {
-  "status": "source_checked_runtime_not_verified",
+  "status": "road_v2_source_checked_gazebo_runtime_not_verified",
   "topics": {
     "strategy_input": "/cmd_vel",
-    "driver_input": "/car_cmd_vel",
+    "gazebo_controller_input": "/ackermann_steering_controller/reference_unstamped",
     "encoder": "/encoder",
     "imu": "/IMU_data",
     "scan": "/scan",
     "ekf_output": "/odom_combined",
     "image": "/image_raw (usb_cam default; runtime verification required)"
   },
+  "road_v2_steering": {
+    "model_action_to_angle": "common.road_runtime.RoadRuntime -> common.pwm.action_to_steer -> common.params.CarParams.steer_curve",
+    "angle_to_body_twist": "common.control.to_cmd_vel: angular.z = linear.x * tan(steer_rad) / wheelbase_m",
+    "cmd_vel": "geometry_msgs/Twist; linear.x in m/s, angular.z in rad/s as body yaw rate",
+    "controller_semantics": "Ackermann inverse kinematics uses configured 0.33 m wheelbase and 0.28 m front track",
+    "controller_reference_type": "geometry_msgs/Twist (use_stamped_vel=false)",
+    "urdf_steering_joint_limit_rad": 0.55,
+    "measured_curve_max_equivalent_angle_rad": 0.379,
+    "linear_action_to_angle_or_pwm_conversion_in_gazebo": false
+  },
   "tf": {
     "base_link": {
       "parent": "base_footprint",
-      "xyz": [
-        0,
-        0,
-        0.15
-      ]
+      "xyz": [0, 0, 0.15]
     },
     "laser_link": {
       "parent": "base_footprint",
-      "xyz": [
-        0.07,
-        0,
-        0
-      ]
+      "xyz": [0.07, 0, 0]
     },
     "IMU_link": {
       "parent": "base_footprint",
-      "xyz": [
-        0.1653,
-        0,
-        0
-      ]
+      "xyz": [0.1653, 0, 0]
     }
   },
   "odom_frame": "odom_combined",
-  "camera_launch_resolution": [
-    320,
-    240
-  ],
+  "camera_launch_resolution": [320, 240],
   "camera_yaml_profile": {
-    "resolution": [
-      640,
-      480
-    ],
+    "resolution": [640, 480],
     "fps": 10
   },
-  "driver_pwm": {
-    "throttle": "linear.x * 100 + 1500",
-    "steering": "1500 - angular.z * 1300"
-  },
-  "unmeasured": [
-    "wheelbase",
+  "sim_to_real_unverified": [
     "wheel_radius",
-    "track_width",
     "mass",
     "inertia",
-    "steering_limits",
-    "pwm_to_speed_curve",
-    "pwm_to_steering_curve",
     "physical_sensor_extrinsics",
-    "camera_fov_axis_and_distortion"
+    "camera_fov_axis_and_distortion",
+    "gazebo_ackermann_joint_angles_and_track_dynamics"
   ]
 }

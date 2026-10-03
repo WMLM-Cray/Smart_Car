@@ -19,9 +19,17 @@ from pathlib import Path
 
 import pytest
 
-# 用 PATH 上的 bash 的完整路径:Windows 上裸写 'bash' 会先命中 System32 下的 bash.exe
-# (WSL 启动器),它看不到 Windows 路径,脚本直接 127;shutil.which 走 PATH,拿到的是 Git Bash
-BASH = shutil.which('bash')
+# Windows 上优先选 Git for Windows 的 bash.exe；裸 `bash` 常先命中
+# System32 下的 WSL 启动器，它不能由 subprocess 直接继承管道句柄。
+_BASH_CANDIDATES = [
+    Path(p) for p in (
+        os.environ.get('AUTO_CAR_GIT_BASH', ''),
+        r'C:\Program Files\Git\usr\bin\bash.exe',
+        r'C:\Program Files\Git\bin\bash.exe',
+        r'C:\Program Files (x86)\Git\bin\bash.exe',
+    ) if p
+]
+BASH = next((str(p) for p in _BASH_CANDIDATES if p.is_file()), None) or shutil.which('bash')
 pytestmark = pytest.mark.skipif(BASH is None, reason='没有 bash')
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -31,15 +39,31 @@ ROAD = GAZEBO / 'run_road_policy_once.sh'
 S3 = GAZEBO / 'run_s3_policy_once.sh'
 
 
-def run(script, env=None, extra=None):
-    """跑一次脚本,只走到参数校验。用不存在的 layout/输出路径无所谓 —— 校验在
-    读它们之前就退出了,能走到那一步的用例这里不测(那需要 Gazebo)。"""
+def run(script, tmp_path, env=None, extra=None):
+    """跑一次脚本的参数校验分支。所有输入都放在 pytest 临时目录里，避免
+    把 Windows 的路径传进 Git Bash 后误用它私有的 /tmp。"""
+    model = tmp_path / 'model.npz'
+    model.write_bytes(b'test-model-placeholder')
+    layout = tmp_path / 'layout.yaml'
+    layout.write_text(
+        'track: test\nstart_pose:\n  xy: [0.0, 0.0]\n  yaw_deg: 0.0\n'
+        'cones:\n  - {id: c0, x: 0.0, y: 0.0}\n'
+        '  - {id: c1, x: 1.0, y: 0.0}\n'
+        '  - {id: c2, x: 0.0, y: 1.0}\n', encoding='utf-8')
+    output = tmp_path / 'result.json'
     e = dict(os.environ)
+    if BASH:
+        # Git Bash needs its bundled utilities available when pytest is started
+        # from PowerShell, whose PATH may omit Git's usr/bin directory.
+        bash_dir = Path(BASH).parent
+        if bash_dir.name.lower() == 'bin' and bash_dir.parent.name.lower() == 'git':
+            bash_dir = bash_dir.parent / 'usr' / 'bin'
+        e['PATH'] = str(bash_dir) + os.pathsep + e.get('PATH', '')
     for key in ('GUARD', 'SCAN_TIMEOUT', 'POLICY_SPEED', 'WORKER'):
         e.pop(key, None)
     e.update(env or {})
-    cmd = [BASH, str(script), str(WORLD), 'models/road_v2/candidate_167.npz',
-           '/tmp/_never.yaml', '/tmp/_never.json'] + (extra or [])
+    cmd = [BASH, str(script), str(WORLD), str(model), str(layout),
+           str(output)] + (extra or [])
     return subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace', env=e, timeout=60)
 
 
@@ -47,7 +71,12 @@ def test_world_without_state_plugin_is_rejected(tmp_path):
     """没带 gazebo_ros_state 的 world 拿不到 /model_states,打分全空,必须先挡。"""
     bare = tmp_path / 'bare.world'
     bare.write_text('<sdf version="1.6"><world name="w"/></sdf>', encoding='utf-8')
-    r = subprocess.run([BASH, str(S3), str(bare), 'm.npz', '/tmp/x.yaml', '/tmp/x.json'],
+    model = tmp_path / 'model.npz'
+    model.write_bytes(b'test')
+    layout = tmp_path / 'layout.yaml'
+    layout.write_text('track: test\n', encoding='utf-8')
+    r = subprocess.run([BASH, str(S3), str(bare), str(model), str(layout),
+                        str(tmp_path / 'result.json')],
                        capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=60)
     assert r.returncode == 2
     assert 'gazebo_ros_state' in r.stderr
@@ -60,26 +89,41 @@ def test_missing_args_is_usage_error(script):
     assert 'usage' in r.stderr
 
 
-def test_road_script_rejects_guard_because_v2_has_no_guard():
+def test_road_script_rejects_guard_because_v2_has_no_guard(tmp_path):
     """v2 仿真节点没有 ScanGuard,GUARD 无处可传。吞掉它会让撞锥统计悄悄从
     guard=0.25 口径变成纯物理碰撞,和 v1 的验收不可比。"""
-    r = run(ROAD, {'GUARD': '0.25'})
+    r = run(ROAD, tmp_path, {'GUARD': '0.25'})
     assert r.returncode == 5, r.stderr
     assert 'GUARD=0.25' in r.stderr
     assert '没有防撞' in r.stderr
 
 
-def test_s3_script_rejects_scan_timeout_because_v1_node_ignores_it():
-    r = run(S3, {'SCAN_TIMEOUT': '0.3'})
+def test_guard_rejection_precedes_missing_input_preflight(tmp_path):
+    env = dict(os.environ)
+    for key in ('GUARD', 'SCAN_TIMEOUT', 'POLICY_SPEED', 'WORKER'):
+        env.pop(key, None)
+    env['GUARD'] = '0.25'
+    missing = tmp_path / 'not-created'
+    r = subprocess.run(
+        [BASH, str(ROAD), str(missing / 'world'), str(missing / 'model'),
+         str(missing / 'layout'), str(missing / 'out.json')],
+        capture_output=True, text=True, encoding='utf-8', errors='replace',
+        env=env, timeout=60)
+    assert r.returncode == 5, r.stderr
+    assert 'GUARD=0.25' in r.stderr
+
+
+def test_s3_script_rejects_scan_timeout_because_v1_node_ignores_it(tmp_path):
+    r = run(S3, tmp_path, {'SCAN_TIMEOUT': '0.3'})
     assert r.returncode == 5, r.stderr
     assert 'SCAN_TIMEOUT=0.3' in r.stderr
 
 
-def test_guard_check_happens_before_gzserver_starts():
+def test_guard_check_happens_before_gzserver_starts(tmp_path):
     """参数错误不该等 gzserver 起完(一分多钟)才报。退出码 5 是参数校验,
     不是 3(端口占用)/4(仿真中途死)/6(策略节点已退出)。"""
-    assert run(ROAD, {'GUARD': '0.25'}).returncode == 5
-    assert run(S3, {'SCAN_TIMEOUT': '0.3'}).returncode == 5
+    assert run(ROAD, tmp_path, {'GUARD': '0.25'}).returncode == 5
+    assert run(S3, tmp_path, {'SCAN_TIMEOUT': '0.3'}).returncode == 5
 
 
 def _launch_line(script_text, node_file):
@@ -110,3 +154,19 @@ def test_scripts_only_pass_flags_their_node_accepts():
     assert '--scan-timeout' not in s3
     assert '--sim' in s3            # v1 节点确实认这个
     assert '--speed' in s3
+
+
+def test_road_script_uses_a_reserved_disjoint_domain_and_port_range():
+    """Default and worker slots must not fall back to occupied 43-50/84 or
+    collide with run_sim.sh's default domain 60 / port 11360."""
+    road = ROAD.read_text(encoding='utf-8')
+    assert 'WORKER=${WORKER:-0}' in road
+    assert 'WORKER > 16' in road
+    assert 'ROS_DOMAIN_ID=$((61 + WORKER))' in road
+    assert 'GAZEBO_PORT=$((11300 + ROS_DOMAIN_ID))' in road
+    assert 'WORLD_NAME="codex_road_eval_w${WORKER}.world"' in road
+
+    # The whole 17-slot allocation is disjoint from the reserved domains.
+    assigned_domains = set(range(61, 78))
+    assert assigned_domains.isdisjoint(set(range(43, 51)) | {60, 84})
+    assert {11300 + domain for domain in assigned_domains} == set(range(11361, 11378))

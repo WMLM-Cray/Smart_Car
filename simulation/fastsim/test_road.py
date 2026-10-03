@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from common.params import CarParams
+from common.pwm import action_to_steer
 from simulation.fastsim.road import CONE, LEVELS, WALL, build, generate, self_overlaps
 from training.road_check import check
 from simulation.fastsim.road_env import Plant, RoadEnv, SpeedPlant, footprint_clearance
@@ -103,6 +104,19 @@ def test_observation_and_action_shapes():
     assert DIM * FRAMES == 265
     assert action_to_speed(-1) == V_LO and action_to_speed(1) == V_HI
     assert speed_to_action(action_to_speed(0.3)) == pytest.approx(0.3)
+
+
+@pytest.mark.parametrize('steer_action', [-0.5, 0.5])
+def test_fastsim_applies_the_measured_steering_curve(steer_action):
+    road = corridor(1.5)
+    pl = Plant(steer_rate=5.0, launch_delay=2.0)
+    env = RoadEnv(road, pl, 0, noise=False, sense=False)
+
+    env.step((steer_action, -1.0))
+
+    expected = action_to_steer(steer_action, env.cp)
+    assert env.car.steer == pytest.approx(expected, abs=1e-6)
+    assert abs(expected - steer_action * env.cp.max_steer) > 0.01
 
 
 def test_teacher_label_is_what_the_car_would_send():
