@@ -25,6 +25,10 @@ CONTROL_DT = 0.05
 PHYSICS_DT = 0.01
 OBS_RANGE = 10.0
 GOAL_BEFORE_END = 1.0       # 离路终点这么远就算到达
+# 加强噪声(robust=True)。实车:编码器静止时偶尔单帧蹦 ±200mm/s(ramp_curve 被骗过);
+# 雷达 USB 掉过线、会被人/杂物挡一段。概率是拍脑袋的量级,不是实测
+ROBUST_SPIKE_P = 0.03       # 每拍编码器毛刺概率
+ROBUST_BLOCK_P = 0.05       # 每帧雷达整段缺失概率
 
 
 @dataclass
@@ -45,14 +49,16 @@ class Plant:
     enc: Encoding = DEFAULT_ENC     # 这一局的速度契约(观测尺度 + 动作解码区间),由训练配置决定
 
     @staticmethod
-    def sample(rng: np.random.Generator, enc: Encoding = DEFAULT_ENC) -> 'Plant':
+    def sample(rng: np.random.Generator, enc: Encoding = DEFAULT_ENC,
+               cap_max: float | None = None) -> 'Plant':
+        """cap_max:课程分档时速度上限只抽到这里(默认到契约的 v_hi)。抽取顺序不变。"""
         return Plant(steer_rate=rng.uniform(3.5, 7.0), steer_gain=rng.uniform(0.9, 1.1),
                      servo_offset=rng.uniform(-1.0, 1.0), lag=int(rng.integers(0, 2)),
                      v_plateau=rng.uniform(0.45, 0.70), v_top=rng.uniform(0.85, 1.1) * enc.v_hi,
                      accel_up=rng.uniform(0.4, 1.0), decel=rng.uniform(0.68, 0.78),
                      dead_time=rng.uniform(0.2, 0.35), launch_delay=rng.uniform(0.5, 3.0),
                      lidar_yaw=math.radians(rng.uniform(-1.0, 1.0)),
-                     cap=rng.uniform(enc.v_lo, enc.v_hi), enc=enc)
+                     cap=rng.uniform(enc.v_lo, cap_max or enc.v_hi), enc=enc)
 
 
 class SpeedPlant:
@@ -83,10 +89,12 @@ class RoadEnv:
     """不走 gymnasium:训练是 DAgger,不需要那层接口,少一层开销。"""
 
     def __init__(self, road: Road, pl: Plant, seed: int, start: tuple = (0, 0.0, 0.0),
-                 noise: bool = True, car_params: CarParams = CarParams(), sense: bool = True):
+                 noise: bool = True, car_params: CarParams = CarParams(), sense: bool = True,
+                 robust: bool = False):
         self.road, self.pl, self.sense = road, pl, sense
         self.rng = np.random.default_rng(seed)
         self.noise = noise
+        self.robust = robust and noise     # 加强噪声(实车见过的):编码器毛刺、雷达整段缺失
         # 纵向由 SpeedPlant 给定,Car 只管跟上(tau 小于步长 = 直接等于)
         self.cp = replace(car_params, steer_rate=pl.steer_rate, speed_tau=1e-4, accel_max=1e3)
         self.car = Car(self.cp)
@@ -132,11 +140,17 @@ class RoadEnv:
         if self.noise:
             r = r + self.rng.normal(0, self.cp.lidar_sigma, r.shape)
             r[self.rng.random(r.shape) < 0.02] = np.inf
+            if self.robust and self.rng.random() < ROBUST_BLOCK_P:
+                # 一整段角度没回波(USB 掉帧、被遮挡):10~40° 连续缺失
+                a0, w = self.rng.uniform(-math.pi, math.pi), math.radians(self.rng.uniform(10, 40))
+                r[np.abs((self.angles - a0 + math.pi) % (2 * math.pi) - math.pi) < w / 2] = np.inf
         self.ranges = np.where(r >= self.cp.lidar_min, r, np.inf)
 
     def observation(self) -> np.ndarray:
         n = self.noise
         enc = self.car.v + (self.rng.normal(0, 0.02) if n else 0.0)
+        if self.robust and self.rng.random() < ROBUST_SPIKE_P:
+            enc += self.rng.choice([-1.0, 1.0]) * self.rng.uniform(0.1, 0.25)   # 单帧毛刺
         gyro = self.car.yaw_rate + (self.rng.normal(0, self.cp.gyro_sigma) if n else 0.0)
         return observe(self.ranges, self.angles, enc, self.pl.cap, gyro, self.last,
                        scale=self.pl.enc.scale)

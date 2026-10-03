@@ -20,7 +20,7 @@ from scipy.optimize import lsq_linear
 from common.pwm import steer_to_turn_float
 from simulation.fastsim.road import CONE, DS, NONE, WALL, Road
 from simulation.fastsim.road_env import CONTROL_DT, RoadEnv
-from common.road_policy import speed_to_action
+from common.road_policy import V_HI, speed_to_action
 
 R_MIN = 0.85                # 规划用最小转弯半径 m(车极限 0.828;0.95 是代码闸不是物理墙)
 # 车身两侧到边界至少留这么多(规划时)。锥桶立在边界线上,半径 0.14 要额外扣;
@@ -78,7 +78,7 @@ def curvature(pts: np.ndarray, gap: int = 3) -> np.ndarray:
 
 def plan(road: Road, i0: int, d0: float, car_width: float, pl,
          horizon: float | None = None, r_min: float = R_MIN,
-         a_lat: float = A_LAT) -> Plan | str:
+         a_lat: float = A_LAT, v_end: float | None = None) -> Plan | str:
     """返回 Plan,或者失败原因字符串('too_narrow' / 'curvature' / 'plan_error')。
 
     在 0.25m 一个的粗网格上解,再三次样条插回 5cm。粗点的边界取它前后半格内
@@ -89,6 +89,7 @@ def plan(road: Road, i0: int, d0: float, car_width: float, pl,
              2026-09-30 之前这两处一个用参数、一个用模块常量,于是"只放宽闸"看着
              毫无效果 —— 地板没跟着动。合并成一个,改一处就是改一处。
     a_lat    弯中横向加速度上限,决定标签里弯中能跑多快(见 A_LAT)
+    v_end    窗口没到路终点时,末端车速不超过它(None = 不限;见 Teacher)
     """
     i1 = len(road.half) if horizon is None else min(len(road.half), i0 + int(horizon / DS) + 1)
     margin = np.vectorize(SIDE_MARGIN.get)
@@ -143,6 +144,8 @@ def plan(road: Road, i0: int, d0: float, car_width: float, pl,
     s = np.concatenate([[0], np.cumsum(np.hypot(*np.diff(pts, axis=0).T))])
     v_top = min(pl.cap, pl.v_top)
     v = np.minimum(v_top, np.sqrt(a_lat / np.maximum(np.abs(kap), 1e-6)))
+    if v_end is not None and i1 < len(road.half):
+        v[-1] = min(v[-1], v_end)
     for i in range(len(v) - 2, -1, -1):     # 倒推:前面要慢,这里就得提前松油
         v[i] = min(v[i], math.sqrt(v[i + 1] ** 2 + 2 * A_DEC * (s[i + 1] - s[i])))
     return Plan(pts, s, kap, v, np.minimum(hi_all, -lo_all), dense)
@@ -163,6 +166,10 @@ class Teacher:
         self.j = 0
         self.replan, self.n, self.fails = replan, 0, 0
         self.a_lat = a_lat
+        # 高速契约(v_hi > 1):看不到的地方可能紧跟一个最急的弯,重规划窗口末端必须已经降到
+        # 能过 R_MIN 的速度。v_hi<=1 时这条只在窗口最后 0.8m 起作用、老师看的点在 0.6m 内,
+        # 不受影响,所以只对高速契约加,默认契约逐位不变。2026-09-29 road_v2.5 引入。
+        self.v_end = math.sqrt(a_lat * R_MIN) if env.pl.enc.v_hi > V_HI else None
         # privileged=False:老师按名义车辆参数算(学生看不到这一局的延迟/增益/中位/纯滞后/满电速度),
         # 真实偏差靠每拍重规划吸收。标签就只取决于学生看得到的东西。
         self.pl = env.pl if privileged else replace(env.pl, lag=0.5, steer_gain=1.0, servo_offset=0.0,
@@ -171,7 +178,7 @@ class Teacher:
     def _replan(self):
         env, car = self.env, self.env.car
         i, d = env.road.project((car.x, car.y), env.idx)
-        P = plan(env.road, i, d, env.cp.width, self.pl, HORIZON, R_REPLAN, self.a_lat)
+        P = plan(env.road, i, d, env.cp.width, self.pl, HORIZON, R_REPLAN, self.a_lat, self.v_end)
         if isinstance(P, str):
             self.fails += 1
             return

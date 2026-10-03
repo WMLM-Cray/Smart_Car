@@ -216,14 +216,21 @@ def _schema(path):
         return str(z['schema'])
 
 
+def _enc(model, schema=None):
+    """速度契约跟模型走(见 common/road_policy.py):v_hi=3 的模型要按 3 的区间观测/解码。
+    只跑老师(没有 model)时用 --schema 指定的契约;v1 模型按默认契约。"""
+    if model is not None:
+        s = _schema(model)
+        return DEFAULT_ENC if s.startswith(v1.SCHEMA_PREFIX) else spec_of(s)
+    return DEFAULT_ENC if schema is None else spec_of(schema)
+
+
 def run(args):
-    model, name, seed, cap, fill_v, a_lat = args
+    """args = (model, track, seed, cap, fill_v, a_lat[, schema, robust])。"""
+    model, name, seed, cap, fill_v, a_lat, schema, robust = (*args, None, False)[:8]
     road, lap_len = official(name, fill_v)
     rng = np.random.default_rng(seed)
-    # 速度契约跟模型走(见 common/road_policy.py):v_hi=3 的模型要按 3 的区间观测/解码
-    enc = DEFAULT_ENC
-    if model is not None and not _schema(model).startswith(v1.SCHEMA_PREFIX):
-        enc = spec_of(_schema(model))
+    enc = _enc(model, schema)
     pl = replace(Plant.sample(rng, enc), cap=cap)
     out = dict(track=name, seed=seed, cap=cap, v_plateau=pl.v_plateau, v_top=pl.v_top)
     # 通过性:老师用同一组车辆参数跑(它只解释"这条路老师过不过得去",不是学生成绩)
@@ -233,13 +240,16 @@ def run(args):
     else:
         env = RoadEnv(road, pl, seed, noise=False, sense=False)
         t = Teacher(env, P, a_lat=a_lat)
-        why = None
+        why, tl = None, []
         while why is None:
             why = env.step(t())
+            if road.s[env.idx] >= lap_len * (len(tl) + 1) and len(tl) < LAPS:
+                tl.append(env.t)
         out['teacher'] = why
+        out['teacher_laps'] = [tl[0]] + list(np.diff(tl)) if tl else []
         out['teacher_clear'] = float(env.min_clear)
     # 学生
-    env = RoadEnv(road, pl, seed, noise=True)
+    env = RoadEnv(road, pl, seed, noise=True, robust=robust)
     if model is None:
         return out
     # v1 按 schema 前缀认(带速度尺度后缀的也算),观测用模型自己的 scale
@@ -281,8 +291,14 @@ def main():
     ap.add_argument('--fill-v', action='store_true', help='黄 V 也排锥桶(测黄 V 以外的部分)')
     ap.add_argument('--out', default=None)
     ap.add_argument('--a-lat', type=float, default=A_LAT, help='老师的弯中横向加速度上限(见 road_teacher.A_LAT)')
+    ap.add_argument('--schema', default=None,
+                    help='只跑老师时用哪个速度契约(如 road_v2.5、spica_v3_s3_v0.45-3);给了 --model 就按模型的')
+    ap.add_argument('--robust', action='store_true', help='学生加实车见过的噪声(编码器毛刺、雷达整段缺失)')
     a = ap.parse_args()
-    jobs = [(a.model, t, a.seed_start + i, cap, a.fill_v, a.a_lat)
+    enc = _enc(a.model, a.schema)
+    if max(a.caps) > enc.v_hi:
+        raise SystemExit(f'速度上限 {max(a.caps)} 超出契约 {enc}')
+    jobs = [(a.model, t, a.seed_start + i, cap, a.fill_v, a.a_lat, a.schema, a.robust)
             for t in a.tracks for cap in a.caps for i in range(a.count)]
     with ProcessPoolExecutor(a.workers) as ex:
         rows = list(ex.map(run, jobs))
@@ -290,8 +306,10 @@ def main():
     for t, cap in ((t, cap) for t in a.tracks for cap in a.caps):
         rs = [r for r in rows if r['cap'] == cap and r['track'] == t]
         ok = [r for r in rs if r.get('reason') == 'goal']
+        tok = [r for r in rs if r['teacher'] == 'goal']
         summary[f'{t} {cap:.2f}'] = dict(
-            teacher=sum(r['teacher'] == 'goal' for r in rs) / len(rs),
+            teacher=len(tok) / len(rs),
+            teacher_lap1=float(np.mean([r['teacher_laps'][0] for r in tok])) if tok else None,
             student=len(ok) / len(rs) if a.model else None,
             reasons={k: sum(r.get('reason') == k for r in rs) for k in {r.get('reason') for r in rs}},
             lap1=float(np.mean([r['laps'][0] for r in ok])) if ok else None,

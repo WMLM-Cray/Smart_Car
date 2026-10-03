@@ -35,14 +35,19 @@ def _schema(path):
         return str(z['schema'])
 
 
+def _enc(schema):
+    return DEFAULT_ENC if schema.startswith(v1.SCHEMA_PREFIX) else spec_of(schema)
+
+
 def run(args):
-    model, seed, level = args
+    """args = (model, seed, level[, cap_max, robust])。"""
+    model, seed, level, cap_max, robust = (*args, None, False)[:5]
     schema = _schema(model)
     # 采样必须用模型自己的速度契约:cap 的分布要和模型能表达的速度范围一致,
     # 否则评估一个 v_hi=3 的模型时它永远看不到高速档,数字没有意义。
-    enc = DEFAULT_ENC if schema.startswith(v1.SCHEMA_PREFIX) else spec_of(schema)
-    road, pl, start, _, _ = sample_episode(seed, level, enc=enc)
-    env = RoadEnv(road, pl, seed, start, noise=True)
+    enc = _enc(schema)
+    road, pl, start, _, _ = sample_episode(seed, level, enc=enc, cap_max=cap_max)
+    env = RoadEnv(road, pl, seed, start, noise=True, robust=robust)
     # v1 的 schema 带训练时速度尺度后缀(low_speed_steering_v1_s2.4 等),按前缀认,
     # 观测用模型自己的 scale,不能用模块默认 1.5
     if schema.startswith(v1.SCHEMA_PREFIX):
@@ -74,11 +79,14 @@ def main():
     ap.add_argument('--count', type=int, default=500)
     ap.add_argument('--workers', type=int, default=8)
     ap.add_argument('--seed-start', type=int, default=TEST_SEED0)
+    ap.add_argument('--cap-max', type=float, default=None, help='每局速度上限只抽到这里(课程分档)')
+    ap.add_argument('--robust', action='store_true', help='加实车见过的噪声(编码器毛刺、雷达整段缺失)')
     ap.add_argument('--out', default=None)
     a = ap.parse_args()
     with ProcessPoolExecutor(a.workers) as ex:
-        rows = list(ex.map(run, [(a.model, a.seed_start + i, a.level) for i in range(a.count)]))
-    summ = summarize(rows)
+        rows = list(ex.map(run, [(a.model, a.seed_start + i, a.level, a.cap_max, a.robust)
+                                 for i in range(a.count)]))
+    summ = summarize(rows, _enc(_schema(a.model)))
     report = dict(model=a.model, sha256=hashlib.sha256(open(a.model, 'rb').read()).hexdigest(),
                   schema=_schema(a.model), level=a.level, seed_start=a.seed_start,
                   summary=summ, episodes=rows)
