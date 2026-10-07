@@ -27,6 +27,10 @@ python -m evaluation.road_track --model runs/road_trial/candidate_001.npz --trac
 ```
 
 
+## 协作规则
+
+开工前先读 [MEMORY.md](MEMORY.md)：流程、PR 要求、实车安全事实，以及给 AI 编码助手的说明。所有 PR 按它审查。
+
 见 [整理说明](docs/整理说明.md)、[实车运行](docs/实车运行.md)、[模型说明](models/模型说明.md)。
 
 Gazebo 构建与验证边界见 [三维仿真说明](simulation/gazebo/说明.md)。
