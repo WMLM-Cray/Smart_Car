@@ -55,14 +55,35 @@ def feed(ctl, t, speed=0.0):
     ctl.on_enable(True, t)
 
 
+class SpyPolicy:
+    """记下控制器每拍实际喂给模型的观测。"""
+
+    def __init__(self, policy):
+        self.policy, self.obs = policy, None
+
+    def reset(self):
+        self.policy.reset()
+
+    def __call__(self, obs):
+        self.obs = np.array(obs)
+        return self.policy(obs)
+
+
 def test_same_actions_as_training_env_on_a_fastsim_episode():
-    """同一局 FastSim:训练环境 env.observation() 喂模型 vs 实车控制器吃原始传感器,动作逐拍一致。"""
+    """同一局 FastSim:训练环境 env.observation() 喂模型 vs 实车控制器吃原始传感器,观测和动作逐拍一致。
+
+    环境按**控制器**发的动作走,两边观测里的"上一步动作"就是同一个值。原来按参考动作走,控制器
+    记的是自己的动作:雷达转 float32(LaserScan 本来就是 float32)带来的 ~6e-8 舍入会经上一步动作
+    通道逐拍反馈放大,本机到 7e-7,别的 numpy/BLAS 上超过 1e-6 报错(PR #22 回报)。
+    现在逐拍误差不累积:观测只差 float32 舍入,动作差同量级。
+    """
     rng = np.random.default_rng(3)
     road = generate(rng, next(l for l in LEVELS if l.name == 'L3'))
     pl = Plant.sample(rng)
     env = RoadEnv(road, pl, seed=3, noise=False)
     ref = RoadPolicy(MODEL)
-    ctl = RoadCarController(RoadPolicy(MODEL), pl.cap)
+    spy = SpyPolicy(RoadPolicy(MODEL))
+    ctl = RoadCarController(spy, pl.cap)
     ctl.on_enable(True, 0.0)
     for _ in range(120):
         t = env.t
@@ -70,12 +91,14 @@ def test_same_actions_as_training_env_on_a_fastsim_episode():
         ctl.on_encoder(env.car.v, t)
         ctl.on_imu(env.car.yaw_rate, t)
         ctl.on_enable(True, t)
-        want = ref(env.observation())
+        obs = env.observation()
+        want = ref(obs)
         cmd = ctl.tick(t)
         assert cmd is not None
-        np.testing.assert_allclose(ctl.rt.last_action, want, atol=1e-6)
-        assert cmd[1] == steer_to_turn(action_to_steer(float(want[0]), P), P)
-        if env.step(want) is not None:
+        np.testing.assert_allclose(spy.obs, obs, rtol=0, atol=1e-6)
+        np.testing.assert_allclose(ctl.rt.last_action, want, rtol=0, atol=1e-5)
+        assert cmd[1] == steer_to_turn(action_to_steer(float(ctl.rt.last_action[0]), P), P)
+        if env.step(ctl.rt.last_action) is not None:
             break
 
 
