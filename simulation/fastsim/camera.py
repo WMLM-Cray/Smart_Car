@@ -4,12 +4,16 @@
 同样格式的结果,再加上实车会有的毛病:视场与有效距离、漏检、位置误差、偶尔的误检。
 误差参数都是 [假设],等实车标定后改 YoloSimConfig。
 
+视场:水平 camera_hfov、垂直 camera_vfov(队友给的 70.3° / 55.8°)。垂直视场决定车前多近的地面
+拍不到:相机高 camera_z、下俯 camera_pitch(未实测时按 0)-> 相机前 ~0.45 m 内看不到桶底。
+
 能检出的类别(common.bev.CellType):
   CONE  锥桶:road.cones 里在视场内、有效距离内的
   TAPE  胶带:边界材质是 NONE(没桶、只铺胶带)的那几段,沿线每 0.1 m 一个点
   ZONE / TRAFFIC_LIGHT:FastSim 的路里还没有这两类物体,接口已留(update_camera 认这两类)
 
-第一版不算遮挡(前面的桶挡住后面的桶),所以检出偏乐观。
+遮挡:从相机看,每个锥桶占一段方位角(半宽 asin(r/d),r 取桶底半径);离相机更近的桶把这段
+角度盖住的比例超过 1 - min_visible,就当被挡住、YOLO 认不出来。胶带贴地,不算遮挡。
 """
 from __future__ import annotations
 
@@ -31,6 +35,7 @@ class YoloSimConfig:
     sigma0: float = 0.02        # [假设] 位置误差 m:sigma0 + sigma_per_m × 距离
     sigma_per_m: float = 0.02   # [假设]
     false_rate: float = 0.02    # [假设] 每帧冒出一个假锥桶的概率
+    min_visible: float = 0.5    # [假设] 锥桶露出这么多(按方位角宽度算)YOLO 才认得出
 
 
 class FakeYolo:
@@ -54,8 +59,43 @@ class FakeYolo:
         bx, by = c * dx + s * dy, -s * dx + c * dy
         cx = bx - self.p.camera_x
         d = np.hypot(cx, by)
-        ok = (d <= self.p.yolo_range) & (np.abs(np.arctan2(by, cx)) <= self.p.camera_hfov / 2) & (cx > 0)
+        # 垂直视场:光轴下俯 pitch,画面下沿再往下 vfov/2;地面点比 near 还近就出了画面下沿,
+        # 桶底(落地投影要用它)拍不到。pitch 未实测时按 0。
+        down = self.p.camera_pitch + self.p.camera_vfov / 2
+        near = self.p.camera_z / math.tan(down) if down < math.pi / 2 else 0.0
+        ok = ((d <= self.p.yolo_range) & (cx >= near) & (cx > 0)
+              & (np.abs(np.arctan2(by, cx)) <= self.p.camera_hfov / 2))
         return ok, np.stack([bx, by], axis=1), d
+
+    def visible(self, pose, cones: np.ndarray, radius: float) -> np.ndarray:
+        """每个锥桶从相机看露出的比例(0~1):被更近的桶挡住的方位角宽度扣掉。"""
+        x, y, yaw = pose
+        cx, cy = x + self.p.camera_x * math.cos(yaw), y + self.p.camera_x * math.sin(yaw)
+        d = np.hypot(cones[:, 0] - cx, cones[:, 1] - cy)
+        th = np.arctan2(cones[:, 1] - cy, cones[:, 0] - cx)
+        half = np.arcsin(np.clip(radius / np.maximum(d, radius), 0, 1))
+        out = np.ones(len(cones))
+        order = np.argsort(d)
+        for n, i in enumerate(order):
+            lo, hi = th[i] - half[i], th[i] + half[i]
+            ivs = []
+            for j in order[:n]:                                     # 只有更近的桶能挡
+                dj = (th[j] - th[i] + math.pi) % (2 * math.pi) - math.pi
+                a, b = max(lo, th[i] + dj - half[j]), min(hi, th[i] + dj + half[j])
+                if b > a:
+                    ivs.append((a, b))
+            if ivs:
+                ivs.sort()
+                cov, cur_a, cur_b = 0.0, *ivs[0]
+                for a, b in ivs[1:]:
+                    if a > cur_b:
+                        cov += cur_b - cur_a
+                        cur_a, cur_b = a, b
+                    else:
+                        cur_b = max(cur_b, b)
+                cov += cur_b - cur_a
+                out[i] = 1.0 - cov / (hi - lo)
+        return out
 
     def detect(self, pose) -> tuple[np.ndarray, np.ndarray]:
         """返回 (kinds, xy_body):kinds 是 CellType,xy_body 是车体系(后轴原点)落地点。"""
@@ -65,8 +105,13 @@ class FakeYolo:
                                      (self.tape, CellType.TAPE, False)):
             if not len(objs):
                 continue
-            ok, b, d = self._in_view(np.asarray(objs, float), pose)
+            objs = np.asarray(objs, float)
+            ok, b, d = self._in_view(objs, pose)
             if can_miss:
+                if ok.any():                    # 遮挡按视场内所有桶算(漏检的桶照样挡视线)
+                    vis = np.zeros(len(ok))
+                    vis[ok] = self.visible(pose, objs[ok], self.road.cone_radius)
+                    ok &= vis >= cfg.min_visible
                 ok &= rng.random(len(ok)) >= cfg.miss
             b, d = b[ok], d[ok]
             b = b + rng.normal(0, 1, b.shape) * (cfg.sigma0 + cfg.sigma_per_m * d)[:, None]

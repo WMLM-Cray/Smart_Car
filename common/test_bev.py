@@ -80,8 +80,12 @@ def test_camera_detections_register_with_their_class_and_priority():
     bev.update_lidar(scan_of([cone_odom], pose), ANG, pose, 0.0)          # 雷达先看到:障碍
     assert set(bev.types()) == {CellType.OBSTACLE}
     bev.update_camera([CellType.CONE, CellType.TAPE], [cone_body, tape_body], pose, 0.1)
+    assert (bev.crop(pose) == CellType.CONE).sum() == 0                     # 只检到 1 次:先不画(防误检)
+    bev.update_camera([CellType.CONE], [(cone_body[0] + 0.03, cone_body[1])], pose, 0.2)
     img = bev.crop(pose)
-    assert (img == CellType.CONE).sum() >= 1                                # 同格摄像头说锥桶 -> 锥桶
+    assert len(bev.cones()) == 1                                            # 两次检测并成一个地标
+    assert np.hypot(*(bev.cones()[0] - body_to_odom([(cone_body[0] + 0.015, cone_body[1])], pose)[0])) < 1e-9
+    assert (img == CellType.CONE).sum() > 20                                # 画成一个实心圆(半径 0.14)
     assert (img == CellType.TAPE).sum() == 1                                # 雷达看不见的胶带
     layers = bev.crop_layers(pose)
     assert layers.shape == (5, 160, 160) and layers[0].sum() >= 1           # 雷达层仍在
@@ -149,9 +153,26 @@ def test_fake_yolo_sees_cones_in_front_within_range_only():
     assert len(kinds) and set(kinds) == {int(CellType.CONE)}
     cx = xy[:, 0] - P.camera_x
     assert (cx > 0).all() and (np.hypot(cx, xy[:, 1]) <= P.yolo_range + 1e-9).all()
-    near = road.cones[(road.cones[:, 0] > P.camera_x) & (road.cones[:, 0] < P.camera_x + 3.0)]
-    for c in near:                                     # 视场正中、3 m 内的桶一个不漏、位置准
-        assert np.min(np.hypot(*(xy - c).T)) < 1e-9
+    assert (np.abs(np.arctan2(xy[:, 1], cx)) <= P.camera_hfov / 2 + 1e-9).all()
+    for side in (1, -1):                               # 每侧视场内最近的那个桶一定看得到、位置准
+        c = road.cones[(np.sign(road.cones[:, 1]) == side) & (road.cones[:, 0] > P.camera_x)]
+        c = c[np.abs(np.arctan2(c[:, 1], c[:, 0] - P.camera_x)) <= P.camera_hfov / 2]
+        nearest = c[np.argmin(c[:, 0])]
+        assert np.min(np.hypot(*(xy - nearest).T)) < 1e-9
+
+
+def test_fake_yolo_far_cones_in_a_row_are_hidden_by_nearer_ones():
+    """一排桶斜着看,远处的会被近处的挡住;正对着的单个桶不挡。"""
+    from simulation.fastsim.camera import FakeYolo
+    from simulation.fastsim.road import CONE, build
+    road = build([dict(kind='straight', length=12.0, width=1.5, mat=(CONE, CONE))])
+    cam = FakeYolo(road)
+    row = np.array([[P.camera_x + d, 0.75] for d in (1.0, 2.0, 3.0, 4.0, 4.5)])
+    vis = cam.visible((0.0, 0.0, 0.0), row, road.cone_radius)
+    assert vis[0] == 1.0 and vis[-1] < 0.5            # 最近的全露,4.5 m 那个被前面的挡掉大半
+    assert np.all(np.diff(vis) <= 1e-9)                # 越远露得越少
+    alone = cam.visible((0.0, 0.0, 0.0), row[:1], road.cone_radius)
+    assert alone[0] == 1.0
 
 
 def test_fake_yolo_reports_tape_on_bare_boundaries():
@@ -159,7 +180,7 @@ def test_fake_yolo_reports_tape_on_bare_boundaries():
     from simulation.fastsim.camera import FakeYolo, YoloSimConfig
     from simulation.fastsim.road import CONE, NONE, build
     road = build([dict(kind='straight', length=12.0, width=1.5, mat=(NONE, CONE))])
-    cam = FakeYolo(road, cfg=YoloSimConfig(miss=0.0, false_rate=0.0))
+    cam = FakeYolo(road, cfg=YoloSimConfig(miss=0.0, sigma0=0.0, sigma_per_m=0.0, false_rate=0.0))
     kinds, xy = cam.detect((0.0, 0.0, 0.0))
     tape = xy[kinds == int(CellType.TAPE)]
     assert len(tape) > 10 and np.all(tape[:, 1] > 0.5)        # 都在左边线附近
@@ -177,11 +198,13 @@ def test_fastsim_episode_camera_cones_line_up_with_lidar():
         bev.update_camera(*cam.detect(pose), pose, env.t)
         if env.step(teacher()) is not None:
             break
-    cones = bev.points(CellType.CONE)
-    assert len(cones) > 20
+    cones = bev.cones()
+    assert len(cones) >= 8                             # 视场 70°,120 拍里看到的桶
     d = np.hypot(*(cones[:, None] - road.cones[None]).transpose(2, 0, 1)).min(1)
-    # 位置误差按距离放大(假设 0.02 + 0.02/m,5 m 处 σ≈0.12),每次检测各占一格
-    assert np.median(d) < 0.2 and np.mean(d > 0.6) < 0.05
+    # 多次检测平均之后,地标基本落在真桶上;一个真桶只对应一个地标
+    assert np.median(d) < 0.08 and np.mean(d > 0.3) < 0.1
+    owner = np.hypot(*(cones[:, None] - road.cones[None]).transpose(2, 0, 1)).argmin(1)
+    assert len(set(owner[d < 0.3])) == (d < 0.3).sum()
 
 
 def test_pose_integrator_straight_and_circle():

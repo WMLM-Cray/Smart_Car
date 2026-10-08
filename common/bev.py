@@ -29,8 +29,12 @@
     层 0 lidar   雷达命中次数
     层 1..5      摄像头各类别(CONE / TAPE / ZONE / TRAFFIC_LIGHT)的检测次数,顺序见 LAYERS
 
-只存出现过证据的格子(odom 系没有边界,用稀疏存储);超过 max_age 没再更新的格子在 prune()
-时删掉 —— 里程计会漂,太旧的点位置不可信。
+只存出现过证据的格子(odom 系没有边界,用稀疏存储);prune() 可删掉超过 max_age 没再更新的。
+
+锥桶合并成"地标":摄像头每帧对同一个桶给一个带误差的落地点,逐次登记会把一个桶画成直径
+20~30 cm 的一团。所以 CONE 不按格子存,而是按桶存:新检测落在已有地标 merge_r 以内就并进去
+(位置取所有检测的平均),否则新建一个;至少被检到 min_hits 次的地标才画出来(滤掉偶发误检)。
+画的时候每个地标是一个半径 = 锥桶底半径的实心圆。胶带、区域、红绿灯仍按格子存。
 """
 from __future__ import annotations
 
@@ -40,7 +44,9 @@ from enum import IntEnum
 
 import numpy as np
 
-from common.params import CarParams
+from common.params import CarParams, TrackParams
+
+TRACK = TrackParams()
 
 
 class CellType(IntEnum):
@@ -69,6 +75,8 @@ class BevConfig:
     side: float = 4.0           # 左右各多宽 m
     max_range: float = 10.0     # 只用这么近的雷达回波(和路段策略的观测量程一致)
     max_age: float = 20.0       # 多久没再更新就忘掉 s
+    merge_r: float = 0.25       # 锥桶检测离已有地标这么近就并进去 m(最密桶距 0.4,留余量)
+    min_hits: int = 2           # 地标至少被检到这么多次才画
 
     @property
     def shape(self) -> tuple[int, int]:
@@ -118,6 +126,9 @@ class Bev:
         self.keys = np.zeros(0, np.int64)
         self.count = np.zeros((0, len(LAYERS)), np.int32)
         self.last = np.zeros(0, np.float64)
+        self.lm_xy = np.zeros((0, 2))           # 锥桶地标:位置(所有检测的平均)
+        self.lm_n = np.zeros(0, np.int32)       # 被检到的次数
+        self.lm_last = np.zeros(0, np.float64)  # 最后一次被检到的时间
 
     def __len__(self):
         return len(self.keys)
@@ -152,14 +163,61 @@ class Bev:
         for kind in np.unique(kinds):
             if CellType(kind) not in CAMERA_LAYER:
                 raise ValueError(f'摄像头不登记 {CellType(kind).name}')
-            self._add(pts[kinds == kind], CAMERA_LAYER[CellType(kind)], t)
+            if kind == CellType.CONE:
+                self._merge_cones(pts[kinds == kind], t)
+            else:
+                self._add(pts[kinds == kind], CAMERA_LAYER[CellType(kind)], t)
+
+    def _merge_cones(self, pts: np.ndarray, t: float):
+        r2 = self.cfg.merge_r ** 2
+        for p in pts:
+            if len(self.lm_xy):
+                d2 = np.einsum('ij,ij->i', self.lm_xy - p, self.lm_xy - p)
+                k = int(np.argmin(d2))
+                if d2[k] <= r2:
+                    n = self.lm_n[k]
+                    self.lm_xy[k] = (self.lm_xy[k] * n + p) / (n + 1)
+                    self.lm_n[k] = n + 1
+                    self.lm_last[k] = t
+                    continue
+            self.lm_xy = np.vstack([self.lm_xy, p])
+            self.lm_n = np.append(self.lm_n, 1).astype(np.int32)
+            self.lm_last = np.append(self.lm_last, float(t))
+        self._consolidate()
+
+    def _consolidate(self):
+        """两个地标的平均位置靠到 merge_r 以内就并成一个。远处第一次检测误差大,会先另立一个
+        地标;等近处的检测把两边都拉向真桶,再在这里合并。"""
+        r2 = self.cfg.merge_r ** 2
+        while len(self.lm_xy) > 1:
+            d = self.lm_xy[:, None] - self.lm_xy[None]
+            d2 = np.einsum('ijk,ijk->ij', d, d)
+            np.fill_diagonal(d2, np.inf)
+            i, j = np.unravel_index(int(np.argmin(d2)), d2.shape)
+            if d2[i, j] > r2:
+                return
+            ni, nj = self.lm_n[i], self.lm_n[j]
+            self.lm_xy[i] = (self.lm_xy[i] * ni + self.lm_xy[j] * nj) / (ni + nj)
+            self.lm_n[i] = ni + nj
+            self.lm_last[i] = max(self.lm_last[i], self.lm_last[j])
+            keep = np.arange(len(self.lm_xy)) != j
+            self.lm_xy, self.lm_n, self.lm_last = self.lm_xy[keep], self.lm_n[keep], self.lm_last[keep]
+
+    def cones(self, t: float | None = None) -> np.ndarray:
+        """画得出来的锥桶地标(odom 系),(n, 2):被检到至少 min_hits 次,t 给了还要在 max_age 内。"""
+        ok = self.lm_n >= self.cfg.min_hits
+        if t is not None:
+            ok &= t - self.lm_last <= self.cfg.max_age
+        return self.lm_xy[ok]
 
     def prune(self, t: float):
         keep = t - self.last <= self.cfg.max_age
         self.keys, self.count, self.last = self.keys[keep], self.count[keep], self.last[keep]
+        keep = t - self.lm_last <= self.cfg.max_age
+        self.lm_xy, self.lm_n, self.lm_last = self.lm_xy[keep], self.lm_n[keep], self.lm_last[keep]
 
     def points(self, kind: CellType | None = None) -> np.ndarray:
-        """格子中心(odom 系),(n, 2)。kind 给了就只要类型图里是这一类的格子。"""
+        """格子中心(odom 系),(n, 2)。kind 给了就只要类型图里是这一类的格子;锥桶请用 cones()。"""
         ix, iy = _unkey(self.keys)
         pts = np.stack([(ix + 0.5) * self.cfg.res, (iy + 0.5) * self.cfg.res], axis=1)
         return pts if kind is None else pts[self.types() == kind]
@@ -171,6 +229,30 @@ class Bev:
             layer = LIDAR_LAYER if kind == CellType.OBSTACLE else CAMERA_LAYER[kind]
             out[self.count[:, layer] > 0] = int(kind)
         return out
+
+    def _to_grid(self, pts, pose):
+        cfg = self.cfg
+        x, y, yaw = pose
+        c, s = math.cos(yaw), math.sin(yaw)
+        dx, dy = pts[:, 0] - x, pts[:, 1] - y
+        fx, fy = c * dx + s * dy, -s * dx + c * dy
+        return np.floor((cfg.ahead - fx) / cfg.res).astype(int), np.floor((cfg.side - fy) / cfg.res).astype(int)
+
+    def _cone_cells(self, pose, t):
+        """锥桶地标画成实心圆:返回 (row, col)。"""
+        cones = self.cones(t)
+        if not len(cones):
+            return np.zeros(0, int), np.zeros(0, int)
+        rad = TRACK.cone_base_radius
+        k = int(math.ceil(rad / self.cfg.res))
+        off = np.array([(i, j) for i in range(-k, k + 1) for j in range(-k, k + 1)
+                        if (i * i + j * j) * self.cfg.res ** 2 <= rad * rad])
+        row, col = self._to_grid(cones, pose)
+        row = (row[:, None] + off[None, :, 0]).ravel()
+        col = (col[:, None] + off[None, :, 1]).ravel()
+        h, w = self.cfg.shape
+        ok = (row >= 0) & (row < h) & (col >= 0) & (col < w)
+        return row[ok], col[ok]
 
     def _window(self, pose, t):
         cfg = self.cfg
@@ -193,6 +275,8 @@ class Bev:
         if len(self.keys):
             idx, row, col = self._window(pose, t)
             img[row, col] = self.types()[idx]
+        row, col = self._cone_cells(pose, t)
+        img[row, col] = int(CellType.CONE)            # 锥桶优先级最高
         return img
 
     def crop_layers(self, pose, t: float | None = None) -> np.ndarray:
@@ -203,6 +287,8 @@ class Bev:
             for k in range(len(LAYERS)):
                 hit = self.count[idx, k] > 0
                 out[k, row[hit], col[hit]] = 1.0
+        row, col = self._cone_cells(pose, t)
+        out[CAMERA_LAYER[CellType.CONE], row, col] = 1.0
         return out
 
 
