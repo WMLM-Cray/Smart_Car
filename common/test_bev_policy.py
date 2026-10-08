@@ -49,3 +49,16 @@ def test_numpy_forward_matches_torch(tmp_path):
         sc = scalars(rng.uniform(0, 2), 1.5, rng.uniform(-1, 1), enc)
         want = np.clip(net(torch.from_numpy(img)[None], torch.from_numpy(sc)[None]).detach().numpy()[0], -1, 1)
         np.testing.assert_allclose(pol(img, sc), want, atol=1e-5)
+
+
+def test_train_init_loads_weights_and_checks_contract(tmp_path):
+    pytest.importorskip('torch')
+    import torch
+    from training.bev_net import export, load_into, make_net, weights_of
+    torch.manual_seed(1)
+    a, b = make_net(), make_net()
+    p = tmp_path / 'a.npz'
+    export(a, p, spec_of('road_v2.5'))
+    load_into(b, p)
+    for k, v in weights_of(a).items():
+        np.testing.assert_array_equal(v, weights_of(b)[k])

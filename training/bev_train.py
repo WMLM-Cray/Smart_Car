@@ -109,6 +109,8 @@ def main():
     ap.add_argument('--mix', default='L5:0.2,L5s:0.2,L6h:0.15,L6f:0.15,L4:0.15,L6:0.1,L3:0.05')
     ap.add_argument('--eval-levels', default='L5,L6h,L4c,L6f')
     ap.add_argument('--eval-count', type=int, default=192)
+    ap.add_argument('--init', type=Path, default=None, help='从已有 bev_v1 模型接着训(课程下一阶段)')
+    ap.add_argument('--beta0', type=float, default=1.0, help='第 0 轮老师开的比例;--init 续训时可给 0')
     a = ap.parse_args()
     enc = Encoding(a.speed_scale, V_LO, a.v_hi)
 
@@ -118,6 +120,12 @@ def main():
     torch.manual_seed(a.seed)
     rng = np.random.default_rng(a.seed)
     net, ema = make_net(), make_net()
+    if a.init is not None:
+        from common.bev_policy import BevPolicy
+        if BevPolicy(a.init).enc != enc:
+            raise SystemExit(f'{a.init} 的速度契约和这次训练({enc})不一致')
+        from training.bev_net import load_into
+        load_into(net, a.init)
     ema.load_state_dict(net.state_dict())
     opt = torch.optim.Adam(net.parameters(), lr=a.lr)
     a.out.mkdir(parents=True, exist_ok=False)
@@ -142,8 +150,8 @@ def main():
     seed = TRAIN_SEED0
     with ProcessPoolExecutor(a.workers) as ex:
         for r in range(a.rounds):
-            beta = max(0.0, 1.0 - r / 4)
-            wts = None if r == 0 else weights_of(ema)
+            beta = max(0.0, a.beta0 - r / 4)
+            wts = None if (r == 0 and a.init is None) else weights_of(ema)
             jobs = []
             for _ in range(a.episodes_per_round):
                 jobs.append((seed, mix[int(rng.choice(len(mix), p=probs))][0], wts, beta, True, enc,
