@@ -3,6 +3,7 @@
 位姿:用 FastSim 的真位姿(车上用雷达里程计,用户实测漂移很小,先不建漂移模型)。
 雷达:每次 RoadEnv 真扫描时,按**扫描那一刻**的位姿登记进 BEV。
 摄像头:每 yolo_period 秒检测一次(香橙派上 YOLO 帧率待实测,先按 10 Hz [假设])。
+地面分割(bev_v2,free=True):每 seg_period 秒一次,可行驶地面登记进 FREE 层(FakeFloorSeg)。
 
 老师(SeenTeacher):特权车辆参数(和 road_train 一样);重规划窗口只到"左右边界都被雷达扫到过"
 的地方,窗口没到路终点时末端限速 sqrt(a_lat·R_MIN)。它**不是**严格只用学生 BEV 里的信息:
@@ -19,9 +20,9 @@ import math
 import numpy as np
 from scipy.spatial import cKDTree
 
-from common.bev import Bev
+from common.bev import Bev, CellType
 from common.bev_policy import bev_image, scalars
-from simulation.fastsim.camera import FakeYolo
+from simulation.fastsim.camera import FakeFloorSeg, FakeYolo
 from simulation.fastsim.road import DS
 from simulation.fastsim.road_env import RoadEnv
 from training.road_teacher import HORIZON, R_MIN, R_REPLAN, Teacher, plan
@@ -29,17 +30,21 @@ from training.road_teacher import HORIZON, R_MIN, R_REPLAN, Teacher, plan
 SEEN_R = 0.8            # 边界点离雷达回波这么近算"看到过"(桶距最大 1.5 m)
 MIN_WIN = 0.5           # 重规划窗口至少看这么远 m
 YOLO_PERIOD = 0.1       # [假设] 摄像头检测周期 s
+SEG_PERIOD = 0.1        # [假设] 地面分割周期 s(NPU 上 SegFormer-B0 待实测)
 
 
 class BevEnv:
     """包一层 RoadEnv:每拍维护 BEV,observation() 给 (图, 标量)。"""
 
     def __init__(self, road, pl, seed, start=(0, 0.0, 0.0), noise=True, robust=False,
-                 yolo_period=YOLO_PERIOD):
+                 yolo_period=YOLO_PERIOD, free=False):
         self.env = RoadEnv(road, pl, seed, start, noise=noise, robust=robust)
         self.bev = Bev(lidar_yaw=pl.lidar_yaw)
         self.cam = FakeYolo(road, seed=seed + 7)
         self.yolo_period, self.next_yolo = yolo_period, 0.0
+        self.free = free
+        self.seg = FakeFloorSeg(road, seed=seed + 11) if free else None    # 独立随机流:不改 bev_v1 的局
+        self.next_seg = 0.0
         self.scan_hooks = []
         env, scan = self.env, self.env._scan
 
@@ -66,12 +71,16 @@ class BevEnv:
             kinds, xy = self.cam.detect(self.pose)
             self.bev.update_camera(kinds, xy, self.pose, self.env.t)
             self.next_yolo += self.yolo_period
+        if self.seg is not None and self.env.t >= self.next_seg:
+            xy = self.seg.detect(self.pose)
+            self.bev.update_camera(np.full(len(xy), int(CellType.FREE)), xy, self.pose, self.env.t)
+            self.next_seg += SEG_PERIOD
 
     def observation(self):
         env = self.env
         enc_speed = env.car.v + (env.rng.normal(0, 0.02) if env.noise else 0.0)
         gyro = env.car.yaw_rate + (env.rng.normal(0, env.cp.gyro_sigma) if env.noise else 0.0)
-        img = bev_image(self.bev, self.pose, env.t, env.ranges, env.angles, self.scan_pose)
+        img = bev_image(self.bev, self.pose, env.t, env.ranges, env.angles, self.scan_pose, free=self.free)
         return img, scalars(enc_speed, env.pl.cap, gyro, env.pl.enc)
 
     def step(self, action):

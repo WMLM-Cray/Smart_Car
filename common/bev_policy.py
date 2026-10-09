@@ -10,6 +10,8 @@
           3 区域标记(摄像头;起点框、检测区)
           4 本帧雷达(只有当前这一帧的回波,和记忆区分"现在看到的")
     红绿灯不进图(是事件不是几何),以后作为单独输入。
+    bev_v2 = bev_v1 再加第 5 通道"可行驶路面"(摄像头地面分割登记的 FREE 层),6 × 80 × 80;
+    网络只有第一层卷积的输入通道数不同(6→16)。schema 前缀决定是哪一版。
 标量 3 个:车速/scale、速度上限/scale、偏航角速度/3,裁到 ±1(scale 来自速度契约,和 road_v2.5 同一套)。
     不放上一步动作(PR #18:这个通道会让策略"抄上一步"、闭环自激)。
 
@@ -39,6 +41,18 @@ POOL = 2                               # 合并成 10 cm
 H = W = 80
 CHANNELS = ('lidar', 'cone', 'tape', 'zone', 'lidar_now')
 C = len(CHANNELS)
+SCHEMA_V2 = 'bev_v2'
+CHANNELS_V2 = CHANNELS + ('free',)
+C2 = len(CHANNELS_V2)
+
+
+def channels_of(schema: str) -> int:
+    """schema 前缀 -> 输入通道数。"""
+    if schema.startswith(SCHEMA_V2):
+        return C2
+    if schema.startswith(SCHEMA):
+        return C
+    raise ValueError(f'模型版本 {schema} 不是 {SCHEMA} / {SCHEMA_V2}')
 N_SCALAR = 3
 CONVS = ((5, 16, 5), (16, 32, 3), (32, 64, 3), (64, 64, 3))     # (输入, 输出, 核);步长都是 2
 HIDDEN = 256
@@ -52,16 +66,20 @@ def _pool(img: np.ndarray) -> np.ndarray:
     return img.reshape(s[:-2] + (H, POOL, W, POOL)).max(axis=(-3, -1))
 
 
-def bev_image(bev: Bev, pose, t: float, ranges_now=None, angles=None, scan_pose=None) -> np.ndarray:
+def bev_image(bev: Bev, pose, t: float, ranges_now=None, angles=None, scan_pose=None,
+              free: bool = False) -> np.ndarray:
     """当前位姿下的网络输入图 (5, 80, 80) float32。ranges_now 是最近一帧雷达(没有就留空),
     scan_pose 是**扫描那一刻**的位姿(雷达比控制慢,两次扫描之间车在动;不给就当作当前位姿)。
-    回波按 scan_pose 落到 odom、再按当前 pose 裁图,和记忆层(也按扫描位姿登记)对齐。"""
+    回波按 scan_pose 落到 odom、再按当前 pose 裁图,和记忆层(也按扫描位姿登记)对齐。
+    free=True 出 bev_v2 的 6 通道(多一层可行驶路面)。"""
     layers = bev.crop_layers(pose, t)                       # (5, 160, 160):雷达/锥桶/胶带/区域/红绿灯
-    out = np.zeros((C, H * POOL, W * POOL), np.float32)
+    out = np.zeros((C2 if free else C, H * POOL, W * POOL), np.float32)
     out[0] = layers[0]
     out[1] = layers[CAMERA_LAYER[CellType.CONE]]
     out[2] = layers[CAMERA_LAYER[CellType.TAPE]]
     out[3] = layers[CAMERA_LAYER[CellType.ZONE]]
+    if free:
+        out[5] = layers[CAMERA_LAYER[CellType.FREE]]
     if ranges_now is not None:
         pts = lidar_points(ranges_now, angles, pose if scan_pose is None else scan_pose, bev.params,
                            bev.lidar_yaw, bev.cfg.max_range)
@@ -108,9 +126,9 @@ class BevPolicy:
     def __init__(self, path):
         with np.load(path) as z:
             self.schema = str(z['schema'])
-            if not self.schema.startswith(SCHEMA):
-                raise ValueError(f'模型版本 {self.schema} 不是 {SCHEMA}')
-            self.enc = spec_of('spica_v3' + self.schema[len(SCHEMA):])     # 速度契约后缀和 spica 同一套
+            self.channels = channels_of(self.schema)
+            self.free = self.channels == C2
+            self.enc = spec_of('spica_v3' + self.schema[len(SCHEMA):])     # 速度契约后缀和 spica 同一套(两版前缀等长)
             self.params = {k: z[k].astype(np.float32) for k in z.files if k != 'schema'}
 
     def __call__(self, img, sc):

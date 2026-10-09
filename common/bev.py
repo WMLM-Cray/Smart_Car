@@ -16,7 +16,7 @@
 格子类型(CellType,每格一个,多来源冲突按 PRIORITY 取):
 
     0 UNKNOWN        没有任何证据(没看到过)
-    1 FREE           射线扫过的空地(预留:第一版不登记)
+    1 FREE           可行驶路面(摄像头地面分割;bev_v2 起登记,雷达射线扫过的空地仍不登记)
     2 OBSTACLE       雷达打中、摄像头没给类别
     3 CONE           锥桶(摄像头检测;雷达同格命中也算锥桶)
     4 TAPE           胶带/地面边线(只有摄像头看得见,例如黄 V 区)
@@ -27,7 +27,7 @@
 都记;要判断"摄像头说是胶带但雷达也打中了"这类冲突,看层比看类型图直接。
 
     层 0 lidar   雷达命中次数
-    层 1..5      摄像头各类别(CONE / TAPE / ZONE / TRAFFIC_LIGHT)的检测次数,顺序见 LAYERS
+    层 1..5      摄像头各类别(CONE / TAPE / ZONE / TRAFFIC_LIGHT / FREE)的检测次数,顺序见 LAYERS
 
 只存出现过证据的格子(odom 系没有边界,用稀疏存储);prune() 可删掉超过 max_age 没再更新的。
 
@@ -60,11 +60,11 @@ class CellType(IntEnum):
 
 
 # 来源层:层号 -> 它给出的格子类型。层 0 是雷达,其余是摄像头类别。
-LAYERS = (CellType.OBSTACLE, CellType.CONE, CellType.TAPE, CellType.ZONE, CellType.TRAFFIC_LIGHT)
+LAYERS = (CellType.OBSTACLE, CellType.CONE, CellType.TAPE, CellType.ZONE, CellType.TRAFFIC_LIGHT, CellType.FREE)
 LIDAR_LAYER = 0
 CAMERA_LAYER = {t: k for k, t in enumerate(LAYERS) if k > 0}
 # 同一格多种证据时取谁:车能撞上的优先,其次是地面标记
-PRIORITY = (CellType.CONE, CellType.TRAFFIC_LIGHT, CellType.OBSTACLE, CellType.TAPE, CellType.ZONE)
+PRIORITY = (CellType.CONE, CellType.TRAFFIC_LIGHT, CellType.OBSTACLE, CellType.TAPE, CellType.ZONE, CellType.FREE)
 
 
 @dataclass(frozen=True)
@@ -139,15 +139,18 @@ class Bev:
         res = self.cfg.res
         new, cnt = np.unique(_keys(np.floor(pts[:, 0] / res), np.floor(pts[:, 1] / res)),
                              return_counts=True)
-        add = np.zeros((len(new), len(LAYERS)), np.int32)
-        add[:, layer] = cnt
-        keys = np.concatenate([self.keys, new])
-        u, inv = np.unique(keys, return_inverse=True)
-        count = np.zeros((len(u), len(LAYERS)), np.int32)
-        np.add.at(count, inv, np.concatenate([self.count, add]))
-        last = np.full(len(u), -np.inf)
-        np.maximum.at(last, inv, np.concatenate([self.last, np.full(len(new), float(t))]))
-        self.keys, self.count, self.last = u, count, last
+        # keys 保持有序:二分找位置,已有的格子原地累加,没有的按序插入(不再对整张图重排)
+        pos = np.searchsorted(self.keys, new)
+        hit = pos < len(self.keys)
+        hit[hit] = self.keys[pos[hit]] == new[hit]
+        self.count[pos[hit], layer] += cnt[hit].astype(np.int32)
+        self.last[pos[hit]] = np.maximum(self.last[pos[hit]], float(t))
+        miss = ~hit
+        add = np.zeros((int(miss.sum()), len(LAYERS)), np.int32)
+        add[:, layer] = cnt[miss]
+        self.keys = np.insert(self.keys, pos[miss], new[miss])
+        self.count = np.insert(self.count, pos[miss], add, axis=0)
+        self.last = np.insert(self.last, pos[miss], float(t))
 
     def update_lidar(self, ranges, angles, pose, t: float):
         """一帧雷达。pose 是**这一帧扫描时**的后轴位姿。"""
@@ -256,9 +259,17 @@ class Bev:
 
     def _window(self, pose, t):
         cfg = self.cfg
-        sel = np.ones(len(self.keys), bool) if t is None else (t - self.last <= cfg.max_age)
-        pts = self.points()[sel]
         x, y, yaw = pose
+        # 键按 ix 有序:先二分切出 ix 落在窗口外接圆内的一段,只算这一段(地图再大,每拍也只碰车附近)
+        reach = math.hypot(max(cfg.ahead, cfg.behind), cfg.side) + 2 * cfg.res
+        lo = np.searchsorted(self.keys, _keys(np.array([math.floor((x - reach) / cfg.res)]), np.array([-_SHIFT]))[0])
+        hi = np.searchsorted(self.keys, _keys(np.array([math.floor((x + reach) / cfg.res) + 1]), np.array([-_SHIFT]))[0])
+        ix, iy = _unkey(self.keys[lo:hi])
+        near = np.abs((iy + 0.5) * cfg.res - y) <= reach
+        if t is not None:
+            near &= t - self.last[lo:hi] <= cfg.max_age
+        sel = lo + np.flatnonzero(near)
+        pts = np.stack([(ix[near] + 0.5) * cfg.res, (iy[near] + 0.5) * cfg.res], axis=1)
         c, s = math.cos(yaw), math.sin(yaw)
         dx, dy = pts[:, 0] - x, pts[:, 1] - y
         fx, fy = c * dx + s * dy, -s * dx + c * dy        # 车体系:前、左
@@ -266,7 +277,7 @@ class Bev:
         row = np.floor((cfg.ahead - fx) / cfg.res).astype(int)
         col = np.floor((cfg.side - fy) / cfg.res).astype(int)
         ok = (row >= 0) & (row < h) & (col >= 0) & (col < w)
-        return np.flatnonzero(sel)[ok], row[ok], col[ok]
+        return sel[ok], row[ok], col[ok]
 
     def crop(self, pose, t: float | None = None) -> np.ndarray:
         """以车(后轴)为中心、车头朝上的类型图 (H, W) int8,值是 CellType。

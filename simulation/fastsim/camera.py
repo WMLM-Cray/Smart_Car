@@ -24,7 +24,7 @@ import numpy as np
 
 from common.bev import CellType
 from common.params import CarParams
-from simulation.fastsim.road import NONE
+from simulation.fastsim.road import NONE, WALL
 
 TAPE_STEP = 0.10                # 胶带沿线取点间距 m
 
@@ -125,3 +125,70 @@ class FakeYolo:
         if not kinds:
             return np.zeros(0, int), np.zeros((0, 2))
         return np.asarray(kinds, int), np.vstack(xy)
+
+
+@dataclass(frozen=True)
+class FloorSegConfig:
+    """假地面分割的误差。全是 [假设],等实车 SegFormer 标定、录像后改。"""
+    range: float = 4.0          # 有效距离 m:256×320 输入,远处地面像素太稀
+    step: float = 0.05          # 采样间距 m(= BEV 栅格)
+    edge_sigma: float = 0.05    # 每帧边界整体偏移(外扩为正)m
+    jitter: float = 0.03        # 逐点边界抖动 m
+    miss: float = 0.05          # 整帧失败(什么都不给)的概率
+    generic_chance: float = 0.5  # 一局按"通用地面"(锥桶/胶带外的地板也算可行)的概率,否则只认路内
+
+
+class FakeFloorSeg:
+    """FastSim 里的"摄像头 + 地面分割":给出相机视场内被识别为可行驶地面的点(车体系),
+    喂给 Bev.update_camera(kinds=FREE)。实车上对应 SegFormer 的地面类别经标定投影到地面。
+
+    语义:每局抽一种。
+      路内   只有路面(左右边界之间)算可行驶 —— 相当于场地微调过、认得赛道的分割
+      通用   墙挡住的地方以外,锥桶/胶带边界外面的地板也算 —— 相当于现成的 ADE20K 模型
+    两种都扣掉锥桶底座;墙外一律不算(墙把地面挡住了)。
+    """
+
+    def __init__(self, road, params: CarParams = CarParams(), cfg: FloorSegConfig = FloorSegConfig(),
+                 seed: int = 0):
+        from scipy.spatial import cKDTree
+        self.road, self.p, self.cfg = road, params, cfg
+        self.rng = np.random.default_rng(seed)
+        self.generic = bool(self.rng.random() < cfg.generic_chance)
+        self.centre_tree = cKDTree(road.centre)
+        self.cone_tree = cKDTree(road.cones) if len(road.cones) else None
+        # 相机视场内的地面采样点(车体系,后轴原点),一次算好
+        down = params.camera_pitch + params.camera_vfov / 2
+        near = params.camera_z / math.tan(down) if down < math.pi / 2 else 0.0
+        xs = np.arange(near, cfg.range + 1e-9, cfg.step)
+        ys = np.arange(-cfg.range, cfg.range + 1e-9, cfg.step)
+        gx, gy = np.meshgrid(xs, ys, indexing='ij')
+        g = np.stack([gx.ravel(), gy.ravel()], axis=1)
+        keep = (np.hypot(g[:, 0], g[:, 1]) <= cfg.range) & (np.abs(np.arctan2(g[:, 1], g[:, 0])) <= params.camera_hfov / 2)
+        self.grid_cam = g[keep]
+        self.grid_body = self.grid_cam + (params.camera_x, 0.0)
+
+    def detect(self, pose) -> np.ndarray:
+        """返回可行驶地面点 (n, 2),车体系(后轴原点,x 前 y 左)。"""
+        cfg, rng, road = self.cfg, self.rng, self.road
+        if rng.random() < cfg.miss:
+            return np.zeros((0, 2))
+        x, y, yaw = pose
+        c, s = math.cos(yaw), math.sin(yaw)
+        b = self.grid_body
+        w = np.stack([x + c * b[:, 0] - s * b[:, 1], y + s * b[:, 0] + c * b[:, 1]], axis=1)
+        _, i = self.centre_tree.query(w)
+        n = road.normal[i]
+        d = np.einsum('ij,ij->i', w - road.centre[i], n)               # 左正
+        m = rng.normal(0, cfg.edge_sigma) + rng.normal(0, cfg.jitter, len(d))
+        hl, hr = road.half_l[i] + m, road.half_r[i] + m
+        inside = (d <= hl) & (d >= -hr)
+        if self.generic:
+            ml, mr = np.asarray(road.mat_left)[i], np.asarray(road.mat_right)[i]
+            walled = ((d > hl) & (ml == WALL)) | ((d < -hr) & (mr == WALL))
+            free = ~walled
+        else:
+            free = inside
+        if self.cone_tree is not None:
+            dc, _ = self.cone_tree.query(w)
+            free &= dc > road.cone_radius
+        return b[free]

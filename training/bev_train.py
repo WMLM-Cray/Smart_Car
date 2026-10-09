@@ -21,22 +21,22 @@ from pathlib import Path
 
 import numpy as np
 
-from common.bev_policy import C, H, N_SCALAR, W, forward
+from common.bev_policy import H, N_SCALAR, SCHEMA, W, channels_of, forward
 from common.road_policy import V_LO, Encoding
 from simulation.fastsim.road import LEVELS
 from training.bev_env import BevEnv, SeenTeacher
 from training.road_check import sample_episode
 
 TRAIN_SEED0, SELECT_SEED0 = 30_000_000, 60_000_000     # 和 road_train(10M/50M)、测试(90M+)都不重叠
-BITS = C * H * W
 
 
-def run_episode(seed, level, weights=None, beta=0.0, collect=False, enc=None, a_lat=0.45, cap_max=None):
+def run_episode(seed, level, weights=None, beta=0.0, collect=False, enc=None, a_lat=0.45, cap_max=None,
+                free=False):
     try:
         road, pl, start, P, _ = sample_episode(seed, level, enc=enc, a_lat=a_lat, cap_max=cap_max)
     except RuntimeError:
         return None
-    benv = BevEnv(road, pl, seed, start, noise=True)
+    benv = BevEnv(road, pl, seed, start, noise=True, free=free)
     teacher = SeenTeacher(benv, P, a_lat)
     rng = np.random.default_rng(seed + 1)
     imgs, scs, ys = [], [], []
@@ -65,8 +65,9 @@ def _job(args):
 
 
 class Replay:
-    def __init__(self, cap):
-        self.img = np.zeros((cap, BITS // 8), np.uint8)
+    def __init__(self, cap, c):
+        self.c, self.bits = c, c * H * W
+        self.img = np.zeros((cap, (self.bits + 7) // 8), np.uint8)
         self.sc = np.zeros((cap, N_SCALAR), np.float32)
         self.y = np.zeros((cap, 2), np.float32)
         self.size = self.ptr = 0
@@ -79,7 +80,7 @@ class Replay:
 
     def batch(self, rng, n):
         i = rng.integers(0, self.size, n)
-        img = np.unpackbits(self.img[i], axis=1)[:, :BITS].reshape(n, C, H, W).astype(np.float32)
+        img = np.unpackbits(self.img[i], axis=1)[:, :self.bits].reshape(n, self.c, H, W).astype(np.float32)
         return img, self.sc[i], self.y[i]
 
 
@@ -111,6 +112,8 @@ def main():
     ap.add_argument('--eval-count', type=int, default=192)
     ap.add_argument('--init', type=Path, default=None, help='从已有 bev_v1 模型接着训(课程下一阶段)')
     ap.add_argument('--beta0', type=float, default=1.0, help='第 0 轮老师开的比例;--init 续训时可给 0')
+    ap.add_argument('--schema', default=SCHEMA, help='bev_v1(5 通道)/ bev_v2(+可行驶地面,6 通道);'
+                    'bev_v2 可从 bev_v1 模型 --init(多出来的通道权重置 0)')
     a = ap.parse_args()
     enc = Encoding(a.speed_scale, V_LO, a.v_hi)
 
@@ -119,7 +122,9 @@ def main():
     torch.set_num_threads(a.torch_threads)
     torch.manual_seed(a.seed)
     rng = np.random.default_rng(a.seed)
-    net, ema = make_net(), make_net()
+    c_in = channels_of(a.schema)
+    free = c_in > channels_of(SCHEMA)
+    net, ema = make_net(c_in), make_net(c_in)
     if a.init is not None:
         from common.bev_policy import BevPolicy
         if BevPolicy(a.init).enc != enc:
@@ -144,7 +149,7 @@ def main():
     names = {l.name for l in LEVELS}
     assert all(n in names for n, _ in mix)
     ev_levels = a.eval_levels.split(',')
-    replay = Replay(a.replay)
+    replay = Replay(a.replay, c_in)
     brng = np.random.default_rng(a.seed + 1)
     wy = torch.tensor([1.0, 0.5])
     seed = TRAIN_SEED0
@@ -155,7 +160,7 @@ def main():
             jobs = []
             for _ in range(a.episodes_per_round):
                 jobs.append((seed, mix[int(rng.choice(len(mix), p=probs))][0], wts, beta, True, enc,
-                             a.a_lat, a.cap_max))
+                             a.a_lat, a.cap_max, free))
                 seed += 1
             t0 = time.time()
             got = [g for g in ex.map(_job, jobs, chunksize=2) if g is not None]
@@ -182,12 +187,12 @@ def main():
             t0 = time.time()
             wts = weights_of(ema)
             ev = [e for e in ex.map(_job, [(SELECT_SEED0 + i, ev_levels[i % len(ev_levels)], wts, 0.0, False,
-                                             enc, a.a_lat, a.cap_max) for i in range(a.eval_count)],
+                                             enc, a.a_lat, a.cap_max, free) for i in range(a.eval_count)],
                                     chunksize=2) if e is not None]
             summ = summarize(ev)
             by = {n: summarize([e for e in ev if e['level'] == n])['success'] for n in ev_levels}
             t_eval = time.time() - t0
-            export(ema, a.out / f'candidate_{r:03d}.npz', enc)
+            export(ema, a.out / f'candidate_{r:03d}.npz', enc, a.schema)
             say(f'round {r} beta={beta:.2f} samples={replay.size} loss={np.mean(losses[-200:]):.4f} '
                 f'collect={collect["success"]:.3f} eval={summ["success"]:.3f} {by} {summ["reasons"]} '
                 f'[{t_collect:.0f}s/{t_update:.0f}s/{t_eval:.0f}s]')
