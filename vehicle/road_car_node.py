@@ -31,7 +31,10 @@ if str(ROOT) not in sys.path:
 
 from common.params import CarParams
 from common.pwm import steer_to_turn
-from common.road_policy import V_LO, RoadPolicy, spec_of
+from common.bev_policy import SCHEMA as BEV_SCHEMA
+from common.bev_policy import BevPolicy
+from common.bev_runtime import BevRuntime
+from common.road_policy import V_LO, RoadPolicy
 from common.road_runtime import STOP, RoadRuntime
 from vehicle.scan_guard import ScanGuard
 from vehicle.speed_loop import SpeedLoop, SpeedLoopConfig
@@ -58,7 +61,8 @@ class RoadCarController:
 
     def __init__(self, policy, speed_cap, params=None, loop=None, guard=None):
         self.p = params or CarParams()
-        self.rt = RoadRuntime(policy, speed_cap, SENSOR_TIMEOUT, ENABLE_TIMEOUT, self.p)
+        rt = BevRuntime if isinstance(policy, BevPolicy) else RoadRuntime
+        self.rt = rt(policy, speed_cap, SENSOR_TIMEOUT, ENABLE_TIMEOUT, self.p)
         self.loop = loop or SpeedLoop(SpeedLoopConfig(launch_from=LAUNCH_FROM))
         self.guard = guard or ScanGuard()
         self.block_t = None         # 连续截停的起点
@@ -113,10 +117,17 @@ class RoadCarController:
         return round(self.loop.update(target, self.rt.speed, CONTROL_PERIOD)), servo
 
 
+def load_policy(path):
+    """bev_v1_* 走 BevPolicy(BEV 输入),其余(road_v2 / road_v2.5 / spica_v3_*)走 RoadPolicy。"""
+    with np.load(path) as z:
+        schema = str(z['schema'])
+    return BevPolicy(path) if schema.startswith(BEV_SCHEMA) else RoadPolicy(path)
+
+
 def parser():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument('model', help='road_v2 / road_v2.5 / spica_v3_* .npz')
+    p.add_argument('model', help='road_v2 / road_v2.5 / spica_v3_* / bev_v1_* .npz')
     p.add_argument('--speed-cap', type=float, required=True,
                    help=f'速度上限 m/s,要在模型自己的训练范围内(见 schema);首次上车用 {V_LO}~0.5')
     return p
@@ -134,7 +145,7 @@ def create_node_class():
     class RoadCarNode(Node):
         def __init__(self, model, speed_cap):
             super().__init__('road_car_node')
-            self.ctl = RoadCarController(RoadPolicy(model), speed_cap)
+            self.ctl = RoadCarController(load_policy(model), speed_cap)
             self.pub = self.create_publisher(Twist, CMD_TOPIC, 5)
             self.create_subscription(LaserScan, '/scan', self.on_scan, 1)
             self.create_subscription(Odometry, ENC_TOPIC, self.on_enc, 10)
@@ -144,7 +155,7 @@ def create_node_class():
             self.last_floor = self.ctl.loop.floor
             self.create_timer(CONTROL_PERIOD, self.tick)
             self.get_logger().info(
-                f'road_v2 已载入 {model},速度上限 {speed_cap:.2f} m/s,编码器闭环 -> {CMD_TOPIC},'
+                f'已载入 {model},速度上限 {speed_cap:.2f} m/s,编码器闭环 -> {CMD_TOPIC},'
                 f'等 /policy_enable')
 
         def now(self):
@@ -207,8 +218,7 @@ def main(argv=None):
     args = parser().parse_args(argv)
     if not Path(args.model).is_file():
         raise SystemExit(f'模型文件不存在: {args.model}')
-    with np.load(args.model) as z:
-        enc = spec_of(str(z['schema']))        # 速度范围跟模型走(#19)
+    enc = load_policy(args.model).enc          # 速度范围跟模型走(#19)
     if not enc.v_lo <= args.speed_cap <= enc.v_hi:
         raise SystemExit(f'--speed-cap 要在训练范围 {enc.v_lo}~{enc.v_hi} m/s 内,给的是 {args.speed_cap}')
 

@@ -131,6 +131,9 @@ class BevPolicy:
             self.enc = spec_of('spica_v3' + self.schema[len(SCHEMA):])     # 速度契约后缀和 spica 同一套(两版前缀等长)
             self.params = {k: z[k].astype(np.float32) for k in z.files if k != 'schema'}
 
+    def reset(self):
+        """没有帧历史(记忆在 BEV 里),给 RoadRuntime 的接口留着。"""
+
     def __call__(self, img, sc):
         return forward(self.params, img, sc)
 
