@@ -10,7 +10,7 @@
 局的生成:training.road_check.sample_episode(seed, level, enc=road_v2.5 契约, cap_max=1.8),seed = seed0 + i,
 每级用同一串 seed(老师 a_lat 用 sample_episode 的默认值;它参与可通性拒绝采样,改了就是另一批局)。
 build 打印并存下指纹(道路、车辆参数、起点逐局摘要的 md5):同指纹 = 同一批局,不必比对 pickle 本身。
-road_v2.x 模型吃 RoadEnv 的扇区观测,bev_v1 模型套 BevEnv;两者噪声种子都用局的 seed。
+road_v2.x 模型吃 RoadEnv 的扇区观测,bev_v1/v2 模型套 BevEnv(v2 带假地面分割);两者噪声种子都用局的 seed。
 """
 from __future__ import annotations
 
@@ -79,7 +79,7 @@ def _run(args):
     ep = _EPS[i]
     with np.load(model) as z:
         schema = str(z['schema'])
-    if schema.startswith('bev_v1'):
+    if schema.startswith('bev_'):
         from common.bev_policy import BevPolicy
         from training.bev_env import BevEnv
         pol = BevPolicy(model)
