@@ -24,10 +24,11 @@ from common.bev_policy import bev_image, scalars
 from simulation.fastsim.camera import FakeYolo
 from simulation.fastsim.road import DS
 from simulation.fastsim.road_env import RoadEnv
-from training.road_teacher import HORIZON, R_MIN, R_REPLAN, Teacher, plan
+from training.road_teacher import HORIZON, R_MIN, R_REPLAN, STEP, Teacher, plan
 
 SEEN_R = 0.8            # 边界点离雷达回波这么近算"看到过"(桶距最大 1.5 m)
 MIN_LEFT = 0.3          # 重规划失败时旧计划在车前至少还剩这么长 m,否则改"摸着走"
+MIN_PLAN = 2 * STEP * DS    # plan() 至少要 3 个粗网格点(0.5 m);已知更短就当没看见,不去补真值
 YOLO_PERIOD = 0.1       # [假设] 摄像头检测周期 s
 
 
@@ -128,7 +129,7 @@ class SeenTeacher(Teacher):
         env, car = self.env, self.env.car
         i, d = env.road.project((car.x, car.y), env.idx)
         win = min(HORIZON, self.known_ahead(i))
-        P = plan(env.road, i, d, env.cp.width, self.pl, win, R_REPLAN, self.a_lat, self.v_end) if win > 0 else 'unseen'
+        P = plan(env.road, i, d, env.cp.width, self.pl, win, R_REPLAN, self.a_lat, self.v_end) if win >= MIN_PLAN else 'unseen'
         if isinstance(P, str):
             self.fails += 1
             if self.plan is not None and self._left() < MIN_LEFT:

@@ -72,6 +72,19 @@ def test_teacher_creeps_when_nothing_ahead_is_known():
     assert np.allclose(act, [0.0, -1.0])
 
 
+def test_teacher_creeps_when_known_window_is_shorter_than_a_plan_grid():
+    """已知前方只有 0.3 m(不够 plan() 的 3 个粗网格点):不崩、不补真值,摸着走。"""
+    benv, teacher = _benv()
+    env = benv.env
+    i, _ = env.road.project((env.car.x, env.car.y), env.idx)
+    teacher.seen_t[:] = -np.inf
+    for k in range(i, i + 7):                               # 0.3 m(DS = 0.05)
+        teacher.seen_t[k] = teacher.seen_t[teacher.nb + k] = env.t
+    assert 0 < teacher.known_ahead(i) < 0.5
+    teacher.plan = None
+    assert np.allclose(teacher(), [0.0, -1.0]) and teacher.plan is None
+
+
 def test_first_replan_failure_never_falls_back_to_a_full_road_plan(monkeypatch):
     monkeypatch.setattr(bev_env, 'plan', lambda *a, **k: 'curvature')
     benv, teacher = _benv()
