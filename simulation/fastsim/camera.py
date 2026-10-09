@@ -1,0 +1,127 @@
+"""FastSim 里的"摄像头 + YOLO":按真值给出检测结果,喂给 common/bev.py 的 update_camera()。
+
+不渲染图像。实车上摄像头节点做的是"检测框 -> 落地点 -> 车体系坐标",这里直接从真值生成
+同样格式的结果,再加上实车会有的毛病:视场与有效距离、漏检、位置误差、偶尔的误检。
+误差参数都是 [假设],等实车标定后改 YoloSimConfig。
+
+视场:水平 camera_hfov、垂直 camera_vfov(队友给的 70.3° / 55.8°)。垂直视场决定车前多近的地面
+拍不到:相机高 camera_z、下俯 camera_pitch(未实测时按 0)-> 相机前 ~0.45 m 内看不到桶底。
+
+能检出的类别(common.bev.CellType):
+  CONE  锥桶:road.cones 里在视场内、有效距离内的
+  TAPE  胶带:边界材质是 NONE(没桶、只铺胶带)的那几段,沿线每 0.1 m 一个点
+  ZONE / TRAFFIC_LIGHT:FastSim 的路里还没有这两类物体,接口已留(update_camera 认这两类)
+
+遮挡:从相机看,每个锥桶占一段方位角(半宽 asin(r/d),r 取桶底半径);离相机更近的桶把这段
+角度盖住的比例超过 1 - min_visible,就当被挡住、YOLO 认不出来。胶带贴地,不算遮挡。
+"""
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass
+
+import numpy as np
+
+from common.bev import CellType
+from common.params import CarParams
+from simulation.fastsim.road import NONE
+
+TAPE_STEP = 0.10                # 胶带沿线取点间距 m
+
+
+@dataclass(frozen=True)
+class YoloSimConfig:
+    miss: float = 0.10          # [假设] 漏检概率(每个目标每帧)
+    sigma0: float = 0.02        # [假设] 位置误差 m:sigma0 + sigma_per_m × 距离
+    sigma_per_m: float = 0.02   # [假设]
+    false_rate: float = 0.02    # [假设] 每帧冒出一个假锥桶的概率
+    min_visible: float = 0.5    # [假设] 锥桶露出这么多(按方位角宽度算)YOLO 才认得出
+
+
+class FakeYolo:
+    def __init__(self, road, params: CarParams = CarParams(), cfg: YoloSimConfig = YoloSimConfig(),
+                 seed: int = 0):
+        self.road, self.p, self.cfg = road, params, cfg
+        self.rng = np.random.default_rng(seed)
+        tape = []
+        for side, mat in ((road.left, road.mat_left), (road.right, road.mat_right)):
+            pts = side[np.asarray(mat) == NONE]
+            if len(pts):
+                step = max(1, int(round(TAPE_STEP / max(float(np.median(np.diff(road.s))), 1e-6))))
+                tape.append(pts[::step])
+        self.tape = np.vstack(tape) if tape else np.zeros((0, 2))
+
+    def _in_view(self, pts, pose):
+        """odom 点 -> (视场内的掩码, 车体系坐标, 到相机的距离)。"""
+        x, y, yaw = pose
+        c, s = math.cos(yaw), math.sin(yaw)
+        dx, dy = pts[:, 0] - x, pts[:, 1] - y
+        bx, by = c * dx + s * dy, -s * dx + c * dy
+        cx = bx - self.p.camera_x
+        d = np.hypot(cx, by)
+        # 垂直视场:光轴下俯 pitch,画面下沿再往下 vfov/2;地面点比 near 还近就出了画面下沿,
+        # 桶底(落地投影要用它)拍不到。pitch 未实测时按 0。
+        down = self.p.camera_pitch + self.p.camera_vfov / 2
+        near = self.p.camera_z / math.tan(down) if down < math.pi / 2 else 0.0
+        ok = ((d <= self.p.yolo_range) & (cx >= near) & (cx > 0)
+              & (np.abs(np.arctan2(by, cx)) <= self.p.camera_hfov / 2))
+        return ok, np.stack([bx, by], axis=1), d
+
+    def visible(self, pose, cones: np.ndarray, radius: float) -> np.ndarray:
+        """每个锥桶从相机看露出的比例(0~1):被更近的桶挡住的方位角宽度扣掉。"""
+        x, y, yaw = pose
+        cx, cy = x + self.p.camera_x * math.cos(yaw), y + self.p.camera_x * math.sin(yaw)
+        d = np.hypot(cones[:, 0] - cx, cones[:, 1] - cy)
+        th = np.arctan2(cones[:, 1] - cy, cones[:, 0] - cx)
+        half = np.arcsin(np.clip(radius / np.maximum(d, radius), 0, 1))
+        out = np.ones(len(cones))
+        order = np.argsort(d)
+        for n, i in enumerate(order):
+            lo, hi = th[i] - half[i], th[i] + half[i]
+            ivs = []
+            for j in order[:n]:                                     # 只有更近的桶能挡
+                dj = (th[j] - th[i] + math.pi) % (2 * math.pi) - math.pi
+                a, b = max(lo, th[i] + dj - half[j]), min(hi, th[i] + dj + half[j])
+                if b > a:
+                    ivs.append((a, b))
+            if ivs:
+                ivs.sort()
+                cov, cur_a, cur_b = 0.0, *ivs[0]
+                for a, b in ivs[1:]:
+                    if a > cur_b:
+                        cov += cur_b - cur_a
+                        cur_a, cur_b = a, b
+                    else:
+                        cur_b = max(cur_b, b)
+                cov += cur_b - cur_a
+                out[i] = 1.0 - cov / (hi - lo)
+        return out
+
+    def detect(self, pose) -> tuple[np.ndarray, np.ndarray]:
+        """返回 (kinds, xy_body):kinds 是 CellType,xy_body 是车体系(后轴原点)落地点。"""
+        cfg, rng = self.cfg, self.rng
+        kinds, xy = [], []
+        for objs, kind, can_miss in ((self.road.cones, CellType.CONE, True),
+                                     (self.tape, CellType.TAPE, False)):
+            if not len(objs):
+                continue
+            objs = np.asarray(objs, float)
+            ok, b, d = self._in_view(objs, pose)
+            if can_miss:
+                if ok.any():                    # 遮挡按视场内所有桶算(漏检的桶照样挡视线)
+                    vis = np.zeros(len(ok))
+                    vis[ok] = self.visible(pose, objs[ok], self.road.cone_radius)
+                    ok &= vis >= cfg.min_visible
+                ok &= rng.random(len(ok)) >= cfg.miss
+            b, d = b[ok], d[ok]
+            b = b + rng.normal(0, 1, b.shape) * (cfg.sigma0 + cfg.sigma_per_m * d)[:, None]
+            kinds += [int(kind)] * len(b)
+            xy.append(b)
+        if rng.random() < cfg.false_rate:
+            r = rng.uniform(0.5, self.p.yolo_range)
+            a = rng.uniform(-self.p.camera_hfov / 2, self.p.camera_hfov / 2)
+            kinds.append(int(CellType.CONE))
+            xy.append(np.array([[self.p.camera_x + r * math.cos(a), r * math.sin(a)]]))
+        if not kinds:
+            return np.zeros(0, int), np.zeros((0, 2))
+        return np.asarray(kinds, int), np.vstack(xy)

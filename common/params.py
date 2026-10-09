@@ -89,6 +89,15 @@ class CarParams:
     lidar_max: float = 50.0         # [代码] 驱动软件裁剪
     lidar_sigma: float = 0.01       # [假设] 距离噪声 m
 
+    # --- 摄像头(BEV 用;位置以后轴为原点,和 lidar_x 同一坐标系) ---
+    camera_x: float = 0.24          # [假设] 后轴 -> 相机,待实测(Gazebo params.yaml 同值)
+    camera_z: float = 0.24          # [假设] 相机离地高度,待实测
+    camera_hfov: float = 1.2270      # [队友 2026-10-08] 水平视场 70.3°
+    camera_vfov: float = 0.9739      # [队友 2026-10-08] 垂直视场 55.8°
+    camera_pitch: float = 0.0       # [假设] 光轴下俯角 rad,待实测;决定车前多近的地面拍得到
+    camera_hz: float = 30.0         # [假设] 帧率(Gazebo 同值)
+    yolo_range: float = 5.0         # [假设] 检测有效距离 m:再远框太小、落地投影误差太大
+
     # --- IMU(/IMU_data)与编码器(/encoder,车尾从动轮) ---
     imu_hz: float = 100.0           # [实测]
     gyro_sigma: float = 0.002       # [假设] rad/s
