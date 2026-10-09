@@ -52,8 +52,10 @@ def _pool(img: np.ndarray) -> np.ndarray:
     return img.reshape(s[:-2] + (H, POOL, W, POOL)).max(axis=(-3, -1))
 
 
-def bev_image(bev: Bev, pose, t: float, ranges_now=None, angles=None) -> np.ndarray:
-    """当前位姿下的网络输入图 (5, 80, 80) float32。ranges_now 是这一帧雷达(没有就留空)。"""
+def bev_image(bev: Bev, pose, t: float, ranges_now=None, angles=None, scan_pose=None) -> np.ndarray:
+    """当前位姿下的网络输入图 (5, 80, 80) float32。ranges_now 是最近一帧雷达(没有就留空),
+    scan_pose 是**扫描那一刻**的位姿(雷达比控制慢,两次扫描之间车在动;不给就当作当前位姿)。
+    回波按 scan_pose 落到 odom、再按当前 pose 裁图,和记忆层(也按扫描位姿登记)对齐。"""
     layers = bev.crop_layers(pose, t)                       # (5, 160, 160):雷达/锥桶/胶带/区域/红绿灯
     out = np.zeros((C, H * POOL, W * POOL), np.float32)
     out[0] = layers[0]
@@ -61,7 +63,8 @@ def bev_image(bev: Bev, pose, t: float, ranges_now=None, angles=None) -> np.ndar
     out[2] = layers[CAMERA_LAYER[CellType.TAPE]]
     out[3] = layers[CAMERA_LAYER[CellType.ZONE]]
     if ranges_now is not None:
-        pts = lidar_points(ranges_now, angles, pose, bev.params, bev.lidar_yaw, bev.cfg.max_range)
+        pts = lidar_points(ranges_now, angles, pose if scan_pose is None else scan_pose, bev.params,
+                           bev.lidar_yaw, bev.cfg.max_range)
         if len(pts):
             row, col = bev._to_grid(pts, pose)
             ok = (row >= 0) & (row < H * POOL) & (col >= 0) & (col < W * POOL)

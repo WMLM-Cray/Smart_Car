@@ -10,9 +10,10 @@
 | `common/bev.py` | BEV 本体:分辨率、裁剪窗、格子类型、来源层、锥桶地标合并、过期清理。仿真和实车共用,只依赖 numpy |
 | `common/bev_policy.py` | bev_v1 的输入规格(图 + 标量)、网络结构、纯 numpy 推理 `BevPolicy` |
 | `simulation/fastsim/camera.py` | FastSim 的假 YOLO:视场、有效距离、遮挡、漏检、位置误差、误检 |
-| `training/bev_env.py` | `BevEnv`(RoadEnv + BEV + 假 YOLO)、`SeenTeacher`(只用雷达已扫到的边界规划) |
+| `training/bev_env.py` | `BevEnv`(RoadEnv + BEV + 假 YOLO)、`SeenTeacher`(道路几何只用雷达已扫到、未过期的边界;合同见文件头) |
 | `training/bev_net.py` / `bev_train.py` | torch 网络(与 numpy 前向逐元素一致)、DAgger 训练 |
 | `evaluation/bev_track.py` | 官方 A–D 评估,和 `evaluation/road_track.py` 同口径 |
+| `evaluation/bev_testset.py` | 随机路段配对测试集:生成(带指纹)、跑模型、McNemar 配对比较 |
 
 约定(分辨率、格子类型、输入通道、网络结构)写在 `common/bev.py`、`common/bev_policy.py` 的文件头,
 以那里为准;训练出来的权重和这些数字绑定,改了要换 schema。要点:
@@ -44,6 +45,10 @@ python -m evaluation.bev_track --model runs/bev_v1_d/candidate_014.npz --caps 1.
 
 ## 结果(FastSim,未实车验证)
 
+> 下表是**修正前**的代码训练和评估的(a 段 bb5f415,b–d 段 8278c1d):本帧雷达按当前位姿投影(与记忆层
+> 错开),老师在已知前方不足 0.5 m 时、以及初始化/首次重规划失败时用过真值道路。PR #30 评审后已修正,
+> 要用新代码重训重测,数字会更新。
+
 官方 A–D:黄 V 补桶、种子 95M 起、每档 16 局(车辆参数每局随机),第一圈平均秒数;各档学生全部通过,
 除注明外。
 
@@ -55,8 +60,8 @@ python -m evaluation.bev_track --model runs/bev_v1_d/candidate_014.npz --caps 1.
 | bev_v1 c/candidate_014 | 30.0 | 29.0 | 28.4 |
 | bev_v1 d/candidate_014 | 22.4 | 20.7 | 20.2 |
 
-随机路段测试集:L5 / L6h / L4c / L6f 各 400 局(种子 93M 起、限速 ≤ 1.8,与 b036 同一批局、同噪声种子;
-这批局缓存在训练机上,生成脚本未入库)。
+随机路段测试集:L5 / L6h / L4c / L6f 各 400 局(种子 93M 起、限速 ≤ 1.8,与 b036 同一批局、同噪声种子)。
+由 `python -m evaluation.bev_testset build` 生成,指纹 `76fe401b818fa635e56d9949beadb9d7`(和训练机上的缓存逐局一致)。
 
 | 模型 | 成功率 | 配对比较(b036 失败而它成功 / 反之) |
 |---|---|---|
