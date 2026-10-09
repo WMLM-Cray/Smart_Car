@@ -13,9 +13,9 @@ def _road(level='L6f', seed=5):
     return generate(np.random.default_rng(seed), next(l for l in LEVELS if l.name == level))
 
 
-def _seg(road, generic):
+def _seg(road):
     from simulation.fastsim.camera import FakeFloorSeg, FloorSegConfig
-    cfg = FloorSegConfig(edge_sigma=0.0, jitter=0.0, miss=0.0, generic_chance=1.0 if generic else 0.0)
+    cfg = FloorSegConfig(edge_sigma=0.0, jitter=0.0, miss=0.0)
     return FakeFloorSeg(road, cfg=cfg, seed=1)
 
 
@@ -30,23 +30,21 @@ def _lateral(road, pose, xy_body):
     return np.einsum('ij,ij->i', w - road.centre[i], road.normal[i]), i
 
 
-def test_track_mode_marks_only_the_road_and_skips_cone_bases():
+def test_floor_skips_cone_bases():
     road = _road()
-    pts = _seg(road, generic=False).detect(_start_pose(road))
+    pts = _seg(road).detect(_start_pose(road))
     assert len(pts) > 500
-    d, i = _lateral(road, _start_pose(road), pts)
-    assert np.all(d <= road.half_l[i] + 1e-6) and np.all(d >= -road.half_r[i] - 1e-6)
     from common.bev import body_to_odom
     w = body_to_odom(pts, _start_pose(road))
     dc = np.min(np.hypot(*(road.cones[None] - w[:, None]).transpose(2, 0, 1)), axis=1)
     assert np.all(dc > road.cone_radius)
 
 
-def test_generic_mode_sees_floor_past_cones_but_not_past_walls():
+def test_floor_past_cones_counts_but_not_past_walls():
     from simulation.fastsim.road import WALL
     road = _road('L6', seed=3)
     pose = _start_pose(road)
-    pts = _seg(road, generic=True).detect(pose)
+    pts = _seg(road).detect(pose)
     d, i = _lateral(road, pose, pts)
     out_left = d > road.half_l[i]
     out_right = d < -road.half_r[i]

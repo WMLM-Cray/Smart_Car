@@ -135,17 +135,15 @@ class FloorSegConfig:
     edge_sigma: float = 0.05    # 每帧边界整体偏移(外扩为正)m
     jitter: float = 0.03        # 逐点边界抖动 m
     miss: float = 0.05          # 整帧失败(什么都不给)的概率
-    generic_chance: float = 0.5  # 一局按"通用地面"(锥桶/胶带外的地板也算可行)的概率,否则只认路内
 
 
 class FakeFloorSeg:
     """FastSim 里的"摄像头 + 地面分割":给出相机视场内被识别为可行驶地面的点(车体系),
     喂给 Bev.update_camera(kinds=FREE)。实车上对应 SegFormer 的地面类别经标定投影到地面。
 
-    语义:每局抽一种。
-      路内   只有路面(左右边界之间)算可行驶 —— 相当于场地微调过、认得赛道的分割
-      通用   墙挡住的地方以外,锥桶/胶带边界外面的地板也算 —— 相当于现成的 ADE20K 模型
-    两种都扣掉锥桶底座;墙外一律不算(墙把地面挡住了)。
+    语义 = 实车的通用地面分割(ADE20K SegFormer):锥桶/胶带边界内外是同一块地板,一样算可行驶;
+    只有墙外不算(墙把地面挡住了),并扣掉锥桶底座。锥桶赛道的路沿只能靠锥桶层和雷达认。
+    (曾经一半的局"只认路内",等于给了模型实车永远拿不到的路沿信号,已删,2026-10-10。)
     """
 
     def __init__(self, road, params: CarParams = CarParams(), cfg: FloorSegConfig = FloorSegConfig(),
@@ -153,7 +151,6 @@ class FakeFloorSeg:
         from scipy.spatial import cKDTree
         self.road, self.p, self.cfg = road, params, cfg
         self.rng = np.random.default_rng(seed)
-        self.generic = bool(self.rng.random() < cfg.generic_chance)
         self.centre_tree = cKDTree(road.centre)
         self.cone_tree = cKDTree(road.cones) if len(road.cones) else None
         # 相机视场内的地面采样点(车体系,后轴原点),一次算好
@@ -181,13 +178,8 @@ class FakeFloorSeg:
         d = np.einsum('ij,ij->i', w - road.centre[i], n)               # 左正
         m = rng.normal(0, cfg.edge_sigma) + rng.normal(0, cfg.jitter, len(d))
         hl, hr = road.half_l[i] + m, road.half_r[i] + m
-        inside = (d <= hl) & (d >= -hr)
-        if self.generic:
-            ml, mr = np.asarray(road.mat_left)[i], np.asarray(road.mat_right)[i]
-            walled = ((d > hl) & (ml == WALL)) | ((d < -hr) & (mr == WALL))
-            free = ~walled
-        else:
-            free = inside
+        ml, mr = np.asarray(road.mat_left)[i], np.asarray(road.mat_right)[i]
+        free = ~(((d > hl) & (ml == WALL)) | ((d < -hr) & (mr == WALL)))
         if self.cone_tree is not None:
             dc, _ = self.cone_tree.query(w)
             free &= dc > road.cone_radius
