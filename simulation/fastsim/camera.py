@@ -130,7 +130,7 @@ class FakeYolo:
 @dataclass(frozen=True)
 class FloorSegConfig:
     """假地面分割的误差。全是 [假设],等实车 SegFormer 标定、录像后改。"""
-    range: float = 4.0          # 有效距离 m:256×320 输入,远处地面像素太稀
+    range: float = 3.0          # 有效距离 m:和车上 ground_seg_node --max-range 一致(俯仰 ±1° 在 3 m 外已是 ±12 cm 以上)
     step: float = 0.05          # 采样间距 m(= BEV 栅格)
     edge_sigma: float = 0.05    # 每帧边界整体偏移(外扩为正)m
     jitter: float = 0.03        # 逐点边界抖动 m
