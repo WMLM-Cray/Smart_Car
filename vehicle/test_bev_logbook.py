@@ -35,13 +35,13 @@ def test_bump_is_not_a_pickup_but_lifting_is():
 
 def test_segments_do_not_mix(tmp_path):
     b = Logbook(str(tmp_path))
-    b.add_lidar(np.array([[1.0, 0.0], [1.0, 0.0]]))
+    b.add_lidar(np.array([[1.0, 0.0], [1.0, 0.0]]), (0.0, 0.0))
     b.add_pose(0.0, (0.0, 0.0, 0.0), 0.1, 0.5, 0.3)
     b.pause()                                                    # 抱起
-    b.add_lidar(np.array([[5.0, 5.0]]))                          # 抱着走时的数据不能进任何一段
+    b.add_lidar(np.array([[5.0, 5.0]]), (0.0, 0.0))                          # 抱着走时的数据不能进任何一段
     b.add_pose(1.0, (9.0, 9.0, 0.0), 0.0, 0.0, 0.0)
     b.resume()                                                   # 放下:新段从零开始
-    b.add_lidar(np.array([[2.0, 0.0]]))
+    b.add_lidar(np.array([[2.0, 0.0]]), (0.0, 0.0))
     b.add_pose(2.0, (0.0, 0.0, 0.0), -0.1, 0.5, 0.3)
     b.save()
     s1, s2 = np.load(tmp_path / 'seg_01' / 'seg.npz'), np.load(tmp_path / 'seg_02' / 'seg.npz')
@@ -49,3 +49,23 @@ def test_segments_do_not_mix(tmp_path):
     assert s2['lidar_ij'].tolist() == [[40, 0]]
     assert len(s1['path']) == 1 and len(s2['path']) == 1 and s2['path'][0, 0] == 2.0
     assert json.load(open(tmp_path / 'seg_02' / 'marks.json')) == []
+
+
+def _scan_wall(b, origin, wall_x, ys):
+    b.add_lidar(np.array([[wall_x, y] for y in ys]), origin)
+
+
+def test_person_trail_is_cleared_when_rescanned_but_wall_stays(tmp_path):
+    b = Logbook(str(tmp_path))
+    ys = np.arange(-1.5, 1.51, 0.02)
+    for _ in range(5):                                           # 人站在 x=1 处被扫到 5 次
+        b.add_lidar(np.array([[1.0, 0.0]]), (0.0, 0.0))
+        _scan_wall(b, (0.0, 0.0), 3.0, ys)
+    for _ in range(10):                                          # 人走了,再扫 10 次:射线穿过人原来的格子
+        _scan_wall(b, (0.0, 0.0), 3.0, ys)
+    for _ in range(10):                                          # 车开到墙边斜着扫墙
+        _scan_wall(b, (2.5, -1.0), 3.0, ys)
+    k = lambda x, y: (round(x / 0.05), round(y / 0.05))
+    assert b.miss.get(k(1.0, 0.0), 0) > b.lidar[k(1.0, 0.0)]     # 人的影子被压掉
+    wall = [k(3.0, y) for y in ys]
+    assert all(b.lidar[c] > b.miss.get(c, 0) for c in wall)      # 墙一格都没被擦掉

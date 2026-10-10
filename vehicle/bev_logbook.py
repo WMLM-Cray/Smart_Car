@@ -21,6 +21,7 @@ PICKUP_ACC = 1.5        # 加速度模长偏离静止值超过这个 m/s²
 PICKUP_HOLD = 0.25      # 上面任一条持续这么久才算被抱起(滤掉过坎的颠簸)
 SETTLE = 1.5            # 放下后静止这么久才开新段
 PATH_DT = 0.2           # 路径和决策每这么久记一条
+CLEAR_STOP = 0.10       # 雷达射线穿过的格子记"空",离回波点这么近的不记(斜扫墙面时别把墙自己擦掉)
 
 
 class PickupDetector:
@@ -54,6 +55,53 @@ class PickupDetector:
         return None
 
 
+class Grid:
+    """按 CELL 栅格计数的稠密数组,碰到边就往外扩;接口像 {(i, j): 次数} 的 dict(只列非零格)。"""
+
+    def __init__(self):
+        self.a = np.zeros((0, 0), np.int32)
+        self.i0 = self.j0 = 0
+
+    def add(self, ij, unique_only=False):
+        lo, hi = ij.min(0), ij.max(0)
+        if self.a.size == 0:
+            self.i0, self.j0 = int(lo[0]) - 100, int(lo[1]) - 100
+            self.a = np.zeros((int(hi[0] - lo[0]) + 201, int(hi[1] - lo[1]) + 201), np.int32)
+        pi0, pj0 = max(0, self.i0 - int(lo[0])), max(0, self.j0 - int(lo[1]))
+        pi1 = max(0, int(hi[0]) - (self.i0 + self.a.shape[0] - 1))
+        pj1 = max(0, int(hi[1]) - (self.j0 + self.a.shape[1] - 1))
+        if pi0 or pj0 or pi1 or pj1:                     # 多扩 100 格(5 m),别每帧都扩
+            pi0, pj0, pi1, pj1 = [v + 100 if v else 0 for v in (pi0, pj0, pi1, pj1)]
+            self.a = np.pad(self.a, ((pi0, pi1), (pj0, pj1)))
+            self.i0, self.j0 = self.i0 - pi0, self.j0 - pj0
+        i, j = ij[:, 0] - self.i0, ij[:, 1] - self.j0
+        if unique_only:
+            flat = np.unique(i * self.a.shape[1] + j)
+            self.a.reshape(-1)[flat] += 1
+        else:
+            np.add.at(self.a, (i, j), 1)
+
+    def get(self, k, default=0):
+        i, j = k[0] - self.i0, k[1] - self.j0
+        if 0 <= i < self.a.shape[0] and 0 <= j < self.a.shape[1]:
+            return int(self.a[i, j])
+        return default
+
+    def __getitem__(self, k):
+        return self.get(k)
+
+    def ij(self):
+        i, j = np.nonzero(self.a)
+        return np.stack([i + self.i0, j + self.j0], 1).astype(np.int32), self.a[i, j]
+
+    def items(self):
+        k, n = self.ij()
+        return zip(map(tuple, k.tolist()), n.tolist())
+
+    def __iter__(self):
+        return iter(map(tuple, self.ij()[0].tolist()))
+
+
 class Logbook:
     def __init__(self, root):
         self.root = root
@@ -64,7 +112,7 @@ class Logbook:
 
     def _new(self):
         self.seg += 1
-        self.lidar, self.free = {}, {}
+        self.lidar, self.miss, self.free = Grid(), Grid(), Grid()
         self.path, self.marks = [], []
         self.last_path_t = -1e9
         self.t0 = time.time()
@@ -87,16 +135,27 @@ class Logbook:
         self._new()
 
     @staticmethod
-    def _add(grid, xy):
+    def _add(grid, xy, unique_only=False):
+        """unique_only:一帧里同一格只算一次(射线上采样比格密,同一格会数好几遍)。"""
         if len(xy) == 0:
             return
-        k, n = np.unique(np.round(np.asarray(xy) / CELL).astype(np.int32), axis=0, return_counts=True)
-        for (i, j), c in zip(map(tuple, k), n):
-            grid[(i, j)] = grid.get((i, j), 0) + int(c)
+        grid.add(np.round(np.asarray(xy) / CELL).astype(np.int64), unique_only)
 
-    def add_lidar(self, xy_odom):
-        if self.active:
-            self._add(self.lidar, xy_odom)
+    def add_lidar(self, xy_odom, origin):
+        """一帧雷达回波(odom 系)+ 雷达此刻的位置。回波格记"有",射线穿过的格记"空":
+        人走过留下的一串回波,之后雷达再扫过那片地方时被"空"压过,图上就不会留成一堵墙。"""
+        if not self.active or len(xy_odom) == 0:
+            return
+        p = np.asarray(xy_odom, np.float64)
+        self._add(self.lidar, p)
+        o = np.asarray(origin, np.float64)
+        d = p - o
+        r = np.hypot(d[:, 0], d[:, 1])
+        s = np.arange(0.0, float(r.max()), CELL * 0.7, dtype=np.float32)  # 沿射线每 0.7 格取一点
+        ok = s[None, :] < (r - CLEAR_STOP)[:, None]
+        u = (d / np.maximum(r, 1e-9)[:, None]).astype(np.float32)
+        q = o.astype(np.float32) + u[:, None, :] * s[None, :, None]
+        self._add(self.miss, q[ok], unique_only=True)
 
     def add_free(self, xy_odom):
         if self.active:
@@ -123,17 +182,15 @@ class Logbook:
         if not self.path:
             return
         os.makedirs(self.dir(), exist_ok=True)
-        lk = np.array(list(self.lidar.keys()), np.int32).reshape(-1, 2)
-        fk = np.array(list(self.free.keys()), np.int32).reshape(-1, 2)
+        (lk, ln), (mk, mn), (fk, fn) = self.lidar.ij(), self.miss.ij(), self.free.ij()
         np.savez(os.path.join(self.dir(), 'seg.npz'), cell=CELL,
-                 lidar_ij=lk, lidar_n=np.array(list(self.lidar.values()), np.int32),
-                 free_ij=fk, free_n=np.array(list(self.free.values()), np.int32),
+                 lidar_ij=lk, lidar_n=ln, miss_ij=mk, miss_n=mn, free_ij=fk, free_n=fn,
                  path=np.array(self.path, np.float64))        # t x y yaw steer target speed
         with open(os.path.join(self.dir(), 'marks.json'), 'w', encoding='utf-8') as f:
             json.dump(self.marks, f, ensure_ascii=False, indent=1)
 
     def render(self, cv2, px=2):
-        """当前段的全局图(BGR):黑 = 雷达(至少 2 次),浅绿 = 摄像头地面,蓝线 = 路径,
+        """当前段的全局图(BGR):黑 = 雷达(至少 2 次回波,且回波次数多于被射线穿过的次数),浅绿 = 摄像头地面,蓝线 = 路径,
         黄短线 = 模型想打的方向(每 1 s 一根),红圈 = 标记编号,三角 = 车现在的位置。"""
         pts = [k for k in self.lidar] + [k for k in self.free] + \
               [(round(x / CELL), round(y / CELL)) for _, x, y, *_ in self.path]
@@ -149,7 +206,7 @@ class Logbook:
             u, v = to(i, j)
             img[v:v + px, u:u + px] = (190, 235, 190)
         for (i, j), n in self.lidar.items():
-            if n >= 2:
+            if n >= 2 and n > self.miss.get((i, j), 0):
                 u, v = to(i, j)
                 img[v:v + px, u:u + px] = (30, 30, 30)
         m = px / CELL

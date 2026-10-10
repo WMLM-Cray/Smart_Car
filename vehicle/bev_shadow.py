@@ -111,7 +111,9 @@ def main(argv=None):
     def on_scan(m):
         with lock:
             rt.on_scan(m.ranges, m.angle_min, m.angle_increment, now())
-            book.add_lidar(lidar_points(rt.scan, rt.angles, rt.scan_pose, p, rt.bev.lidar_yaw, 8.0))
+            x, y, yaw = rt.scan_pose
+            book.add_lidar(lidar_points(rt.scan, rt.angles, rt.scan_pose, p, rt.bev.lidar_yaw, 8.0),
+                           (x + p.lidar_x * math.cos(yaw), y + p.lidar_x * math.sin(yaw)))
 
     def on_enc(m):
         with lock:
