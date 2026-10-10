@@ -22,6 +22,7 @@ PICKUP_HOLD = 0.25      # 上面任一条持续这么久才算被抱起(滤掉�
 SETTLE = 1.5            # 放下后静止这么久才开新段
 PATH_DT = 0.2           # 路径和决策每这么久记一条
 CLEAR_STOP = 0.10       # 雷达射线穿过的格子记"空",离回波点这么近的不记(斜扫墙面时别把墙自己擦掉)
+CLEAR_EVERY = 4         # 只用每 4 根射线记"空"(实车一帧 ~1400 根,间隔 0.86°,3 m 处 4.5 cm < 一格;车上 ~45 -> ~12 ms)
 
 
 class PickupDetector:
@@ -149,7 +150,7 @@ class Logbook:
         p = np.asarray(xy_odom, np.float64)
         self._add(self.lidar, p)
         o = np.asarray(origin, np.float64)
-        d = p - o
+        d = p[::CLEAR_EVERY] - o
         r = np.hypot(d[:, 0], d[:, 1])
         s = np.arange(0.0, float(r.max()), CELL * 0.7, dtype=np.float32)  # 沿射线每 0.7 格取一点
         ok = s[None, :] < (r - CLEAR_STOP)[:, None]
