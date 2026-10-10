@@ -88,6 +88,11 @@ class ScanGuard:
         sgn = 1.0 if steer > 0 else -1.0
         radius = WHEELBASE / abs(math.tan(steer))
         cy = sgn * radius
+        # 车身矩形离圆心的距离只在 [R - 半宽, hypot(R + 半宽, 车头)] 之间,环带外的点永远扫不到
+        r = np.hypot(p[:, 0], p[:, 1] - cy)
+        p = p[(r >= radius - HALF_CORRIDOR) & (r <= math.hypot(radius + HALF_CORRIDOR, NOSE_AHEAD))]
+        if len(p) == 0:
+            return float('inf')
         d = np.arange(0.0, MAX_LOOKAHEAD + 1e-9, SWEEP_STEP)
         phi = -sgn * d / radius                                  # (k,)
         c, sn = np.cos(phi)[:, None], np.sin(phi)[:, None]
