@@ -6,16 +6,21 @@ BEV;每拍按当前位姿出 5×80×80 图(本帧雷达按扫描位姿投影,和
 
 摄像头:车上还没有 YOLO 节点,锥桶/胶带/区域三层是空的 —— 和训练时(FastSim 假 YOLO)不同,
 上车前要先在仿真里关掉假 YOLO 验证过。接上 YOLO 后在 on_detections() 里登记。
+地面分割(bev_v2):vehicle/ground_seg_node.py 发车体系地面点,on_free() 按**拍摄时刻**的位姿登记进 FREE 层
+(分割要 ~60 ms,1.8 m/s 下按收到时刻登记会错 10 cm)。
 """
 from __future__ import annotations
 
+from collections import deque
+
 import numpy as np
 
-from common.bev import Bev, PoseIntegrator
+from common.bev import Bev, CellType, PoseIntegrator
 from common.bev_policy import bev_image, scalars
 from common.road_runtime import RoadRuntime
 
 MAX_DT = 0.2            # 两次积分间隔超过这个就当传感器断过,不积分(停车/过期时 RoadRuntime 已回中位)
+POSE_HISTORY = 1.0      # 位姿历史留这么久 s,给按拍摄时刻登记的摄像头结果查
 
 
 class BevRuntime(RoadRuntime):
@@ -25,6 +30,7 @@ class BevRuntime(RoadRuntime):
         self.odom = PoseIntegrator()
         self.pose_t = None
         self.scan_pose = (0.0, 0.0, 0.0)
+        self.history = deque()
         super().reset()
 
     def _integrate(self, now):
@@ -33,6 +39,15 @@ class BevRuntime(RoadRuntime):
             self.odom.step(self.speed, self.yaw_rate, now - self.pose_t)
         if self.pose_t is None or now > self.pose_t:
             self.pose_t = now
+            self.history.append((now, self.odom.pose))
+            while self.history and self.history[0][0] < now - POSE_HISTORY:
+                self.history.popleft()
+
+    def pose_at(self, t):
+        """历史里离 t 最近的位姿;没有历史就用当前位姿。"""
+        if not self.history:
+            return self.odom.pose
+        return min(self.history, key=lambda h: abs(h[0] - t))[1]
 
     def on_odometry(self, speed, now):
         self._integrate(now)            # 先用旧车速积到现在,再换新车速
@@ -54,12 +69,21 @@ class BevRuntime(RoadRuntime):
         self._integrate(now)
         self.bev.update_camera(kinds, xy_body, self.odom.pose, float(now))
 
+    def on_free(self, xy_body, stamp, now):
+        """地面分割(车体系落地点)按拍摄时刻 stamp 的位姿登记进 FREE 层。"""
+        self._integrate(now)
+        if len(xy_body):
+            self.bev.update_camera(np.full(len(xy_body), int(CellType.FREE)), xy_body,
+                                   self.pose_at(float(stamp)), float(now))
+
     def _reset_history(self):
         # 重新使能 / 传感器过期后从空 BEV 开始:停过车,旧证据和积分起点都不可信
         super()._reset_history()
         self.bev.reset()
+        self.history.clear()
 
     def _act(self, now):
         self._integrate(now)
-        img = bev_image(self.bev, self.odom.pose, float(now), self.scan, self.angles, self.scan_pose)
+        img = bev_image(self.bev, self.odom.pose, float(now), self.scan, self.angles, self.scan_pose,
+                        free=self.policy.free)
         return self.policy(img, scalars(self.speed, self.speed_cap, self.yaw_rate, self.enc))

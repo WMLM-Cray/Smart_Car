@@ -31,7 +31,6 @@ if str(ROOT) not in sys.path:
 
 from common.params import CarParams
 from common.pwm import steer_to_turn
-from common.bev_policy import SCHEMA as BEV_SCHEMA
 from common.bev_policy import BevPolicy
 from common.bev_runtime import BevRuntime
 from common.road_policy import V_LO, RoadPolicy
@@ -41,6 +40,7 @@ from vehicle.speed_loop import SpeedLoop, SpeedLoopConfig
 
 CMD_TOPIC = '/teleop_cmd_vel'
 ENC_TOPIC = '/encoder'
+FREE_TOPIC = '/ground_free'     # vehicle/ground_seg_node.py:车体系地面点,header.stamp = 拍摄时刻
 CONTROL_PERIOD = 0.05       # 20Hz,和训练的 CONTROL_DT 一致
 SENSOR_TIMEOUT = 0.3        # 实测 /encoder 34Hz、/scan 12Hz、/IMU_data 55Hz
 ENABLE_TIMEOUT = 0.3        # /policy_enable 是心跳不是开关
@@ -84,6 +84,10 @@ class RoadCarController:
     def on_imu(self, yaw_rate, now):
         self.rt.on_imu(yaw_rate, now)
 
+    def on_free(self, xy_body, stamp, now):
+        if isinstance(self.rt, BevRuntime):
+            self.rt.on_free(xy_body, stamp, now)
+
     def on_enable(self, enabled, now):
         """返回 True = 刚松手,要马上发一次中位(不靠看门狗补,2026-09-24 松手失控的教训)。"""
         was = self.rt.enabled
@@ -118,16 +122,16 @@ class RoadCarController:
 
 
 def load_policy(path):
-    """bev_v1_* 走 BevPolicy(BEV 输入),其余(road_v2 / road_v2.5 / spica_v3_*)走 RoadPolicy。"""
+    """bev_v1_* / bev_v2_* 走 BevPolicy(BEV 输入),其余(road_v2 / road_v2.5 / spica_v3_*)走 RoadPolicy。"""
     with np.load(path) as z:
         schema = str(z['schema'])
-    return BevPolicy(path) if schema.startswith(BEV_SCHEMA) else RoadPolicy(path)
+    return BevPolicy(path) if schema.startswith('bev_') else RoadPolicy(path)
 
 
 def parser():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument('model', help='road_v2 / road_v2.5 / spica_v3_* / bev_v1_* .npz')
+    p.add_argument('model', help='road_v2 / road_v2.5 / spica_v3_* / bev_v1_* / bev_v2_* .npz')
     p.add_argument('--speed-cap', type=float, required=True,
                    help=f'速度上限 m/s,要在模型自己的训练范围内(见 schema);首次上车用 {V_LO}~0.5')
     return p
@@ -139,7 +143,7 @@ def create_node_class():
     from geometry_msgs.msg import Twist
     from nav_msgs.msg import Odometry
     from rclpy.node import Node
-    from sensor_msgs.msg import Imu, LaserScan
+    from sensor_msgs.msg import Imu, LaserScan, PointCloud2
     from std_msgs.msg import Bool
 
     class RoadCarNode(Node):
@@ -151,6 +155,8 @@ def create_node_class():
             self.create_subscription(Odometry, ENC_TOPIC, self.on_enc, 10)
             self.create_subscription(Imu, '/IMU_data', self.on_imu, 10)
             self.create_subscription(Bool, '/policy_enable', self.on_enable, 1)
+            if getattr(self.ctl.rt.policy, 'free', False):            # bev_v2:订阅地面分割
+                self.create_subscription(PointCloud2, FREE_TOPIC, self.on_free, 2)
             self.last_event = None
             self.last_floor = self.ctl.loop.floor
             self.create_timer(CONTROL_PERIOD, self.tick)
@@ -177,6 +183,10 @@ def create_node_class():
 
         def on_imu(self, m):
             self.ctl.on_imu(m.angular_velocity.z, self.now())
+
+        def on_free(self, m):
+            xy = np.frombuffer(bytes(m.data), np.float32).reshape(-1, 2).astype(np.float64)
+            self.ctl.on_free(xy, m.header.stamp.sec + m.header.stamp.nanosec * 1e-9, self.now())
 
         def on_enable(self, m):
             was = self.ctl.rt.enabled

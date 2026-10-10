@@ -11,19 +11,21 @@ from common.road_runtime import STOP
 SCHEMA = 'bev_v1_s3_v0.45-3'
 
 
-def _model(tmp_path, seed=0):
-    """随机权重的 bev_v1 模型(和 bev_net.export 同键名),不依赖 torch。"""
+def _model(tmp_path, seed=0, schema=SCHEMA):
+    """随机权重的 bev_v1 / bev_v2 模型(和 bev_net.export 同键名),不依赖 torch。"""
+    from common.bev_policy import channels_of
     rng = np.random.default_rng(seed)
     p = {}
     for k, (ci, co, ks) in enumerate(CONVS):
+        ci = channels_of(schema) if k == 0 else ci
         p[f'c{k}w'] = rng.normal(0, 0.1, (co, ci, ks, ks)).astype(np.float32)
         p[f'c{k}b'] = np.zeros(co, np.float32)
     dims = [CONVS[-1][1] * (H // 16) * (W // 16) + N_SCALAR, HIDDEN, HIDDEN, 2]
     for k in range(3):
         p[f'f{k}w'] = rng.normal(0, 0.05, (dims[k + 1], dims[k])).astype(np.float32)
         p[f'f{k}b'] = np.zeros(dims[k + 1], np.float32)
-    path = tmp_path / 'bev.npz'
-    np.savez(path, schema=np.array(SCHEMA), **p)
+    path = tmp_path / f'{schema}.npz'
+    np.savez(path, schema=np.array(schema), **p)
     return str(path)
 
 
@@ -126,3 +128,22 @@ def test_car_node_rejects_cap_outside_bev_contract(tmp_path, cap):
     from vehicle.road_car_node import main
     with pytest.raises(SystemExit):
         main([_model(tmp_path), '--speed-cap', str(cap)])
+
+
+def test_v2_registers_floor_at_capture_pose(tmp_path):
+    """bev_v2:地面点按拍摄时刻的位姿登记(车已往前开了 0.5 m,点仍落在原地),图里第 5 通道有东西。"""
+    from vehicle.road_car_node import RoadCarController, load_policy
+    pol = load_policy(_model(tmp_path, schema='bev_v2_s3_v0.45-3'))
+    assert isinstance(pol, BevPolicy) and pol.free
+    rt = RoadCarController(pol, 0.7).rt
+    assert isinstance(rt, BevRuntime)
+    for k in range(51):                                     # 1 m/s 直行 0.5 s
+        t = k * 0.01
+        rt.on_odometry(1.0, t)
+        rt.on_imu(0.0, t)
+    rt.on_free(np.array([[2.0, 0.0]]), stamp=0.0, now=0.5)
+    img = bev_image(rt.bev, rt.odom.pose, 0.5, free=True)
+    assert img[5].sum() >= 1
+    row, col = np.argwhere(img[5] > 0)[0]
+    ahead = (60 - row - 0.5) * 0.1                          # 后轴在第 60 行,每格 0.1 m
+    assert abs(ahead - 1.5) < 0.11                          # 拍摄时在前方 2 m,车又开了 0.5 m
