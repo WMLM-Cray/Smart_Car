@@ -1,4 +1,4 @@
-"""影子模式的问题记录本(evaluation/shadow_replay.py 回放时用):按"段"累积全局地图(雷达 + 摄像头地面,不过期)、路径、模型每拍想怎么走,
+"""影子模式(vehicle/bev_shadow.py)的问题记录本:按"段"累积全局地图(雷达 + 摄像头地面,不过期)、路径、模型每拍想怎么走,
 以及人点"标记"时的现场(摄像头画面 + BEV 输入 + 决策)。
 
 抱车会让里程计和实际位置脱节,所以一段 = 车一直在地上;检测到被抱起来(IMU 倾斜 / 晃动 / 加速度不对)
@@ -22,6 +22,8 @@ PICKUP_HOLD = 0.25      # 上面任一条持续这么久才算被抱起(滤掉�
 SETTLE = 1.5            # 放下后静止这么久才开新段
 PATH_DT = 0.2           # 路径和决策每这么久记一条
 CLEAR_STOP = 0.10       # 雷达射线穿过的格子记"空",离回波点这么近的不记(斜扫墙面时别把墙自己擦掉)
+CLAMP = 6               # 证据封顶:最多 6 帧相反的观测就能把一格翻过来
+OCC_ON = 2              # 雷达证据 >= 这个才画成障碍(只被扫到一次的噪点不画)
 CLEAR_EVERY = 4         # 只用每 4 根射线记"空"(实车一帧 ~1400 根,间隔 0.86°,3 m 处 4.5 cm < 一格;车上 ~45 -> ~12 ms)
 
 
@@ -57,17 +59,19 @@ class PickupDetector:
 
 
 class Grid:
-    """按 CELL 栅格计数的稠密数组,碰到边就往外扩;接口像 {(i, j): 次数} 的 dict(只列非零格)。"""
+    """按 CELL 栅格的证据值(int8,夹在 ±CLAMP),稠密数组,碰到边就往外扩。
+    每帧"看见有"的格 +1、"看见没有"的格 -1(一帧里同一格只算一次,两边都有算"有")。证据封顶,
+    所以停着不动扫了几百帧的格子,也只要几帧相反的观测就翻过来 —— 扫错的点不会一直留在图上。"""
 
     def __init__(self):
-        self.a = np.zeros((0, 0), np.int32)
+        self.a = np.zeros((0, 0), np.int8)
         self.i0 = self.j0 = 0
 
-    def add(self, ij, unique_only=False):
+    def _fit(self, ij):
         lo, hi = ij.min(0), ij.max(0)
         if self.a.size == 0:
             self.i0, self.j0 = int(lo[0]) - 100, int(lo[1]) - 100
-            self.a = np.zeros((int(hi[0] - lo[0]) + 201, int(hi[1] - lo[1]) + 201), np.int32)
+            self.a = np.zeros((int(hi[0] - lo[0]) + 201, int(hi[1] - lo[1]) + 201), np.int8)
         pi0, pj0 = max(0, self.i0 - int(lo[0])), max(0, self.j0 - int(lo[1]))
         pi1 = max(0, int(hi[0]) - (self.i0 + self.a.shape[0] - 1))
         pj1 = max(0, int(hi[1]) - (self.j0 + self.a.shape[1] - 1))
@@ -75,12 +79,19 @@ class Grid:
             pi0, pj0, pi1, pj1 = [v + 100 if v else 0 for v in (pi0, pj0, pi1, pj1)]
             self.a = np.pad(self.a, ((pi0, pi1), (pj0, pj1)))
             self.i0, self.j0 = self.i0 - pi0, self.j0 - pj0
-        i, j = ij[:, 0] - self.i0, ij[:, 1] - self.j0
-        if unique_only:
-            flat = np.unique(i * self.a.shape[1] + j)
-            self.a.reshape(-1)[flat] += 1
-        else:
-            np.add.at(self.a, (i, j), 1)
+
+    def update(self, yes_ij, no_ij):
+        both = np.concatenate([yes_ij, no_ij])
+        if len(both) == 0:
+            return
+        self._fit(both)
+        w = self.a.shape[1]
+        flat = lambda ij: np.unique((ij[:, 0] - self.i0) * w + (ij[:, 1] - self.j0))
+        yes, no = flat(yes_ij), flat(no_ij)
+        no = no[~np.isin(no, yes, assume_unique=True)]
+        v = self.a.reshape(-1)
+        v[yes] = np.minimum(v[yes] + 1, CLAMP)
+        v[no] = np.maximum(v[no] - 1, -CLAMP)
 
     def get(self, k, default=0):
         i, j = k[0] - self.i0, k[1] - self.j0
@@ -91,21 +102,22 @@ class Grid:
     def __getitem__(self, k):
         return self.get(k)
 
-    def ij(self):
-        i, j = np.nonzero(self.a)
+    def ij(self, at_least=None):
+        """非零格(或证据 >= at_least 的格)的 (i, j) 和证据值。"""
+        i, j = np.nonzero(self.a if at_least is None else self.a >= at_least)
         return np.stack([i + self.i0, j + self.j0], 1).astype(np.int32), self.a[i, j]
 
-    def items(self):
-        k, n = self.ij()
-        return zip(map(tuple, k.tolist()), n.tolist())
 
-    def __iter__(self):
-        return iter(map(tuple, self.ij()[0].tolist()))
+def _cells(xy):
+    xy = np.asarray(xy, np.float64).reshape(-1, 2)
+    return np.round(xy / CELL).astype(np.int64)
 
 
 class Logbook:
-    def __init__(self, root):
+    def __init__(self, root, fov_body=None):
+        """fov_body:摄像头地面分割管得到的地面点(车体系,(n, 2));给了才会把"在视野里但没被分成地面"的格减分。"""
         self.root = root
+        self.fov = None if fov_body is None else np.asarray(fov_body, np.float64).reshape(-1, 2)
         os.makedirs(root, exist_ok=True)
         self.seg = 0
         self.active = False
@@ -113,7 +125,7 @@ class Logbook:
 
     def _new(self):
         self.seg += 1
-        self.lidar, self.miss, self.free = Grid(), Grid(), Grid()
+        self.lidar, self.free = Grid(), Grid()
         self.path, self.marks = [], []
         self.last_path_t = -1e9
         self.t0 = time.time()
@@ -135,20 +147,12 @@ class Logbook:
     def resume(self):
         self._new()
 
-    @staticmethod
-    def _add(grid, xy, unique_only=False):
-        """unique_only:一帧里同一格只算一次(射线上采样比格密,同一格会数好几遍)。"""
-        if len(xy) == 0:
-            return
-        grid.add(np.round(np.asarray(xy) / CELL).astype(np.int64), unique_only)
-
     def add_lidar(self, xy_odom, origin):
-        """一帧雷达回波(odom 系)+ 雷达此刻的位置。回波格记"有",射线穿过的格记"空":
-        人走过留下的一串回波,之后雷达再扫过那片地方时被"空"压过,图上就不会留成一堵墙。"""
+        """一帧雷达回波(odom 系)+ 雷达此刻的位置。回波格 +1,射线穿过的格 -1:
+        人走过留下的一串回波,之后雷达再扫过那片地方时被压回去,图上就不会留成一堵墙。"""
         if not self.active or len(xy_odom) == 0:
             return
         p = np.asarray(xy_odom, np.float64)
-        self._add(self.lidar, p)
         o = np.asarray(origin, np.float64)
         d = p[::CLEAR_EVERY] - o
         r = np.hypot(d[:, 0], d[:, 1])
@@ -156,11 +160,16 @@ class Logbook:
         ok = s[None, :] < (r - CLEAR_STOP)[:, None]
         u = (d / np.maximum(r, 1e-9)[:, None]).astype(np.float32)
         q = o.astype(np.float32) + u[:, None, :] * s[None, :, None]
-        self._add(self.miss, q[ok], unique_only=True)
+        self.lidar.update(_cells(p), _cells(q[ok]))
 
-    def add_free(self, xy_odom):
-        if self.active:
-            self._add(self.free, xy_odom)
+    def add_free(self, xy_body, pose):
+        """一帧地面分割(车体系地面点 + 拍摄时刻位姿)。地面格 +1,视野里其余的格 -1。"""
+        if not self.active:
+            return
+        from common.bev import body_to_odom
+        yes = _cells(body_to_odom(xy_body, pose)) if len(xy_body) else np.zeros((0, 2), np.int64)
+        no = _cells(body_to_odom(self.fov, pose)) if self.fov is not None else np.zeros((0, 2), np.int64)
+        self.free.update(yes, no)
 
     def add_pose(self, t, pose, steer, target, speed):
         if self.active and t - self.last_path_t >= PATH_DT:
@@ -183,33 +192,30 @@ class Logbook:
         if not self.path:
             return
         os.makedirs(self.dir(), exist_ok=True)
-        (lk, ln), (mk, mn), (fk, fn) = self.lidar.ij(), self.miss.ij(), self.free.ij()
-        np.savez(os.path.join(self.dir(), 'seg.npz'), cell=CELL,
-                 lidar_ij=lk, lidar_n=ln, miss_ij=mk, miss_n=mn, free_ij=fk, free_n=fn,
+        (lk, ln), (fk, fn) = self.lidar.ij(), self.free.ij()
+        np.savez(os.path.join(self.dir(), 'seg.npz'), cell=CELL,             # *_n = 证据值(±CLAMP)
+                 lidar_ij=lk, lidar_n=ln, free_ij=fk, free_n=fn,
                  path=np.array(self.path, np.float64))        # t x y yaw steer target speed
         with open(os.path.join(self.dir(), 'marks.json'), 'w', encoding='utf-8') as f:
             json.dump(self.marks, f, ensure_ascii=False, indent=1)
 
     def render(self, cv2, px=2):
-        """当前段的全局图(BGR):黑 = 雷达(至少 2 次回波,且回波次数多于被射线穿过的次数),浅绿 = 摄像头地面,蓝线 = 路径,
+        """当前段的全局图(BGR):黑 = 雷达障碍(证据 >= OCC_ON),浅绿 = 摄像头地面(证据 > 0),蓝线 = 路径,
         黄短线 = 模型想打的方向(每 1 s 一根),红圈 = 标记编号,三角 = 车现在的位置。"""
-        pts = [k for k in self.lidar] + [k for k in self.free] + \
-              [(round(x / CELL), round(y / CELL)) for _, x, y, *_ in self.path]
-        if not pts:
+        occ, fr = self.lidar.ij(OCC_ON)[0], self.free.ij(1)[0]
+        P = np.array([(x, y) for _, x, y, *_ in self.path]).reshape(-1, 2)
+        a = np.concatenate([occ, fr, np.round(P / CELL).astype(np.int32)])
+        if not len(a):
             return np.full((200, 300, 3), 255, np.uint8)
-        a = np.array(pts)
         i0, j0 = a.min(0) - 20
         i1, j1 = a.max(0) + 20
         h, w = int((i1 - i0 + 1) * px), int((j1 - j0 + 1) * px)
         img = np.full((h, w, 3), 255, np.uint8)
         to = lambda i, j: (int((j1 - j) * px), int((i1 - i) * px))     # x 朝上、y 朝左
-        for (i, j), n in self.free.items():
-            u, v = to(i, j)
-            img[v:v + px, u:u + px] = (190, 235, 190)
-        for (i, j), n in self.lidar.items():
-            if n >= 2 and n > self.miss.get((i, j), 0):
-                u, v = to(i, j)
-                img[v:v + px, u:u + px] = (30, 30, 30)
+        for cells, col in ((fr, (190, 235, 190)), (occ, (30, 30, 30))):
+            for dv in range(px):
+                for du in range(px):
+                    img[(i1 - cells[:, 0]) * px + dv, (j1 - cells[:, 1]) * px + du] = col
         m = px / CELL
         step = int(round(1.0 / CELL))
         for i in range(int(i0 // step * step), int(i1) + 1, step):    # 1 m 格

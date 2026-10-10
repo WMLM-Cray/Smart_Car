@@ -86,4 +86,5 @@ class BevRuntime(RoadRuntime):
         self._integrate(now)
         img = bev_image(self.bev, self.odom.pose, float(now), self.scan, self.angles, self.scan_pose,
                         free=self.policy.free)
+        self.last_img = img             # 影子模式网页直接画这张,不再重算
         return self.policy(img, scalars(self.speed, self.speed_cap, self.yaw_rate, self.enc))

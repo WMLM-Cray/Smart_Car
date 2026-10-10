@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>shadow_feed</name>
+  <version>0.1.0</version>
+  <description>把 /IMU_data、/encoder 攒成 20 Hz 一批发给 Python 影子模式,省掉 Python 逐条收消息的开销</description>
+  <maintainer email="sutozzy@gmail.com">SuTozzy</maintainer>
+  <license>MIT</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>rclcpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>std_msgs</depend>
+  <export><build_type>ament_cmake</build_type></export>
+</package>
