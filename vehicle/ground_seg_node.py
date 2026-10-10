@@ -23,6 +23,7 @@ from common.ground_proj import GroundLut
 from common.params import CarParams
 
 TOPIC = '/ground_free'
+DEBUG_TOPIC = '/ground_debug'     # 2 Hz:原图叠地面蒙版(JPEG,sensor_msgs/CompressedImage),给影子模式网页看
 MEAN = np.array([0.485, 0.456, 0.406], np.float32)
 STD = np.array([0.229, 0.224, 0.225], np.float32)
 
@@ -90,11 +91,12 @@ def main(argv=None):
     import rclpy
     from ais_bench.infer.interface import InferSession
     from rclpy.node import Node
-    from sensor_msgs.msg import PointCloud2, PointField
+    from sensor_msgs.msg import CompressedImage, PointCloud2, PointField
 
     rclpy.init(args=[])
     node = Node('ground_seg_node')
     pub = node.create_publisher(PointCloud2, TOPIC, 2)
+    dbg = node.create_publisher(CompressedImage, DEBUG_TOPIC, 1)
     log = node.get_logger()
     p = CarParams()
     lut = GroundLut(size[0] // 4, size[1] // 4, p, a.max_range)
@@ -113,6 +115,13 @@ def main(argv=None):
                 continue
             mask = sess.infer([preprocess(cv2, frame, size)])[0][0]
             pub.publish(to_cloud(PointCloud2, PointField, lut.points(mask), stamp))
+            if seq % 5 == 0 and dbg.get_subscription_count():
+                g = cv2.resize(mask.astype(np.uint8), (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_NEAREST) > 0
+                ov = frame.copy()
+                ov[g] = (0.5 * ov[g] + 0.5 * np.array([40, 160, 60])).astype(np.uint8)
+                im = CompressedImage(format='jpeg', data=cv2.imencode('.jpg', ov, [cv2.IMWRITE_JPEG_QUALITY, 70])[1].tobytes())
+                im.header.stamp.sec, im.header.stamp.nanosec = divmod(int(stamp), 1_000_000_000)
+                dbg.publish(im)
             n, t_sum = n + 1, t_sum + time.monotonic() - start
             if time.monotonic() - t0 > 10.0:
                 log.info(f'{n / (time.monotonic() - t0):.1f} Hz,每帧 {1000 * t_sum / n:.0f} ms')

@@ -95,7 +95,7 @@ def test_cone_off_to_the_side_is_dropped_when_turning_away():
     是真要刮上去的,截停是对的。这个改动只去掉"已经偏在一边、还往反方向打"
     那一类误报。
     """
-    g = guard_with([(0.9 - LIDAR_X, 0.25)])          # 左前方,横向 0.25 < 走廊半宽
+    g = guard_with([(0.9 - LIDAR_X, 0.20)])          # 左前方,横向 0.20 < 走廊半宽 0.215
     assert g.gap(0.0) == pytest.approx(0.9 - NOSE_AHEAD, abs=0.03), '直行时要算它'
     assert math.isinf(g.gap(-0.4)), '往右打方向,这个点在环带外,应该放掉'
 
@@ -134,3 +134,22 @@ def test_obstacle_behind_on_the_same_circle_is_ignored():
     x, y = radius * math.sin(theta), radius * (1 - math.cos(theta))
     g = guard_with([(x - LIDAR_X, y)])
     assert math.isinf(g.gap(steer))
+
+
+# --- 扫车身矩形(2026-10-10 加):车身旁边的东西不算,擦得过去的不拦 ---
+
+def test_parallel_wall_beside_the_car_does_not_stop_it():
+    """左边一面平行的墙离车中线 0.25 m(车身外 7.5 cm):直行擦得过去,原来算成 -0.125 截停。"""
+    wall = [(x / 100 - LIDAR_X, 0.25) for x in range(5, 200, 2)]
+    assert math.isinf(guard_with(wall).gap(0.0))
+    wall = [(x / 100 - LIDAR_X, HALF_CORRIDOR - 0.01) for x in range(5, 200, 2)]
+    assert guard_with(wall).gap(0.0) == pytest.approx(0.0, abs=1e-9), '贴进余量就是已经刮上了'
+
+
+def test_turning_into_a_side_wall_stops_before_the_corner_hits():
+    """同一面墙,往墙那边打满方向:车头角会扫过去,要报一个有限、不太远的距离;往反方向打就不报。"""
+    wall = [(x / 100 - LIDAR_X, 0.25) for x in range(5, 300, 2)]
+    g = guard_with(wall)
+    toward = g.gap(0.37)
+    assert 0.0 < toward < 0.4
+    assert math.isinf(g.gap(-0.37))
