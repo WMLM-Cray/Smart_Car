@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 DS = 0.05                   # 中心线采样间距 m
-NONE, WALL, CONE = 0, 1, 2  # 边界材质
+NONE, WALL, CONE, EDGE = 0, 1, 2, 3  # 边界材质;EDGE = 路面换材质(地板/草地、马路牙子):不挡雷达、没有锥桶,只有地面分割看得出
 WALL_HEIGHT = 1.0           # 墙比雷达扫描面(0.21m)高就行
 WALL_STEP = 0.2             # 墙按这个间距切成线段给射线求交
 
@@ -41,6 +41,7 @@ class Level:
     straight: tuple = (1.5, 4.0)        # 元素之间的直道长
     cone_spacing: tuple = (0.5, 0.9)
     wall_chance: float = 0.5            # 一侧用墙(否则锥桶)的概率
+    edge: bool = False                  # 两侧边界全用 EDGE(无锥桶无墙的路,只能靠地面分割认路沿)
     # --- 闭环赛道(L5):按规则元素拼的闭环(track_rules.make_rule_track),折在 16.8m 场地里 ---
     loop: bool = False
     loop_width: tuple = (1.4, 1.6)      # [规则] 1.5m,上下留一点
@@ -136,6 +137,14 @@ LEVELS = (
     # 与 L6f 相反:外侧桶距压到 0.45~0.65(生成器默认 0.4~1.5 只覆盖到 1.5,密端太稀)。
     Level('L6d', gap_corners=True, width=(1.2, 1.6), wall_chance=0.0, gap_spacing=(0.45, 0.65),
           decoy_chance=0.5, gap_lead=(2.0, 5.0)),
+    # 无锥桶路(bev_v2 对照,2026-10-10):几何同 L3 / L4c,两侧全是 EDGE —— 雷达什么都扫不到,
+    # 路沿只在地面分割层里。验证"没摆赛道时靠地面分割沿路面开"。
+    Level('LE3', width=(0.9, 2.5), angles=(45.0, 90.0, 135.0), r_in=(0.0, 2.0),
+          sharp_chance=0.4, uturn_chance=0.15, jog_chance=0.2, taper_chance=0.15,
+          n_elems=(3, 6), straight=(0.4, 3.0), edge=True),
+    Level('LE4', width=(0.9, 2.5), angles=(45.0, 90.0, 135.0), r_in=(0.0, 2.0),
+          sharp_chance=0.4, uturn_chance=0.15, jog_chance=0.2, taper_chance=0.15,
+          n_elems=(4, 7), straight=(0.3, 3.0), edge=True),
 )
 
 
@@ -287,13 +296,15 @@ def _gap_elements(rng: np.random.Generator, lv: Level) -> list[dict]:
 def _materials(rng: np.random.Generator, lv: Level, elems: list[dict]) -> None:
     """每个元素两侧各选一种材质。整条路先抽一个"风格",元素之间小概率换。"""
     style = [WALL if rng.random() < lv.wall_chance else CONE for _ in range(2)]
+    if lv.edge:
+        style = [EDGE, EDGE]
     for e in elems:
         if e['kind'] == 'gap':
             e['mat'] = (NONE, NONE)
             continue
         side = []
         for k in range(2):
-            if rng.random() < 0.15:
+            if rng.random() < 0.15 and not lv.edge:
                 style[k] = WALL if style[k] == CONE else CONE
             side.append(style[k])
         if e['kind'] == 'straight' and rng.random() < lv.one_side_none_chance:

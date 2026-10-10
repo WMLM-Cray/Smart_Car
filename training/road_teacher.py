@@ -18,14 +18,14 @@ from scipy.interpolate import CubicSpline
 from scipy.optimize import lsq_linear
 
 from common.pwm import steer_to_turn_float
-from simulation.fastsim.road import CONE, DS, NONE, WALL, Road
+from simulation.fastsim.road import CONE, DS, EDGE, NONE, WALL, Road
 from simulation.fastsim.road_env import CONTROL_DT, RoadEnv
 from common.road_policy import V_HI, speed_to_action
 
 R_MIN = 0.85                # 规划用最小转弯半径 m(车极限 0.828;0.95 是代码闸不是物理墙)
 # 车身两侧到边界至少留这么多(规划时)。锥桶立在边界线上,半径 0.14 要额外扣;
 # 再加 0.05 给入弯时车头外甩(车头在后轴前 0.43m)。
-SIDE_MARGIN = {NONE: 0.10, WALL: 0.15, CONE: 0.14 + 0.15}
+SIDE_MARGIN = {NONE: 0.10, WALL: 0.15, CONE: 0.14 + 0.15, EDGE: 0.15}   # EDGE:地面分割边界有几厘米误差
 STEP = 5                    # 每隔几个中心线点取一个规划点(0.25m)
 # 老师过弯"愿意用"的横向加速度 m/s²,决定标签里弯中能跑多快:v = sqrt(A_LAT/R)。
 # 车物理抓地上限 a_lat_max = 7.85(0.8g,params.py 里标的是 [假设],实车没量过)。

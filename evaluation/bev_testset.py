@@ -54,7 +54,7 @@ def fingerprint(eps) -> str:
 
 
 def build(a):
-    jobs = [(a.seed0 + i, L) for L in LEVELS for i in range(a.per_level)]
+    jobs = [(a.seed0 + i, L) for L in a.levels.split(',') for i in range(a.per_level)]
     with ProcessPoolExecutor(a.workers) as ex:
         eps = list(ex.map(_one, jobs, chunksize=4))
     with open(a.out, 'wb') as f:
@@ -140,6 +140,7 @@ def main():
     b = sub.add_parser('build')
     b.add_argument('--out', required=True)
     b.add_argument('--per-level', type=int, default=400)
+    b.add_argument('--levels', default=','.join(LEVELS), help='无锥桶对照用 LE3,LE4')
     b.add_argument('--seed0', type=int, default=SEED0)
     b.add_argument('--workers', type=int, default=8)
     r = sub.add_parser('run')

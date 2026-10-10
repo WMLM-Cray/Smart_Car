@@ -23,7 +23,7 @@ from scipy.spatial import cKDTree
 from common.bev import Bev, CellType
 from common.bev_policy import bev_image, scalars
 from simulation.fastsim.camera import FakeFloorSeg, FakeYolo
-from simulation.fastsim.road import DS
+from simulation.fastsim.road import DS, EDGE
 from simulation.fastsim.road_env import RoadEnv
 from training.road_teacher import HORIZON, R_MIN, R_REPLAN, Teacher, plan
 
@@ -98,6 +98,9 @@ class SeenTeacher(Teacher):
         self.nb = len(road.left)
         self.tree = cKDTree(np.vstack([road.left, road.right]))
         self.seen = np.zeros(2 * self.nb, bool)
+        # EDGE 边界(路面换材质)雷达扫不到,在地面分割视场里就算看到过;没开地面分割就永远看不到
+        self.edge = np.concatenate([road.mat_left, road.mat_right]) == EDGE
+        self.seg = benv.seg
         self.v_end = math.sqrt(a_lat * R_MIN)
         benv.scan_hooks.append(self._mark)
         self._mark(benv.pose)
@@ -108,6 +111,8 @@ class SeenTeacher(Teacher):
         pts = lidar_points(env.ranges, env.angles, pose, env.cp, env.pl.lidar_yaw, 10.0)
         for idx in self.tree.query_ball_point(pts, SEEN_R):
             self.seen[idx] = True
+        if self.seg is not None and self.edge.any():
+            self.seen |= self.edge & self.seg.in_view(self.tree.data, pose)
 
     def known_ahead(self, i):
         both = self.seen[:self.nb] & self.seen[self.nb:]

@@ -104,3 +104,31 @@ def test_benv_free_episode_fills_channel_5():
     img, _ = benv.observation()
     assert img.shape == (C2, 80, 80) and img[5].sum() > 100
     assert BevEnv(road, Plant.sample(rng), 2, noise=False).observation()[0].shape == (C, 80, 80)
+
+
+def test_edge_road_has_no_lidar_objects_and_floor_stops_at_edge():
+    from simulation.fastsim.road import EDGE
+    road = _road('LE4', seed=4)
+    assert len(road.cones) == 0 and len(road.walls) == 0
+    assert np.all(np.asarray(road.mat_left)[np.asarray(road.mat_left) != 0] == EDGE)
+    pose = _start_pose(road)
+    pts = _seg(road).detect(pose)
+    assert len(pts) > 300
+    d, i = _lateral(road, pose, pts)
+    assert np.all(d <= road.half_l[i] + 1e-6) and np.all(d >= -road.half_r[i] - 1e-6)
+
+
+def test_teacher_drives_edge_road_only_with_floor_seg():
+    """EDGE 路沿雷达扫不到:老师的"看到过"只来自地面分割视场;开了地面分割能开到终点。"""
+    from common.road_policy import spec_of
+    from training.bev_env import BevEnv, SeenTeacher
+    from training.road_check import sample_episode
+    road, pl, start, P, _ = sample_episode(7, 'LE3', enc=spec_of('road_v2.5'), cap_max=1.8)
+    b = BevEnv(road, pl, 7, start, noise=True, free=True)
+    t = SeenTeacher(b, P, 1.47)
+    assert t.seen.any()
+    why = None
+    while why is None:
+        why = b.step(t())
+    assert why == 'goal'
+    assert not SeenTeacher(BevEnv(road, pl, 7, start, noise=True), P, 1.47).seen.any()

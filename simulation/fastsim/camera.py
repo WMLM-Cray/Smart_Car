@@ -24,7 +24,7 @@ import numpy as np
 
 from common.bev import CellType
 from common.params import CarParams
-from simulation.fastsim.road import NONE, WALL
+from simulation.fastsim.road import EDGE, NONE, WALL
 
 TAPE_STEP = 0.10                # 胶带沿线取点间距 m
 
@@ -142,7 +142,7 @@ class FakeFloorSeg:
     喂给 Bev.update_camera(kinds=FREE)。实车上对应 SegFormer 的地面类别经标定投影到地面。
 
     语义 = 实车的通用地面分割(ADE20K SegFormer):锥桶/胶带边界内外是同一块地板,一样算可行驶;
-    只有墙外不算(墙把地面挡住了),并扣掉锥桶底座。锥桶赛道的路沿只能靠锥桶层和雷达认。
+    只有墙外和 EDGE(路面换材质,如地板/草地)外不算,并扣掉锥桶底座。锥桶赛道的路沿只能靠锥桶层和雷达认。
     (曾经一半的局"只认路内",等于给了模型实车永远拿不到的路沿信号,已删,2026-10-10。)
     """
 
@@ -156,6 +156,7 @@ class FakeFloorSeg:
         # 相机视场内的地面采样点(车体系,后轴原点),一次算好
         down = params.camera_pitch + params.camera_vfov / 2
         near = params.camera_z / math.tan(down) if down < math.pi / 2 else 0.0
+        self.near = near
         xs = np.arange(near, cfg.range + 1e-9, cfg.step)
         ys = np.arange(-cfg.range, cfg.range + 1e-9, cfg.step)
         gx, gy = np.meshgrid(xs, ys, indexing='ij')
@@ -163,6 +164,15 @@ class FakeFloorSeg:
         keep = (np.hypot(g[:, 0], g[:, 1]) <= cfg.range) & (np.abs(np.arctan2(g[:, 1], g[:, 0])) <= params.camera_hfov / 2)
         self.grid_cam = g[keep]
         self.grid_body = self.grid_cam + (params.camera_x, 0.0)
+
+    def in_view(self, world, pose) -> np.ndarray:
+        """世界系点 (n, 2) 是否落在地面分割的视场里(和 detect 的采样范围一致)。"""
+        x, y, yaw = pose
+        c, s = math.cos(yaw), math.sin(yaw)
+        dx, dy = world[:, 0] - x, world[:, 1] - y
+        bx, by = c * dx + s * dy - self.p.camera_x, -s * dx + c * dy
+        return ((bx >= self.near) & (np.hypot(bx, by) <= self.cfg.range)
+                & (np.abs(np.arctan2(by, bx)) <= self.p.camera_hfov / 2))
 
     def detect(self, pose) -> np.ndarray:
         """返回可行驶地面点 (n, 2),车体系(后轴原点,x 前 y 左)。"""
@@ -179,7 +189,8 @@ class FakeFloorSeg:
         m = rng.normal(0, cfg.edge_sigma) + rng.normal(0, cfg.jitter, len(d))
         hl, hr = road.half_l[i] + m, road.half_r[i] + m
         ml, mr = np.asarray(road.mat_left)[i], np.asarray(road.mat_right)[i]
-        free = ~(((d > hl) & (ml == WALL)) | ((d < -hr) & (mr == WALL)))
+        stop = (WALL, EDGE)                                            # 墙挡住地面;EDGE 外是别的材质
+        free = ~(((d > hl) & np.isin(ml, stop)) | ((d < -hr) & np.isin(mr, stop)))
         if self.cone_tree is not None:
             dc, _ = self.cone_tree.query(w)
             free &= dc > road.cone_radius
