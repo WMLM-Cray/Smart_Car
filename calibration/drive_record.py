@@ -5,7 +5,8 @@
     python3 -m calibration.drive_record ~/drives/lap1          # Ctrl-C 结束
 
 目录里:frames/NNNNN.jpg(JPEG 质量 95,640×480,默认 5 Hz)、frames.csv(序号, 时刻 s)、
-sensors.npz(scan_t, scans[n, 1667], angle_min, angle_increment, enc_t, enc_v, imu_t, imu_wz)。
+sensors.npz(scan_t, scans[n, 1667], angle_min, angle_increment, enc_t, enc_v, imu_t, imu_wz, imu_acc[n, 3])。
+imu_acc = 线加速度 x y z(静止时就是重力方向,用来看车身俯仰 / 横滚)。
 每 30 s 存一次 sensors.npz,中途断电最多丢 30 s 传感器数据。
 """
 from __future__ import annotations
@@ -36,7 +37,7 @@ def main(argv=None):
     node = Node('drive_record')
     now = lambda: node.get_clock().now().nanoseconds * 1e-9
     lock = threading.Lock()
-    S = dict(scan_t=[], scans=[], enc_t=[], enc_v=[], imu_t=[], imu_wz=[], meta=None)
+    S = dict(scan_t=[], scans=[], enc_t=[], enc_v=[], imu_t=[], imu_wz=[], imu_acc=[], meta=None)
 
     def on_scan(m):
         with lock:
@@ -53,6 +54,8 @@ def main(argv=None):
         with lock:
             S['imu_t'].append(now())
             S['imu_wz'].append(m.angular_velocity.z)
+            a = m.linear_acceleration
+            S['imu_acc'].append((a.x, a.y, a.z))
 
     node.create_subscription(LaserScan, '/scan', on_scan, 5)
     node.create_subscription(Odometry, '/encoder', on_enc, 20)
