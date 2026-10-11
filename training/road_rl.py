@@ -1,13 +1,16 @@
 """road_v2.5 的 RL 精修(PPO):从 DAgger 模型出发,在 FastSim 里直接优化"又快又不撞"。
 
-    python -m training.road_rl pool --out runs/rl_pool.pkl --count 4000 --workers 7
-    python -m training.road_rl train --pool runs/rl_pool.pkl --init models/road_v2.5/candidate_b036.npz \
-        --out runs/road_v2.5_rl --workers 7
+    python -m training.road_rl pool --config training/config/rl_ppo.yaml --out runs/rl_pool.pkl
+    python -m training.road_rl train --config training/config/rl_ppo.yaml --pool runs/rl_pool.pkl \
+        --init models/road_v2.5/candidate_b036.npz --out runs/road_v2.5_rl
+
+默认值全部来自实验配置 training/config/rl_ppo.yaml(Git 管理,训练/评测共用);
+命令行可覆盖任何一项,解析后的完整配置连同 Git 提交号写进 runs/*/config.json。
 
 为什么要 RL:DAgger 最多和老师一样好,老师过弯保守(横向加速度 0.45)。RL 按奖励自己找更快的开法。
 风险:FastSim 的抓地力 0.8g 是假设值(vehicle.py 摩擦圆),RL 会钻它的空子 —— 结果在实车抓地力
 测过之前只算实验。三道约束:
-  奖励    每拍沿路前进的距离 - 时间代价;撞/出界扣 CRASH;按摩擦圆打滑程度扣 SLIP
+  奖励    每拍沿路前进的距离 - 时间代价;撞/出界扣 crash;按摩擦圆打滑程度扣 slip(见 rl_env.RlEnv)
   锚定    动作均值偏离初始(DAgger)模型的平方误差 × anchor(逐轮衰减),不许忘掉已经会的
   评估    和 DAgger 同一套:road_train.run_episode 在挑模型种子上跑确定性策略
 
@@ -24,24 +27,57 @@ for _k in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS'):
 import argparse
 import json
 import pickle
+import subprocess
 import time
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import numpy as np
 
-from common.road_policy import DIM, FRAMES, SCHEMA_SPICA, History, spec_of, suffix_of
+from common.road_policy import DIM, FRAMES, SCHEMA_SPICA, spec_of, suffix_of
 from simulation.fastsim.road import LEVELS
-from simulation.fastsim.road_env import CONTROL_DT, RoadEnv
 from training.road_check import sample_episode
+from training.rl_env import RlEnv
 
-SCHEMA = 'road_v2.5'             # 赛道池默认的速度契约(= spica_v3_s3_v0.45-3)
-POOL_SEED0 = 20_000_000         # 和 DAgger 训练(10M)、挑模型(50M)、测试(90M)都不重叠
-MIX = 'L5:0.2,L5s:0.2,L6h:0.15,L6f:0.15,L4:0.15,L6:0.1,L3:0.05'
-TIME_COST = 0.02                # 每拍 m:相当于 0.4 m/s 以下"不划算"
-CRASH = 50.0                    # 撞/出界(m 当量)。10 时 RL 拿 ~5% 撞车换 ~14% 提速(2026-09-30 第一轮),用户要稳定优先
-SLIP = 0.5                      # 每拍 × 打滑程度(0~1)
-MAX_STEPS = 3000
+CONFIG_PATH = str(Path(__file__).parent / 'config' / 'rl_ppo.yaml')
+
+
+# ---------------- 实验配置 ----------------
+
+def load_config(path):
+    """读实验配置 yaml。键名与子命令参数一一对应,含义见 training/config/rl_ppo.yaml。"""
+    import yaml
+    with open(path, encoding='utf-8') as f:
+        cfg = yaml.safe_load(f) or {}
+    if not isinstance(cfg, dict):
+        raise SystemExit(f'{path} 不是键值表')
+    return cfg
+
+
+def _apply_config(cfg, sub, cmd, a, config_path):
+    """用配置填 argparse 的 None 默认:命令行给了的以命令行为准,其余取配置。
+    配置里出现两个子命令都不认识的键 = 打错了,报错而不是静默忽略。"""
+    union = {act.dest for sp in sub.choices.values() for act in sp._actions}
+    extra = set(cfg) - union
+    if extra:
+        raise SystemExit(f'配置 {config_path} 里有不认识的键: {sorted(extra)}')
+    dests = {act.dest for act in sub.choices[cmd]._actions}
+    for k, v in cfg.items():
+        if k in dests and getattr(a, k, None) is None:
+            setattr(a, k, v)
+    for act in sub.choices[cmd]._actions:
+        if act.dest in ('help', 'cmd', 'config') or not act.option_strings:
+            continue
+        if getattr(a, act.dest, None) is None:
+            raise SystemExit(f'缺少 {act.dest}:命令行没给,{config_path} 里也没有')
+
+
+def _git_commit():
+    try:
+        return subprocess.run(['git', 'rev-parse', 'HEAD'], capture_output=True,
+                              text=True, check=True).stdout.strip()
+    except Exception:
+        return 'unknown'
 
 
 # ---------------- 赛道池 ----------------
@@ -56,7 +92,7 @@ def build_pool(a):
     rng = np.random.default_rng(0)
     mix = [(n, float(p)) for n, p in (x.split(':') for x in a.mix.split(','))]
     probs = np.array([p for _, p in mix]) / sum(p for _, p in mix)
-    jobs = [(POOL_SEED0 + i, mix[int(rng.choice(len(mix), p=probs))][0], a.cap_max, a.schema)
+    jobs = [(a.pool_seed0 + i, mix[int(rng.choice(len(mix), p=probs))][0], a.cap_max, a.schema)
             for i in range(a.count)]
     t0 = time.time()
     with ProcessPoolExecutor(a.workers) as ex:
@@ -86,31 +122,26 @@ def _init_worker(pool_path):
 
 
 def rollout(args):
-    """跑一局随机策略。返回逐拍 obs、动作、logp、奖励,以及结束原因。"""
-    idx, noise_seed, actor, log_std, crash, time_cost = args
+    """跑一局随机策略。返回逐拍 obs、动作、logp、奖励,以及结束原因。
+    观测/动作/终止语义在 rl_env.RlEnv 里,奖励权重由 train 的配置注入。"""
+    idx, noise_seed, actor, log_std, crash, time_cost, slip, max_steps = args
     ep = _POOL[idx]
-    env = RoadEnv(ep['road'], ep['pl'], noise_seed, ep['start'], noise=True)
+    env = RlEnv(ep['road'], ep['pl'], noise_seed, ep['start'], noise=True,
+                crash=crash, time_cost=time_cost, slip=slip, max_steps=max_steps)
     rng = np.random.default_rng(noise_seed)
-    hist = History()
     std = np.exp(log_std)
     xs, acts, logps, rews = [], [], [], []
-    why, n = None, 0
-    s_prev = env.road.s[env.idx]
-    while why is None and n < MAX_STEPS:
-        x = hist.push(env.observation())
+    x = env.reset()
+    while True:
         mu = mlp_np(actor[0], actor[1], x)
         a = mu + rng.normal(0, 1, 2) * std
         logp = float(-0.5 * np.sum(((a - mu) / std) ** 2) - np.sum(log_std) - np.log(2 * np.pi))
-        why = env.step(np.clip(a, -1, 1))
-        s_now = env.road.s[env.idx]
-        r = (s_now - s_prev) - time_cost - SLIP * float(getattr(env.car, 'slip', 0.0))
-        if why in ('collision', 'off_track'):
-            r -= crash
-        s_prev = s_now
+        x, r, term, trunc, info = env.step(a)      # RlEnv 内部 clip 到 ±1
         xs.append(x); acts.append(a.astype(np.float32)); logps.append(logp); rews.append(r)
-        n += 1
+        if term or trunc:
+            break
     return (np.asarray(xs, np.float16), np.asarray(acts, np.float32), np.asarray(logps, np.float32),
-            np.asarray(rews, np.float32), why or 'timeout', ep['level'], ep['pl'].cap, env.t)
+            np.asarray(rews, np.float32), info['reason'], ep['level'], ep['pl'].cap, info['time'])
 
 
 def gae(rews, vals, gamma, lam, terminal):
@@ -136,8 +167,9 @@ def train(a):
     torch.manual_seed(a.seed)
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    (out / 'config.json').write_text(json.dumps({k: str(v) for k, v in vars(a).items()}, indent=1),
-                                     encoding='utf-8')
+    meta = {k: str(v) for k, v in vars(a).items()}
+    meta['git_commit'] = _git_commit()          # 实验记录:这份结果是哪个提交跑出来的
+    (out / 'config.json').write_text(json.dumps(meta, indent=1), encoding='utf-8')
     D = DIM * FRAMES
 
     def net(n_out):
@@ -185,7 +217,7 @@ def train(a):
             t0 = time.time()
             w = weights(actor)
             jobs = [(int(rng.integers(n_pool)), int(rng.integers(2**31)), w, log_std.detach().numpy().copy(),
-                     a.crash, a.time_cost) for _ in range(a.episodes)]
+                     a.crash, a.time_cost, a.slip, a.max_steps) for _ in range(a.episodes)]
             eps = list(ex.map(rollout, jobs))
             t_roll = time.time() - t0
 
@@ -255,41 +287,49 @@ def train(a):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest='cmd', required=True)
+    # 可选参数默认 None,由 --config 的 yaml 提供;命令行给了的以命令行为准(见 _apply_config)
     p = sub.add_parser('pool')
     p.add_argument('--out', required=True)
-    p.add_argument('--count', type=int, default=4000)
-    p.add_argument('--mix', default=MIX)
-    p.add_argument('--cap-max', type=float, default=1.8)
-    p.add_argument('--workers', type=int, default=7)
-    p.add_argument('--schema', default=SCHEMA, help='赛道池按哪个速度契约抽车辆参数(要和 --init 的一致)')
+    p.add_argument('--config', default=CONFIG_PATH, help='实验配置 yaml(默认 training/config/rl_ppo.yaml)')
+    p.add_argument('--count', type=int, default=None)
+    p.add_argument('--mix', default=None)
+    p.add_argument('--cap-max', type=float, default=None)
+    p.add_argument('--workers', type=int, default=None)
+    p.add_argument('--schema', default=None, help='赛道池按哪个速度契约抽车辆参数(要和 --init 的一致)')
+    p.add_argument('--pool-seed0', type=int, default=None,
+                   help='赛道池种子起点(默认取配置,与 DAgger 训练/挑模型/测试种子不重叠)')
     t = sub.add_parser('train')
     t.add_argument('--pool', required=True)
     t.add_argument('--init', required=True)
     t.add_argument('--out', required=True)
-    t.add_argument('--iters', type=int, default=300)
-    t.add_argument('--episodes', type=int, default=112, help='每轮采多少局')
-    t.add_argument('--workers', type=int, default=7)
-    t.add_argument('--torch-threads', type=int, default=2)
-    t.add_argument('--seed', type=int, default=0)
-    t.add_argument('--gamma', type=float, default=0.99)
-    t.add_argument('--lam', type=float, default=0.95)
-    t.add_argument('--clip', type=float, default=0.2)
-    t.add_argument('--epochs', type=int, default=4)
-    t.add_argument('--minibatch', type=int, default=4096)
-    t.add_argument('--lr', type=float, default=1e-4)
-    t.add_argument('--lr-critic', type=float, default=1e-3)
-    t.add_argument('--std0', type=float, default=0.1, help='探索噪声初值(动作 ±1 刻度)')
-    t.add_argument('--anchor', type=float, default=1.0, help='偏离初始模型的惩罚系数')
-    t.add_argument('--anchor-decay', type=float, default=0.995)
-    t.add_argument('--anchor-min', type=float, default=0.3, help='锚定系数下限,不许离初始模型太远')
-    t.add_argument('--crash', type=float, default=CRASH, help='撞/出界扣分(m 当量)')
-    t.add_argument('--time-cost', type=float, default=TIME_COST, help='每拍时间代价(m),越小越不急着提速')
-    t.add_argument('--critic-warmup', type=int, default=5, help='前几轮只训价值网络')
-    t.add_argument('--cap-max', type=float, default=1.8)
-    t.add_argument('--eval-every', type=int, default=5)
-    t.add_argument('--eval-levels', default='L5,L5s,L6h,L4c,L6f')
-    t.add_argument('--eval-count', type=int, default=240)
+    t.add_argument('--config', default=CONFIG_PATH, help='实验配置 yaml(默认 training/config/rl_ppo.yaml)')
+    t.add_argument('--iters', type=int, default=None)
+    t.add_argument('--episodes', type=int, default=None, help='每轮采多少局')
+    t.add_argument('--workers', type=int, default=None)
+    t.add_argument('--torch-threads', type=int, default=None)
+    t.add_argument('--seed', type=int, default=None)
+    t.add_argument('--gamma', type=float, default=None)
+    t.add_argument('--lam', type=float, default=None)
+    t.add_argument('--clip', type=float, default=None)
+    t.add_argument('--epochs', type=int, default=None)
+    t.add_argument('--minibatch', type=int, default=None)
+    t.add_argument('--lr', type=float, default=None)
+    t.add_argument('--lr-critic', type=float, default=None)
+    t.add_argument('--std0', type=float, default=None, help='探索噪声初值(动作 ±1 刻度)')
+    t.add_argument('--anchor', type=float, default=None, help='偏离初始模型的惩罚系数')
+    t.add_argument('--anchor-decay', type=float, default=None)
+    t.add_argument('--anchor-min', type=float, default=None, help='锚定系数下限,不许离初始模型太远')
+    t.add_argument('--crash', type=float, default=None, help='撞/出界扣分(m 当量)')
+    t.add_argument('--time-cost', type=float, default=None, help='每拍时间代价(m),越小越不急着提速')
+    t.add_argument('--slip', type=float, default=None, help='每拍打滑惩罚系数')
+    t.add_argument('--max-steps', type=int, default=None, help='一局最多多少拍(截断)')
+    t.add_argument('--critic-warmup', type=int, default=None, help='前几轮只训价值网络')
+    t.add_argument('--cap-max', type=float, default=None)
+    t.add_argument('--eval-every', type=int, default=None)
+    t.add_argument('--eval-levels', default=None)
+    t.add_argument('--eval-count', type=int, default=None)
     a = ap.parse_args()
+    _apply_config(load_config(a.config), sub, a.cmd, a, a.config)
     build_pool(a) if a.cmd == 'pool' else train(a)
 
 
