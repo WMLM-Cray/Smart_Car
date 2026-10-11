@@ -8,7 +8,7 @@
 
 bev_v2 模型要同时开 vehicle/ground_seg_node.py(发 /ground_free)。
 图:车头朝上,后轴在下方 1/4 处,每格 10 cm(车前 6 m、车后 2 m、左右各 4 m)。
-灰 = 雷达记忆,红 = 本帧雷达,橙 = 锥桶,绿 = 可行驶地面。黄线 = 模型想打的方向(按转角画 1.5 m 弧),
+灰点 = 雷达记忆,红点 = 本帧雷达,橙圆 = 锥桶,绿点 = 可行驶地面。黄线 = 模型想打的方向(按转角画 1.5 m 弧),
 灰圈 = 离后轴 1/2/3/4 m。右边并排是摄像头画面叠地面分割(ground_seg_node 的 /ground_debug,2 Hz)。
 
 问题记录本(vehicle/bev_logbook.py):网页上"标记问题"存下这一刻的现场,"本段全局地图"看这一段的全局图;
@@ -31,6 +31,7 @@ import time
 
 import numpy as np
 
+from common import bev_view
 from common.params import CarParams
 from vehicle.road_car_node import ENABLE_TIMEOUT, FREE_TOPIC, SENSOR_TIMEOUT, load_policy
 
@@ -38,9 +39,7 @@ PORT = 8090
 LAG = 0.12              # 输入攒这么久再按时间顺序处理(各路消息到 Python 的先后不一定按接收时刻)
 DECIDE_DT = 0.1         # 决策周期 s
 VIEW_DT = 0.2           # 网页画面周期 s
-S = 8                                   # 每个 BEV 格子画成 S×S 像素
-LAYERS = [(5, (60, 150, 40)), (0, (150, 150, 150)), (3, (230, 110, 60)), (2, (40, 210, 230)),
-          (1, (0, 140, 255)), (4, (40, 40, 230))]           # BGR;后画的盖先画的
+S = 8                                   # 每个 BEV 格子(10 cm)画成 S×S 像素
 PAGE = """<html><head><meta name='viewport' content='width=device-width'><meta charset='utf-8'></head>
 <body style='margin:0;background:#222;color:#eee;font-family:sans-serif'>
 <img src='/stream' style='width:100%;max-width:1500px;display:block'>
@@ -53,34 +52,30 @@ PAGE = """<html><head><meta name='viewport' content='width=device-width'><meta c
 </body></html>""".encode()
 
 
-def render(cv2, img, steer, target, speed, stale, free_n, p):
+def render(cv2, img, cones_body, steer, target, speed, stale, free_n, p):
+    """底图用 common/bev_view(和 evaluation/bev_video 同一画法),再叠决策弧线、距离圈、图例、状态栏。"""
     n = img.shape[1]
-    rgb = np.full((n, n, 3), 255, np.uint8)
-    for ch, col in LAYERS:
-        if ch < img.shape[0]:
-            rgb[img[ch] > 0.5] = col
-    v = cv2.resize(rgb, (n * S, n * S), interpolation=cv2.INTER_NEAREST)
+    v = np.ascontiguousarray(bev_view.render(img, cones_body, px=S)[..., ::-1])     # RGB -> BGR
     ax, ay = n * S // 2, int(n * S * 6 / 8)                 # 后轴
     m = S / 0.1                                             # 像素 / m
-    cv2.rectangle(v, (int(ax - 0.15 * m), int(ay - 0.42 * m)), (int(ax + 0.15 * m), int(ay + 0.12 * m)), (0, 0, 0), 2)
+    for r in (1, 2, 3, 4):                                  # 距离圈(以后轴为圆心)
+        cv2.circle(v, (ax, ay), int(r * m), (225, 225, 225), 1)
+        cv2.putText(v, f'{r}m', (ax + 4, int(ay - r * m) - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (150, 150, 150), 1)
     if steer is not None:                                   # 按自行车模型画 1.5 m 的轨迹
         k = math.tan(steer) / p.wheelbase
         pts = []
         for s in np.linspace(0, 1.5, 30):
             x, y = (s, 0.0) if abs(k) < 1e-6 else (math.sin(k * s) / k, (1 - math.cos(k * s)) / k)
             pts.append((int(ax - y * m), int(ay - x * m)))
-        cv2.polylines(v, [np.array(pts)], False, (0, 220, 255), 3)
-    for r in (1, 2, 3, 4):                                  # 距离圈(以后轴为圆心)
-        cv2.circle(v, (ax, ay), int(r * m), (200, 200, 200), 1)
-        cv2.putText(v, f'{r}m', (ax + 4, int(ay - r * m) - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (120, 120, 120), 1)
-    y0 = n * S - 112                                        # 图例
+        cv2.polylines(v, [np.array(pts)], False, (0, 200, 255), 3)
+    y0 = n * S - 124                                        # 图例
     for k, (name, col) in enumerate((('lidar now', (40, 40, 230)), ('lidar memory 20s', (150, 150, 150)),
-                                     ('camera floor', (60, 150, 40)), ('model path', (0, 220, 255)))):
-        cv2.rectangle(v, (8, y0 + 22 * k), (24, y0 + 22 * k + 14), col, -1)
+                                     ('camera floor', (40, 150, 60)), ('cone', (0, 140, 255)),
+                                     ('model path', (0, 200, 255)))):
+        cv2.circle(v, (16, y0 + 22 * k + 7), 6, col, -1)
         cv2.putText(v, name, (30, y0 + 22 * k + 12), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (60, 60, 60), 1, cv2.LINE_AA)
     cv2.rectangle(v, (0, 0), (n * S, 30), (0, 0, 0), -1)
-    txt = ('STALE ' + ','.join(stale)) if stale or steer is None else \
-        f'steer {math.degrees(steer):+5.1f} deg  target {target:.2f} m/s  speed {speed:.2f}  free {free_n}'
+    txt = ('STALE ' + ','.join(stale)) if stale or steer is None else         f'steer {math.degrees(steer):+5.1f} deg  target {target:.2f} m/s  speed {speed:.2f}  free {free_n}'
     cv2.putText(v, txt, (8, 21), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
     return v
 
@@ -178,7 +173,8 @@ def main(argv=None):
         if img is None:
             return None
         steer, target = st['d']
-        v = render(cv2, img, steer, target, st['speed'], st['stale'], st['free_n'], p)
+        v = render(cv2, img, bev_view.cones_in_body(rt.bev, rt.odom.pose, rt.pose_t or 0.0), steer, target,
+                   st['speed'], st['stale'], st['free_n'], p)
         head = f"seg {book.seg}{'' if book.active else ' (held)'}  marks {len(book.marks)}  {st['msg']}"
         cv2.putText(v, head, (8, v.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (200, 60, 0), 1, cv2.LINE_AA)
         return v

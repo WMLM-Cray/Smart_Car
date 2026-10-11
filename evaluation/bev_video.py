@@ -3,7 +3,7 @@
     python -m evaluation.bev_video --model runs/bev_v2_a/candidate_011.npz --track A --cap 1.8 --out runs/video_A.mp4
     python -m evaluation.bev_video --model ... --level L6f --seed 93000001 --out runs/video_L6f.mp4
 
-右图通道配色:灰 = 雷达记忆,红 = 本帧雷达,橙 = 锥桶,黄 = 胶带,蓝 = 区域,绿 = 可行驶地面(bev_v2)。
+右图(common/bev_view):灰点 = 雷达记忆,红点 = 本帧雷达,橙圆 = 锥桶,黄点 = 胶带,蓝点 = 区域,绿点 = 可行驶地面(bev_v2)。
 控制 20 Hz,每步一帧,20 fps = 实时。需要 PATH 里有 ffmpeg。
 """
 from __future__ import annotations
@@ -15,14 +15,12 @@ from dataclasses import replace
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
+from common import bev_view
 from common.bev_policy import BevPolicy
 from simulation.fastsim.road_env import CONTROL_DT, Plant
 from training.bev_env import BevEnv
 
 S = 480                                           # 每个面板边长(像素)
-# 通道 -> 颜色;后画的盖住先画的
-LAYERS = [(5, (40, 150, 60)), (0, (150, 150, 150)), (3, (60, 110, 230)), (2, (230, 210, 40)),
-          (1, (255, 140, 0)), (4, (230, 40, 40))]
 
 
 def font(size):
@@ -62,17 +60,8 @@ def world_panel(road, trail, pose, view):
     return im
 
 
-def bev_panel(img):
-    rgb = np.full(img.shape[1:] + (3,), 255, np.uint8)
-    for ch, col in LAYERS:
-        if ch < img.shape[0]:
-            rgb[img[ch] > 0.5] = col
-    im = Image.fromarray(rgb).resize((S, S), Image.NEAREST)
-    d = ImageDraw.Draw(im)
-    n = img.shape[1]                                           # 后轴在第 60 行(车前 6 m / 车后 2 m)
-    ax = S * 6 / 8
-    d.rectangle([S / 2 - 0.15 * S / 8, ax - 0.35 * S / 8, S / 2 + 0.15 * S / 8, ax + 0.15 * S / 8], outline=(0, 0, 0), width=2)
-    return im
+def bev_panel(img, cones_body):
+    return Image.fromarray(bev_view.render(img, cones_body, px=S // img.shape[1]))
 
 
 def main():
@@ -114,11 +103,11 @@ def main():
         trail.append((x, y))
         frame = Image.new('RGB', (2 * S, S + 40), (255, 255, 255))
         frame.paste(world_panel(road, trail, benv.pose, whole), (0, 40))
-        frame.paste(bev_panel(img), (S, 40))
+        frame.paste(bev_panel(img, bev_view.cones_in_body(benv.bev, benv.pose, benv.env.t)), (S, 40))
         d = ImageDraw.Draw(frame)
         d.text((8, 4), f'{title}  {pol.schema if hasattr(pol, "schema") else ""}  t {benv.env.t:5.1f}s  '
                        f'v {benv.env.car.v:4.2f} m/s  限速 {pl.cap:.1f}  转向 {act[0]:+.2f}', fill=(0, 0, 0), font=f_big)
-        d.text((S + 8, 24), '模型输入:灰 雷达记忆  红 本帧雷达  橙 锥桶  绿 可行驶地面', fill=(80, 80, 80), font=f_small)
+        d.text((S + 8, 24), '模型输入:灰点 雷达记忆  红点 本帧雷达  橙圆 锥桶  绿点 可行驶地面', fill=(80, 80, 80), font=f_small)
         ff.stdin.write(np.asarray(frame).tobytes())
         why = benv.step(act)
     ff.stdin.close()
