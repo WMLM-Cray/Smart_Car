@@ -53,6 +53,29 @@ def test_floor_past_cones_counts_but_not_past_walls():
     assert np.any((out_left & (ml != WALL)) | (out_right & (mr != WALL)))
 
 
+def test_cone_casts_shadow_behind_it():
+    """桶比相机高:桶后面那一扇地面相机看不到,桶旁边照样看得到。"""
+    road = _road()
+    seg = _seg(road)
+    pose = _start_pose(road)
+    from common.bev import body_to_odom
+    from common.params import CarParams
+    cam_x = CarParams().camera_x
+    w = body_to_odom(seg.grid_body, pose)
+    seen = {tuple(np.round(p, 3)) for p in seg.detect(pose)}
+    cam = body_to_odom(np.array([[cam_x, 0.0]]), pose)[0]
+    near = [c for c in road.cones if 0.6 < np.hypot(*(c - cam)) < 2.0 and seg.in_view(c[None], pose)[0]]
+    assert near
+    c = near[0]
+    u = (c - cam) / np.hypot(*(c - cam))
+    along = (w - cam) @ u
+    perp = np.abs((w - cam) @ np.array([-u[1], u[0]]))
+    dc = np.hypot(*(c - cam))
+    behind = (along > dc + 0.3) & (perp < 0.03)
+    assert behind.any()
+    assert not any(tuple(np.round(p, 3)) in seen for p in seg.grid_body[behind])
+
+
 def test_free_layer_is_lowest_priority_and_feeds_channel_5_only_for_v2():
     bev = Bev()
     pose = (0.0, 0.0, 0.0)

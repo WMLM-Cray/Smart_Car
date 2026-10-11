@@ -23,7 +23,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from common.bev import CellType
-from common.params import CarParams
+from common.params import CarParams, TrackParams
 from simulation.fastsim.road import EDGE, NONE, WALL
 
 TAPE_STEP = 0.10                # 胶带沿线取点间距 m
@@ -164,6 +164,8 @@ class FakeFloorSeg:
         keep = (np.hypot(g[:, 0], g[:, 1]) <= cfg.range) & (np.abs(np.arctan2(g[:, 1], g[:, 0])) <= params.camera_hfov / 2)
         self.grid_cam = g[keep]
         self.grid_body = self.grid_cam + (params.camera_x, 0.0)
+        self.grid_r = np.hypot(self.grid_cam[:, 0], self.grid_cam[:, 1])
+        self.grid_a = np.arctan2(self.grid_cam[:, 1], self.grid_cam[:, 0])
 
     def in_view(self, world, pose) -> np.ndarray:
         """世界系点 (n, 2) 是否落在地面分割的视场里(和 detect 的采样范围一致)。"""
@@ -194,4 +196,22 @@ class FakeFloorSeg:
         if self.cone_tree is not None:
             dc, _ = self.cone_tree.query(w)
             free &= dc > road.cone_radius
+            free &= ~self._shadow(x + c * self.p.camera_x, y + s * self.p.camera_x, yaw)
         return b[free]
+
+    def _shadow(self, cx, cy, yaw) -> np.ndarray:
+        """被锥桶挡住、相机看不到的地面格(grid_cam 上的布尔)。桶高 70 cm > 相机高 24 cm,桶后面那一扇
+        地面一直挡到有效距离;扇形半角 = asin(底座半径 / 距离)(实车 SegFormer 把桶身分成非地面,投到地面
+        就是这一扇空着)。"""
+        idx = self.cone_tree.query_ball_point((cx, cy), self.cfg.range)
+        if not idx:
+            return np.zeros(len(self.grid_cam), bool)
+        d = self.road.cones[idx] - (cx, cy)
+        dist = np.hypot(d[:, 0], d[:, 1])
+        ang = np.arctan2(d[:, 1], d[:, 0]) - yaw
+        half = np.arcsin(np.minimum(1.0, self.road.cone_radius / np.maximum(dist, 1e-6)))
+        h, ch = TrackParams().cone_height, self.p.camera_z
+        end = np.full(len(dist), np.inf) if h >= ch else dist * ch / (ch - h)     # 矮桶:影子只到这么远
+        da = np.abs((self.grid_a[None, :] - ang[:, None] + np.pi) % (2 * np.pi) - np.pi)
+        r = self.grid_r[None, :]
+        return ((da < half[:, None]) & (r > dist[:, None]) & (r < end[:, None])).any(axis=0)
