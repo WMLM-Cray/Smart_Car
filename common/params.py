@@ -90,11 +90,18 @@ class CarParams:
     lidar_sigma: float = 0.01       # [假设] 距离噪声 m
 
     # --- 摄像头(BEV 用;位置以后轴为原点,和 lidar_x 同一坐标系) ---
-    camera_x: float = 0.24          # [假设] 后轴 -> 相机,待实测(Gazebo params.yaml 同值)
-    camera_z: float = 0.24          # [假设] 相机离地高度,待实测
-    camera_hfov: float = 1.2270      # [队友 2026-10-08] 水平视场 70.3°
+    # 2026-10-09/10 实车标定,方法和误差见 docs/实测/相机标定/相机标定.md,机器可读版 calibration/camera_640x480.json。
+    # 换停放位置俯仰会变 ~1°(悬架):地面投影误差 ≈ 距离²/高度 × 角度,1° 在 1 m 处 ~7 cm、3 m 处 ~0.7 m。
+    camera_x: float = 0.335         # [实测] 后轴 -> 光心(镜头最前端在雷达中心前 0.20,光心再往后约 1 cm)
+    camera_z: float = 0.24          # [实测] 光心离地高度
+    camera_hfov: float = 1.2270      # [队友 2026-10-08] 水平视场 70.3°(标定 fx 453 -> 70°,一致)
     camera_vfov: float = 0.9739      # [队友 2026-10-08] 垂直视场 55.8°
-    camera_pitch: float = 0.0       # [假设] 光轴下俯角 rad,待实测;决定车前多近的地面拍得到
+    camera_pitch: float = -0.0297   # [实测] 光轴下俯角 rad:负 = 朝上 1.70°
+    camera_yaw: float = 0.0361      # [实测] 光轴偏航 rad,正 = 朝左 2.07°
+    camera_roll: float = -0.0386    # [实测] 横滚 rad(-2.21°)
+    camera_size: tuple = (640, 480)                      # [实测] 实际取流分辨率
+    camera_K: tuple = (453.1, 451.0, 318.3, 232.8)       # [实测] fx fy cx cy(640×480)
+    camera_dist: tuple = (-0.3769, 0.1574, 0.0016, 0.0006, -0.0331)   # [实测] k1 k2 p1 p2 k3,桶形
     camera_hz: float = 30.0         # [假设] 帧率(Gazebo 同值)
     yolo_range: float = 5.0         # [假设] 检测有效距离 m:再远框太小、落地投影误差太大
 
