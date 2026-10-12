@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import signal
 import sys
@@ -29,6 +30,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from common.bev import lidar_points
 from common.params import CarParams
 from common.pwm import steer_to_turn
 from common.bev_policy import BevPolicy
@@ -55,6 +57,9 @@ STUCK_SECONDS = 3.0         # 同 steer_policy_node:连续截停这么久就当�
 # 电调)会锁成低位,整条曲线下移 ~40(09-30:破静 1552,1575 已是 ~0.8 m/s),那时跳到 1593 等于直接
 # ~1.5 m/s 冲出去。09-29 就是这么撤回的跳点。操作规程:车上服务起来、持续发 1540 之后再开电调。
 LAUNCH_FROM = 1593
+# bev 模型开车时记全局地图(vehicle/bev_logbook.py,和影子模式同一份):一次放行开一段,
+# 松手超过 SEG_GAP 才收尾存盘(网页松手/手机抖的短暂断开接着记;搬车回起点总要几秒)。
+SEG_GAP = 5.0
 
 
 class RoadCarController:
@@ -64,13 +69,16 @@ class RoadCarController:
     event 给节点打日志:None / 'stale'(心跳或传感器过期)/ 'guard'(截停)/ 'stuck'(截停超过 3s)。
     """
 
-    def __init__(self, policy, speed_cap, params=None, loop=None, guard=None):
+    def __init__(self, policy, speed_cap, params=None, loop=None, guard=None, book=None):
         self.p = params or CarParams()
+        self.book = book            # bev_logbook.Logbook;只在使能时记
+        self.release_t = None
         rt = BevRuntime if isinstance(policy, BevPolicy) else RoadRuntime
         self.rt = rt(policy, speed_cap, SENSOR_TIMEOUT, ENABLE_TIMEOUT, self.p)
         self.loop = loop or SpeedLoop(SpeedLoopConfig(launch_from=LAUNCH_FROM))
         self.guard = guard or ScanGuard()
         self.block_t = None         # 连续截停的起点
+        self.seg_saved = None
         self.event = None
         self.gap = None
 
@@ -82,6 +90,11 @@ class RoadCarController:
     def on_scan(self, msg, now):
         self.rt.on_scan(msg.ranges, msg.angle_min, msg.angle_increment, now)
         self.guard.update(msg)
+        if self.book is not None and self.rt.enabled:
+            sx, sy, yaw = self.rt.scan_pose
+            self.book.add_lidar(lidar_points(self.rt.scan, self.rt.angles, self.rt.scan_pose, self.p,
+                                             self.rt.bev.lidar_yaw, 8.0),
+                                (sx + self.p.lidar_x * math.cos(yaw), sy + self.p.lidar_x * math.sin(yaw)))
 
     def on_encoder(self, speed, now):
         self.rt.on_odometry(speed, now)
@@ -92,6 +105,8 @@ class RoadCarController:
     def on_free(self, xy_body, stamp, now):
         if isinstance(self.rt, BevRuntime):
             self.rt.on_free(xy_body, stamp, now)
+            if self.book is not None and self.rt.enabled:
+                self.book.add_free(xy_body, self.rt.pose_at(stamp))
 
     def on_enable(self, enabled, now):
         """返回 True = 刚松手,要马上发一次中位(不靠看门狗补,2026-09-24 松手失控的教训)。"""
@@ -100,10 +115,28 @@ class RoadCarController:
         if enabled and not was:
             self.loop.reset()       # 重新使能不沿用上一次的油门状态
             self.block_t = None
+            if self.book is not None and not self.book.active:
+                self.book.resume()  # 上一段已收尾:开新段
         return release
+
+    def book_tick(self, now, d):
+        """记路径和决策;松手超过 SEG_GAP 收尾存盘。返回刚存好的段号,否则 None。"""
+        if self.rt.enabled:
+            self.release_t = None
+            steer, target = d if isinstance(d, tuple) else (None, 0.0)
+            self.book.add_pose(now, self.rt.odom.pose, steer, target, self.rt.speed)
+        elif self.book.active and self.book.path:
+            if self.release_t is None:
+                self.release_t = now
+            elif now - self.release_t > SEG_GAP:
+                self.release_t = None
+                self.book.pause()
+                return self.book.seg
+        return None
 
     def tick(self, now):
         d = self.rt.decide(now)
+        self.seg_saved = self.book_tick(now, d) if self.book is not None else None
         if d is None:
             self.event = None
             return None
@@ -152,9 +185,20 @@ def create_node_class():
     from std_msgs.msg import Bool
 
     class RoadCarNode(Node):
-        def __init__(self, model, speed_cap):
+        def __init__(self, model, speed_cap, log_root=None):
             super().__init__('road_car_node')
-            self.ctl = RoadCarController(load_policy(model), speed_cap)
+            pol = load_policy(model)
+            book = None
+            if isinstance(pol, BevPolicy):
+                from vehicle.bev_logbook import Logbook
+                fov = None
+                if pol.free:                                    # 摄像头视野里的全部地面格,让"没分成地面"的格减分
+                    from common.ground_proj import GroundLut
+                    lut = GroundLut(512 // 4, 512 // 4, CarParams(), 3.0)     # 和 ground_seg_node 默认输入一致
+                    fov = lut.points(np.ones(lut.valid.shape, bool))
+                book = Logbook(log_root or os.path.expanduser(time.strftime('~/drives/logbook_%m%d_%H%M%S')),
+                               fov_body=fov)
+            self.ctl = RoadCarController(pol, speed_cap, book=book)
             self.pub = self.create_publisher(Twist, CMD_TOPIC, 5)
             self.create_subscription(LaserScan, '/scan', self.on_scan, 1)
             self.create_subscription(Odometry, ENC_TOPIC, self.on_enc, 10)
@@ -180,6 +224,15 @@ def create_node_class():
         def neutral(self):
             self.send(self.ctl.neutral())
 
+        def save_map(self):
+            """当前段全局图存成 map.png(段收尾、进程退出时;seg.npz 由 Logbook 自己存)。"""
+            book = self.ctl.book
+            if book is None or not book.path:
+                return
+            import cv2
+            os.makedirs(book.dir(), exist_ok=True)
+            cv2.imwrite(os.path.join(book.dir(), 'map.png'), book.render(cv2))
+
         def on_scan(self, m):
             self.ctl.on_scan(m, self.now())
 
@@ -204,6 +257,9 @@ def create_node_class():
         def tick(self):
             now = self.now()
             cmd = self.ctl.tick(now)
+            if self.ctl.seg_saved is not None:
+                self.save_map()
+                self.get_logger().info(f'松手 {SEG_GAP:.0f}s,全局地图第 {self.ctl.seg_saved} 段已存到 {self.ctl.book.dir()}')
             if cmd is None:
                 self.last_event = None
                 return
@@ -250,6 +306,9 @@ def main(argv=None):
             node.neutral()
             time.sleep(0.02)
         node.get_logger().info('已回中位')
+        if node.ctl.book is not None and node.ctl.book.active:
+            node.ctl.book.save()            # 没收尾的那段也存下
+            node.save_map()
         os._exit(0)             # sys.exit 会和 spin 抢,C++ 层直接 abort
     for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
         signal.signal(sig, stop)

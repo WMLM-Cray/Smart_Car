@@ -170,3 +170,40 @@ def test_v2_stops_without_ground_seg(tmp_path):
     v1 = BevRuntime(BevPolicy(_model(tmp_path)), speed_cap=0.7)
     feed(v1, 0.0)
     assert v1.decide(0.05) is not STOP
+
+
+def test_car_node_logs_global_map_in_segments(tmp_path):
+    """bev 开车记全局地图:放行一次一段;松手不到 SEG_GAP 接着记,超过就存盘收尾;没放行时不记。"""
+    from vehicle.bev_logbook import Logbook
+    from vehicle.road_car_node import SEG_GAP, RoadCarController, load_policy
+    book = Logbook(str(tmp_path / 'log'))
+    ctl = RoadCarController(load_policy(_model(tmp_path)), 0.7, book=book)
+    ang = np.linspace(-math.pi, math.pi, 360, endpoint=False)
+
+    class Scan:
+        angle_min, angle_increment, range_min, range_max = ang[0], ang[1] - ang[0], 0.15, 25.0
+        ranges = list(np.full(360, 2.0))
+
+    def run(t0, t1, enabled):
+        t = t0
+        while t < t1:
+            ctl.on_encoder(0.0, t)
+            ctl.on_imu(0.0, t)
+            ctl.on_scan(Scan, t)
+            if enabled:
+                ctl.on_enable(True, t)
+            ctl.tick(t)
+            t += 0.05
+        return t
+
+    run(0.0, 1.0, False)
+    assert not book.path and len(book.lidar.ij()[0]) == 0           # 没放行:不记
+    t = run(1.0, 3.0, True)
+    assert book.seg == 1 and book.path and len(book.lidar.ij(1)[0])
+    t = run(t, t + 2.0, False)                                      # 短暂松手
+    t = run(t, t + 1.0, True)
+    assert book.seg == 1 and book.active
+    t = run(t, t + SEG_GAP + 1.0, False)                            # 松手够久:收尾存盘
+    assert not book.active and (tmp_path / 'log' / 'seg_01' / 'seg.npz').is_file()
+    run(t, t + 1.0, True)
+    assert book.seg == 2 and book.active
