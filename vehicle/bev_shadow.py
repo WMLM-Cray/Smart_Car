@@ -167,7 +167,7 @@ def main(argv=None):
             book.add_pose(t, rt.odom.pose, steer, target, rt.speed)
             st['d'], st['pose'], st['speed'] = (steer, target), rt.odom.pose, rt.speed
 
-    def bev_view():
+    def view_frame():
         """当前 BEV 输入图 + 决策(调用方持锁)。还没出过决策时返回 None。"""
         img = getattr(rt, 'last_img', None)
         if img is None:
@@ -197,7 +197,7 @@ def main(argv=None):
             v = None
             if st['viewers'] and cut >= st['next_view']:
                 st['next_view'] = cut + VIEW_DT
-                v = bev_view()
+                v = view_frame()
         if v is not None:                                   # 编码在锁外
             cam = st['cam']
             if cam is not None:                             # 右边并排:摄像头画面 + 地面分割(2 Hz)
@@ -226,7 +226,7 @@ def main(argv=None):
         def do_POST(self):
             if self.path == '/mark':
                 with lock:
-                    v = bev_view()
+                    v = view_frame()
                     steer, target = st['d']
                     k = book.mark(now(), st['pose'], steer, target, st['speed'], st['cam'],
                                   v if v is not None else np.zeros((640, 640, 3), np.uint8), cv2)
