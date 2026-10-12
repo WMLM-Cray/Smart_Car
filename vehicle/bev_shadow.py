@@ -42,7 +42,7 @@ VIEW_DT = 0.2           # 网页画面周期 s
 S = 8                                   # 每个 BEV 格子(10 cm)画成 S×S 像素
 PAGE = """<html><head><meta name='viewport' content='width=device-width'><meta charset='utf-8'></head>
 <body style='margin:0;background:#222;color:#eee;font-family:sans-serif'>
-<img src='/stream' style='width:100%;max-width:1500px;display:block'>
+<img src='/stream' style='width:100%;max-width:800px;display:block'>
 <div style='padding:8px'>
 <button onclick="post('/mark')" style='font-size:22px;padding:10px 28px'>标记问题</button>
 <button onclick="post('/split')" style='font-size:22px;padding:10px 28px'>新段</button>
@@ -200,8 +200,8 @@ def main(argv=None):
                 v = view_frame()
         if v is not None:                                   # 编码在锁外
             cam = st['cam']
-            if cam is not None:                             # 右边并排:摄像头画面 + 地面分割(2 Hz)
-                v = np.hstack([v, cv2.resize(cam, (v.shape[0] * 4 // 3, v.shape[0]))])
+            if cam is not None:                             # 下面接着:摄像头画面 + 地面分割(2 Hz)
+                v = np.vstack([v, cv2.resize(cam, (v.shape[1], v.shape[1] * 3 // 4))])
             jpg = cv2.imencode('.jpg', v, [cv2.IMWRITE_JPEG_QUALITY, 75])[1].tobytes()
             with cond:
                 st['jpg'] = jpg
