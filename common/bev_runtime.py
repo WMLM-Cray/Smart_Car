@@ -21,6 +21,7 @@ from common.road_runtime import RoadRuntime
 
 MAX_DT = 0.2            # 两次积分间隔超过这个就当传感器断过,不积分(停车/过期时 RoadRuntime 已回中位)
 POSE_HISTORY = 1.0      # 位姿历史留这么久 s,给按拍摄时刻登记的摄像头结果查
+FREE_TIMEOUT = 0.5      # bev_v2 地面分割 ~10 Hz;断了 FREE 层只会变空、模型照开,所以当传感器过期回中位
 
 
 class BevRuntime(RoadRuntime):
@@ -31,6 +32,7 @@ class BevRuntime(RoadRuntime):
         self.pose_t = None
         self.scan_pose = (0.0, 0.0, 0.0)
         self.history = deque()
+        self.free_t = None
         super().reset()
 
     def _integrate(self, now):
@@ -72,9 +74,16 @@ class BevRuntime(RoadRuntime):
     def on_free(self, xy_body, stamp, now):
         """地面分割(车体系落地点)按拍摄时刻 stamp 的位姿登记进 FREE 层。"""
         self._integrate(now)
+        self.free_t = float(now)
         if len(xy_body):
             self.bev.update_camera(np.full(len(xy_body), int(CellType.FREE)), xy_body,
                                    self.pose_at(float(stamp)), float(now))
+
+    def stale_sensors(self, now):
+        stale = super().stale_sensors(now)
+        if self.policy.free and not (self.free_t is not None and 0.0 <= float(now) - self.free_t <= FREE_TIMEOUT):
+            stale.append('free')
+        return stale
 
     def _reset_history(self):
         # 重新使能 / 传感器过期后从空 BEV 开始:停过车,旧证据和积分起点都不可信

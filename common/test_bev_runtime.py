@@ -147,3 +147,26 @@ def test_v2_registers_floor_at_capture_pose(tmp_path):
     row, col = np.argwhere(img[5] > 0)[0]
     ahead = (60 - row - 0.5) * 0.1                          # 后轴在第 60 行,每格 0.1 m
     assert abs(ahead - 1.5) < 0.11                          # 拍摄时在前方 2 m,车又开了 0.5 m
+
+
+def test_v2_stops_without_ground_seg(tmp_path):
+    """bev_v2:地面分割断了(FREE 层只会变空、模型照开)要当传感器过期回中位;v1 不看这个。"""
+    ang = np.linspace(-math.pi, math.pi, 360, endpoint=False)
+
+    def feed(rt, t):
+        rt.on_odometry(0.0, t)
+        rt.on_imu(0.0, t)
+        rt.on_scan(np.full(360, 2.0), ang[0], ang[1] - ang[0], t)
+        rt.set_enabled(True, t)
+
+    v2 = BevRuntime(BevPolicy(_model(tmp_path, schema='bev_v2_s3_v0.45-3')), speed_cap=0.7)
+    feed(v2, 0.0)
+    assert v2.decide(0.05) is STOP and v2.stale_sensors(0.05) == ['free']
+    v2.on_free(np.zeros((0, 2)), stamp=0.0, now=0.1)        # 一帧没认出地面也算活着
+    feed(v2, 0.1)
+    assert v2.decide(0.15) is not STOP
+    feed(v2, 0.65)
+    assert v2.decide(0.7) is STOP                           # 0.6 s 没新分割
+    v1 = BevRuntime(BevPolicy(_model(tmp_path)), speed_cap=0.7)
+    feed(v1, 0.0)
+    assert v1.decide(0.05) is not STOP
