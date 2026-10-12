@@ -103,6 +103,15 @@ class SpeedLoopConfig:
     # 纯粹是等。跳到 ~1580 能把起步缩到 ~0.7s,过破静点那一下仍是慢爬,起步冲击尚未实测确认。
     # **电调认不认一步跳到 1580 还没测**(它有时拒绝突加油门),测过再改默认值。
     launch_from: int = 1540
+    # 阶梯起步(launch_from > pwm_mid 时启用,车停着就用它代替慢爬):
+    # 2026-10-12 落地实测,油门停在"中位以上、破静以下"之后再往上加,电调不认(1580 停 1 s 再跳 1600
+    # 不动;慢爬到 1625 不动),中间回一次中位再直跳就动(1580 -> 1540 0.3 s -> 1600 动)。
+    # 所以车不动时不慢爬:跳到台阶上等 retry_hold,还不动就回中位 retry_gap,再跳高 retry_step,
+    # 封顶 launch_max。retry_hold 要盖住指令延迟 ~0.2 s 加贴着破静点时的慢起转(直跳 1593 用了 0.65 s)。
+    retry_hold: float = 0.8
+    retry_gap: float = 0.3
+    retry_step: int = 4
+    launch_max: int = 1610
 
     stall_speed: float = 0.05   # 低于这个算"没在动"(m/s)
     # 目标速度斜坡(m/s²):闭环跟的是一个按这个速率追向目标的参考值,而不是目标本身。
@@ -128,6 +137,8 @@ class SpeedLoopConfig:
             raise ValueError('要满足 0 < collapse_frac < 1')
         if self.target_rate < 0:
             raise ValueError('target_rate 不能是负的')
+        if not self.launch_from < self.launch_max <= self.pwm_max:
+            raise ValueError(f'要满足 launch_from < launch_max <= pwm_max,给的是 {self.launch_from}/{self.launch_max}')
         if not self.pwm_mid <= self.launch_from < self.pwm_breakaway:
             raise ValueError(f'launch_from 要在 [pwm_mid, pwm_breakaway) 里,给的是 {self.launch_from}:'
                              f'跳过破静点就是突加油门')
@@ -150,6 +161,12 @@ class SpeedLoop:
         self.reached = False        # 本轮有没有跑到过目标附近(自标定的武装条件)
         self.launching = True       # 还没确认起步(没学破静点)
         self.moving_n = 0           # 连续几拍在动
+        self._clear_steps()
+
+    def _clear_steps(self):
+        self.step_pwm = None        # 阶梯起步当前台阶
+        self.step_held = 0.0        # 在这个台阶上等了多久
+        self.gap_left = 0.0         # 回中位还剩多久
         # floor 是学出来的,cfg.pwm_floor 只是初值。**不在 reset 里清掉学到的值**
         # 的话换目标速度就会丢标定 —— 所以只在第一次构造时初始化,见 __init__。
 
@@ -180,6 +197,27 @@ class SpeedLoop:
                                                  max(c.pwm_mid + 2, self.last_pwm - c.floor_below_break)))
         self.launching = False
 
+    def _staircase(self, dt):
+        """车停着:台阶上等 retry_hold -> 回中位 retry_gap -> 跳高一级。见 SpeedLoopConfig.retry_hold。"""
+        c = self.cfg
+        if self.gap_left > 0:
+            self.gap_left -= dt
+            if self.gap_left <= 1e-9:
+                self.gap_left = 0.0
+                self.step_pwm = min(float(c.launch_max), self.step_pwm + c.retry_step)
+                self.step_held = 0.0
+            self.last_pwm = float(c.pwm_mid)
+            return self.last_pwm
+        if self.step_pwm is None:
+            self.step_pwm, self.step_held = float(c.launch_from), 0.0
+        self.step_held += dt
+        if self.step_held > c.retry_hold + 1e-9:
+            self.gap_left = c.retry_gap
+            self.last_pwm = float(c.pwm_mid)
+            return self.last_pwm
+        self.last_pwm = self.step_pwm
+        return self.last_pwm
+
     def update(self, target: float, measured: float, dt: float) -> float:
         c = self.cfg
         if dt <= 0:
@@ -192,6 +230,13 @@ class SpeedLoop:
         # breakaway。原来这里是 max(pwm_breakaway, last_pwm),从中位直接跳 54 个
         # PWM —— 电调按突加油门保护处理,车一动不动,现象和"带不动"一模一样。
         self.moving_n = self.moving_n + 1 if measured >= c.stall_speed else 0
+        if c.launch_from > c.pwm_mid:
+            if measured < c.stall_speed and (self.launching or self.stalled):
+                self.stalled = True
+                return self._staircase(dt)
+            if self.gap_left > 0:               # 正回中位时车动了(上一级台阶的起转):直接接回那一级
+                self.last_pwm = self.step_pwm
+            self._clear_steps()
         if self.launching and self.moving_n >= c.move_frames:
             self._learn_breakaway()
         if self.last_pwm < self.floor:

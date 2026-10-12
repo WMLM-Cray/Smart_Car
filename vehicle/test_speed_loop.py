@@ -449,19 +449,64 @@ def test_default_launch_is_the_old_ramp_from_neutral():
     assert loop.update(0.7, 0.0, DT) == SpeedLoopConfig().pwm_mid + SpeedLoopConfig().up_rate * DT
 
 
-def test_launch_from_skips_the_dead_band_but_still_ramps_through_breakaway():
-    cfg = SpeedLoopConfig(launch_from=1580)
-    loop, plant = SpeedLoop(cfg), Plant(cfg)
+class StickyEsc(Plant):
+    """2026-10-12 实测的电调脾气:油门停在"中位以上、破静以下"过,之后再往上加不认,回一次中位才恢复。"""
+
+    def __init__(self, cfg, **kw):
+        super().__init__(cfg, **kw)
+        self.armed = True
+
+    def step(self, pwm, dt):
+        moving = self.v >= self.cfg.stall_speed
+        if pwm <= self.cfg.pwm_mid + 1:
+            self.armed = True
+        elif not moving and pwm < self.brk:
+            self.armed = False
+        return super().step(pwm if moving or self.armed else self.cfg.pwm_mid, dt)
+
+
+@pytest.mark.parametrize('brk', [1590, 1595, 1601, 1606])
+def test_staircase_launch_gets_past_a_sticky_esc(brk):
+    """破静点在跳点上下都要能起步;车停着时只出"中位"或"台阶",不慢爬。"""
+    cfg = SpeedLoopConfig(launch_from=1593)
+    loop, plant = SpeedLoop(cfg), StickyEsc(cfg, brk=brk)
     trace = run(loop, plant, 0.7, 10)
-    pwms = [p for p, _ in trace]
-    assert pwms[0] == 1580 + cfg.up_rate * DT                  # 第一拍跳进死区
-    later = [b - a for a, b in zip(pwms, pwms[1:])]
-    assert max(later) <= cfg.up_rate * DT + 1e-6, '跳完之后必须慢爬'
     moving = next(i for i, (_, v) in enumerate(trace) if v >= cfg.stall_speed)
-    assert moving * DT < 1.2, f'跳到 1580 之后还要 {moving * DT:.1f}s 才动'
-    assert abs(trace[-1][1] - 0.7) < 0.08
+    stalled = [p for p, _ in trace[:moving + 1]]          # 含起转那一拍
+    assert stalled[0] == 1593
+    assert set(stalled) <= {cfg.pwm_mid} | {1593 + k * cfg.retry_step for k in range(10)}
+    assert moving * DT < 1.0 + 1.1 * max(0, (brk - 1593 + 3) // 4), f'破静 {brk} 要 {moving * DT:.1f}s 才动'
+    assert abs(trace[-1][1] - 0.7) < 0.1
 
 
-def test_launch_from_cannot_jump_past_breakaway():
-    with pytest.raises(ValueError):
-        SpeedLoopConfig(launch_from=1600)
+def test_old_slow_climb_never_starts_a_sticky_esc():
+    """对照:不用阶梯(launch_from = 中位)时,破静点高于停留值的电调就起不来 —— 阶梯起步要解决的就是这个。"""
+    cfg = SpeedLoopConfig()
+    loop, plant = SpeedLoop(cfg), StickyEsc(cfg)
+    assert max(v for _, v in run(loop, plant, 0.7, 6)) == 0.0
+
+
+def test_staircase_on_stand_pulses_but_stays_bounded():
+    """架空(编码器恒 0):一直按 台阶 -> 中位 循环,不超过 launch_max,也不积分。"""
+    cfg = SpeedLoopConfig(launch_from=1593)
+    loop = SpeedLoop(cfg)
+    out = [loop.update(0.7, 0.0, DT) for _ in range(400)]
+    assert max(out) == cfg.launch_max
+    assert out.count(cfg.pwm_mid) > 50
+    steps = [p for p in dict.fromkeys(out) if p != cfg.pwm_mid]
+    assert steps == [1593, 1597, 1601, 1605, 1609, 1610], f'台阶不是一级 {cfg.retry_step}:{steps}' 
+    assert loop.integral == 0.0
+
+
+def test_staircase_also_restarts_a_car_that_stalls_mid_run():
+    """跑着被挡停(推不动):停着期间同样只出中位/台阶,挡的东西拿开后能重新起步。"""
+    cfg = SpeedLoopConfig(launch_from=1593)
+    loop, plant = SpeedLoop(cfg), StickyEsc(cfg, brk=1598)
+    run(loop, plant, 0.7, 5)
+    plant.stall = plant.brk = 10_000                        # 挡住:多大油门都不动
+    blocked = run(loop, plant, 0.7, 4)
+    after = [p for p, v in blocked if v == 0.0][2:]
+    assert after and set(after) <= {cfg.pwm_mid} | {1593 + k * cfg.retry_step for k in range(10)}
+    plant.stall, plant.brk = Plant.TRUE_STALL, 1598
+    trace = run(loop, plant, 0.7, 6)
+    assert max(v for _, v in trace) > 0.5

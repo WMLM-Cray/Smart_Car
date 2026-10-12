@@ -48,7 +48,8 @@ SENSOR_TIMEOUT = 0.3        # 实测 /encoder 34Hz、/scan 12Hz、/IMU_data 55Hz
 ENABLE_TIMEOUT = 0.3        # /policy_enable 是心跳不是开关
 GUARD_STOP = 0.25           # 同 steer_policy_node:保险杠前净空小于这个就回中位(米)
 STUCK_SECONDS = 3.0         # 同 steer_policy_node:连续截停这么久就当卡死
-# 起步第一拍直接跳到这里,再按 20 PWM/s 爬过破静点。
+# 起步第一拍直接跳到这里;0.8 s 不动就回中位 0.3 s 再跳高 4(阶梯起步,见 SpeedLoopConfig.retry_hold:
+# 10-12 实测电调不认从破静点以下慢爬上来的油门,回一次中位再直跳才认)。
 # 破静点实测:11.24 V 和 12.5 V 都是 1594(09-23/24),09-30 高位 1594,10-12 走廊 ~1595;电压只挪 4~10。
 # 跳到最低的 1594 下面一点 → 1593(SpeedLoopConfig 要求 < pwm_breakaway)。10-12 走廊实测电调接受从中位直跳
 # (1590/1595/1600),车动 0.18–0.26 s,其中 ~0.2 s 是指令延迟;跳到 1586 再爬是 0.40 s,原来从 1540 慢爬 2.7 s。
