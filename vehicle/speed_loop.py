@@ -103,14 +103,6 @@ class SpeedLoopConfig:
     # 纯粹是等。跳到 ~1580 能把起步缩到 ~0.7s,过破静点那一下仍是慢爬,起步冲击尚未实测确认。
     # **电调认不认一步跳到 1580 还没测**(它有时拒绝突加油门),测过再改默认值。
     launch_from: int = 1540
-    # 第二次起步起,直接跳到"上次学到的破静 PWM - relaunch_below",再按 up_rate 爬。2026-10-12 走廊实测:
-    # 电调接受从中位直跳到破静点附近(1590/1595/1600 都行),从发指令到车动 0.18–0.26 s,其中 ~0.2 s 是
-    # 指令到电机的固有延迟;而从中位慢爬要 0.95 s(1560 起、40/s)到 2.7 s(1540 起、20/s)。
-    # 学到的破静 PWM 本身就比真值高几个(延迟 0.2 s 里还在往上爬),减 8 落在真破静点下方 ~3。
-    # 第一次起步不跳:不知道电调这次锁的是高位(破静 ~1594)还是低位(~1552),低位时跳到 1590 等于直接 1.3 m/s。
-    # 风险:同一个进程里电调从高位重上电成低位,下一次起步会冲一下 —— 服务起来后再开电调就是高位,不会变低。
-    # 0 = 关掉,每次都从 launch_from 慢爬。
-    relaunch_below: int = 8
 
     stall_speed: float = 0.05   # 低于这个算"没在动"(m/s)
     # 目标速度斜坡(m/s²):闭环跟的是一个按这个速率追向目标的参考值,而不是目标本身。
@@ -136,8 +128,6 @@ class SpeedLoopConfig:
             raise ValueError('要满足 0 < collapse_frac < 1')
         if self.target_rate < 0:
             raise ValueError('target_rate 不能是负的')
-        if self.relaunch_below and self.relaunch_below < 4:
-            raise ValueError('relaunch_below 至少 4:学到的破静 PWM 本来就偏高,减得太少等于跳过破静点')
         if not self.pwm_mid <= self.launch_from < self.pwm_breakaway:
             raise ValueError(f'launch_from 要在 [pwm_mid, pwm_breakaway) 里,给的是 {self.launch_from}:'
                              f'跳过破静点就是突加油门')
@@ -150,7 +140,6 @@ class SpeedLoop:
         self.cfg = cfg or SpeedLoopConfig()
         self.floor = float(self.cfg.pwm_floor)      # 学出来的值,跨 reset 保留
         self.floor_base = self.floor                # 最近一次起步学到的值:floor 往回退的下限
-        self.break_pwm = None                       # 上一次起步车动起来时的输出,跨 reset 保留
         self.reset()
 
     def reset(self):
@@ -187,7 +176,6 @@ class SpeedLoop:
 
     def _learn_breakaway(self):
         c = self.cfg
-        self.break_pwm = self.last_pwm
         self.floor = self.floor_base = float(min(c.pwm_breakaway + c.start_margin,
                                                  max(c.pwm_mid + 2, self.last_pwm - c.floor_below_break)))
         self.launching = False
@@ -208,9 +196,6 @@ class SpeedLoop:
             self._learn_breakaway()
         if self.last_pwm < self.floor:
             start = max(self.last_pwm, float(c.launch_from))
-            if c.relaunch_below and self.break_pwm is not None:     # 起过一次:直接跳到上次破静点下方
-                start = max(start, min(self.break_pwm, float(c.pwm_breakaway + c.start_margin))
-                            - c.relaunch_below)
             self.last_pwm = min(self.floor, start + c.up_rate * dt)
             return self.last_pwm
 
