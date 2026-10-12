@@ -8,7 +8,7 @@ from calibration.dynamics_test import (PROGS, PWM_MID, TICK, TURN_MID, Safety, S
 
 
 def _sensors(**kw):
-    s = Sensors(enc_t=100.0, gap_fn=lambda steer: 9.0, g0=np.array([0.0, 0.0, 9.8]), imu=(0, 0, 0, 0, 0, 9.8))
+    s = Sensors(enc_t=100.0, gap_fn=lambda steer: 9.0, imu=(0, 0, 0, 0, 0, 9.8))
     for k, v in kw.items():
         setattr(s, k, v)
     return s
@@ -26,7 +26,8 @@ def test_safety_reasons():
     assert '网页' in Safety().check(101.0, _sensors(enc_t=101.0), TURN_MID, 100.0)
     assert '编码器' in Safety().check(100.5, _sensors(), TURN_MID, 100.5)
     assert '围栏' in Safety(fence=3.0).check(100.0, _sensors(x=3.5), TURN_MID, 100.0)
-    assert '倾斜' in Safety().check(100.0, _sensors(imu=(0, 0, 0, 4.0, 0, 9.0)), TURN_MID, 100.0)
+    assert Safety().check(100.0, _sensors(imu=(0, 0, 0, 5.0, 0, 9.8)), TURN_MID, 100.0) is None   # 起步加速度不算倾斜
+    assert '倾斜' in Safety().check(100.0, _sensors(roll=math.radians(20)), TURN_MID, 100.0)
     near = _sensors(v=2.0, gap_fn=lambda steer: stop_distance(2.0) - 0.1)
     assert '前方' in Safety().check(100.0, near, TURN_MID, 100.0)
     assert '雷达' in Safety().check(100.0, _sensors(gap_fn=lambda steer: None), TURN_MID, 100.0)

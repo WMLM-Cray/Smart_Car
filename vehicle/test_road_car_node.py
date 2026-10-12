@@ -174,6 +174,7 @@ def test_speed_cap_is_required():
         road_car_node.main([MODEL])
 
 
-def test_launch_starts_from_neutral():
-    """死区会漂 40 个 PWM(2026-09-29 下午破静 1552),起步不能跳到任何写死的"死区内"点。"""
-    assert LAUNCH_FROM == P.pwm_mid
+def test_launch_jump_stays_below_measured_breakaway():
+    """起步跳点 = 高位实测最低破静点 1594 再留 8;不能跳过它(那就是突加油门)。
+    低位(上电锁成 ~1500)时破静 1552,这个跳点会冲出去 —— 靠"先开服务再开电调"的规程保证高位。"""
+    assert P.pwm_mid < LAUNCH_FROM <= 1594 - 8
