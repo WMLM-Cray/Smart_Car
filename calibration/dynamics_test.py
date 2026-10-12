@@ -12,7 +12,8 @@
   circle  侧向:固定转向绕圈,PWM 慢慢往上加,到 v_max 或开始打滑(实际横摆角速度 < 理论的 SLIP_RATIO)就松油
 
 安全(任何一条触发都立即回中位并保持 1 s,不刹车 —— 刹车能力还没测):
-  - 网页大红"急停"(任何页面都能按);网页心跳断 HB_TIMEOUT 秒(手机锁屏、断网)
+  - 网页大红"急停"(任何页面都能按);点"开始"的那台设备心跳断 HB_TIMEOUT 秒(手机锁屏、断网)
+    —— 只认它的心跳,别的页面开着也不会替它续命
   - 雷达扫车身矩形沿转向弧的净空 < 滑停距离 v²/(2·COAST) + GUARD_MARGIN;雷达掉线
   - 离起点超过 fence 米(里程计);车速超过 V_HARD
   - IMU:车身倾斜 > TILT_STOP 度、或横滚/俯仰角速度持续过大(撞台阶、掉下坎、侧翻)
@@ -25,6 +26,7 @@ import argparse
 import json
 import math
 import os
+import signal
 import threading
 import time
 from collections import deque
@@ -299,13 +301,14 @@ def main(argv=None):
     sg.MAX_LOOKAHEAD = GUARD_LOOKAHEAD                      # 只改本进程
     guard = sg.ScanGuard()
 
-    rclpy.init(args=[])
+    from rclpy.signals import SignalHandlerOptions
+    rclpy.init(args=[], signal_handler_options=SignalHandlerOptions.NO)   # rclpy 的处理只关 ROS,HTTP 线程照跑
     node = Node('dynamics_test')
     pub = node.create_publisher(Twist, '/teleop_cmd_vel', 5)
     lock = threading.Lock()
     S = Sensors(gap_fn=lambda steer: guard.gap(steer))
     safety = Safety()
-    st = dict(state='空闲', hb=0.0, running=False, pwm=PWM_MID, turn=TURN_MID, result='', sent=deque(maxlen=20),
+    st = dict(state='空闲', hb=0.0, owner=None, running=False, pwm=PWM_MID, turn=TURN_MID, result='', sent=deque(maxlen=20),
               rec=None, gacc=deque(maxlen=100))
 
     def on_enc(m):
@@ -416,7 +419,8 @@ def main(argv=None):
         def do_GET(self):
             if self.path.startswith('/status'):
                 with lock:
-                    st['hb'] = time.time()
+                    if self.client_address[0] == st['owner']:          # 只有点"开始"的那个页面算心跳
+                        st['hb'] = time.time()
                     gap = guard.gap(steer_of_turn(st['turn']))
                     return self.reply(json.dumps(dict(
                         state=st['state'], estop=safety.estop, v=S.v, gap=-1 if gap is None else min(gap, 9.9),
@@ -443,21 +447,26 @@ def main(argv=None):
                     if st['running']:
                         return self.reply('正在跑')
                     st['running'], st['hb'], st['result'] = True, time.time(), ''
+                    st['owner'] = self.client_address[0]
                 params = {k: float(v) for k, v in req['params'].items() if k in DEFAULTS[req['prog']]}
                 threading.Thread(target=run, args=(req['prog'], params, bool(req['guard']), float(req['fence'])),
                                  daemon=True).start()
                 return self.reply(f'开始 {req["prog"]}')
             self.reply('?')
 
+    def quit_(*_):
+        safety.estop = True                                 # 正在跑的脚本下一拍就停
+        for _ in range(10):
+            send(PWM_MID, TURN_MID)
+            time.sleep(0.05)
+        os._exit(0)
+    signal.signal(signal.SIGTERM, quit_)
+    signal.signal(signal.SIGINT, quit_)
+
     srv = http.server.ThreadingHTTPServer(('0.0.0.0', PORT), Hd)
     srv.daemon_threads = True
     node.get_logger().info(f'动力学测试 http://<车IP>:{PORT}/,数据存 {a.out}')
-    try:
-        srv.serve_forever()
-    finally:
-        for _ in range(5):
-            send(PWM_MID, TURN_MID)
-            time.sleep(0.05)
+    srv.serve_forever()
 
 
 if __name__ == '__main__':
