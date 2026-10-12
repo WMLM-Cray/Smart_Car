@@ -54,6 +54,11 @@ BRAKE_RELEASE = 0.15        # 刹车时降到这个车速就回中位
 SLIP_RATIO = 0.75           # 绕圈时 实际 wz / (v/R) 低于这个算开始打滑
 SLIP_HOLD = 0.3
 STOP_HOLD = 1.0             # 停车后中位保持 s
+LAUNCH_TIMEOUT = 3.0        # 起步这么久还没动就放弃(不然一直顶着油门)
+
+
+class LaunchFailed(Exception):
+    pass
 
 DEFAULTS = {
     'launch': dict(jump=1575, up_rate=40, top=1615, t_max=4.0),
@@ -79,7 +84,8 @@ class Sensors:
     enc_t: float = 0.0
     imu: tuple = (0.0,) * 6             # wx wy wz ax ay az
     imu_t: float = 0.0
-    g0: np.ndarray | None = None        # 静止时的加速度(开跑前学)
+    roll: float = 0.0                   # 开跑后陀螺积出来的横滚 / 俯仰 rad(加速度计会被加减速、
+    pitch: float = 0.0                  # 绕圈的侧向加速度带偏,起步一下就能偏 27°,不能用)
     x: float = 0.0
     y: float = 0.0
     yaw: float = 0.0
@@ -88,11 +94,7 @@ class Sensors:
     lidar_ok: bool = False
 
     def tilt_deg(self) -> float:
-        if self.g0 is None:
-            return 0.0
-        a = np.array(self.imu[3:])
-        c = float(a @ self.g0) / max(np.linalg.norm(a) * np.linalg.norm(self.g0), 1e-6)
-        return math.degrees(math.acos(max(-1.0, min(1.0, c))))
+        return math.degrees(math.hypot(self.roll, self.pitch))
 
 
 @dataclass
@@ -139,10 +141,13 @@ class Safety:
 
 def _launch(s, up_rate, turn=TURN_MID, start=1560, top=1615):
     """从 start 按 up_rate PWM/s 爬,动起来就返回当时的 PWM。"""
-    pwm = float(start)
+    pwm, t = float(start), 0.0
     while s().v < MOVING:
+        if t > LAUNCH_TIMEOUT:
+            raise LaunchFailed(f'{LAUNCH_TIMEOUT:.0f} s 没动起来(PWM 已到 {pwm:.0f}):电调没开 / 睡着了 / 中位锁偏')
         yield int(pwm), turn, 'launch'
         pwm = min(top, pwm + up_rate * TICK)
+        t += TICK
     return pwm
 
 
@@ -309,7 +314,7 @@ def main(argv=None):
     S = Sensors(gap_fn=lambda steer: guard.gap(steer))
     safety = Safety()
     st = dict(state='空闲', hb=0.0, owner=None, running=False, pwm=PWM_MID, turn=TURN_MID, result='', sent=deque(maxlen=20),
-              rec=None, gacc=deque(maxlen=100))
+              rec=None, gyro=deque(maxlen=100), bias=(0.0, 0.0))
 
     def on_enc(m):
         now = time.time()
@@ -324,15 +329,20 @@ def main(argv=None):
 
     def on_imu(m):
         w, c = m.angular_velocity, m.linear_acceleration
+        now = time.time()
         with lock:
-            S.imu, S.imu_t = (w.x, w.y, w.z, c.x, c.y, c.z), time.time()
+            dt = now - S.imu_t if S.imu_t else 0.0
+            S.imu, S.imu_t = (w.x, w.y, w.z, c.x, c.y, c.z), now
+            if 0 < dt < 0.1:
+                S.roll += (w.x - st['bias'][0]) * dt
+                S.pitch += (w.y - st['bias'][1]) * dt
             if not st['running']:
-                st['gacc'].append((c.x, c.y, c.z))
+                st['gyro'].append((w.x, w.y))
 
     def on_cmd(m):
         key = (round(m.linear.x), round(m.angular.z))
         with lock:
-            if st['running'] and key not in st['sent']:
+            if st['running'] and key not in st['sent'] and key[0] != PWM_MID:   # 别人补的中位(看门狗)不算抢车
                 safety.foreign = True
 
     node.create_subscription(Odometry, '/encoder', on_enc, 20)
@@ -351,12 +361,12 @@ def main(argv=None):
 
     def run(prog, params, use_guard, fence):
         with lock:
-            if len(st['gacc']) < 20:
+            if len(st['gyro']) < 20:
                 st['state'] = '等 IMU 数据'
                 st['running'] = False
                 return
-            S.g0 = np.mean(np.array(st['gacc']), axis=0)    # 开跑前静止时的重力方向
-            S.x = S.y = S.yaw = S.dist = 0.0
+            st['bias'] = tuple(np.mean(np.array(st['gyro']), axis=0))    # 开跑前静止时的陀螺零偏
+            S.x = S.y = S.yaw = S.dist = S.roll = S.pitch = 0.0
             safety.guard, safety.fence, safety.foreign, safety.rate_since = use_guard, fence, False, None
         rec = {k: [] for k in ('t', 'pwm', 'turn', 'v', 'wx', 'wy', 'wz', 'ax', 'ay', 'az', 'gap', 'x', 'y', 'yaw', 'phase')}
         gen = PROGS[prog](lambda: S, **params)
@@ -371,6 +381,9 @@ def main(argv=None):
             try:
                 pwm, turn, phase = next(gen)
             except StopIteration:
+                break
+            except LaunchFailed as e:
+                reason = str(e)
                 break
             send(pwm, turn)
             with lock:
