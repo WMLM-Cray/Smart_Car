@@ -88,7 +88,7 @@ def test_silent_until_enabled():
 def test_output_is_pwm_and_servo_units_starting_from_neutral():
     ctl = ready()
     pwm, servo = ctl.tick(10.05)
-    assert LAUNCH_FROM <= pwm <= LAUNCH_FROM + 5       # 从中位爬,不跳变
+    assert pwm == LAUNCH_FROM                         # 第一拍就是跳点,之后再爬
     assert pwm < ctl.loop.cfg.pwm_breakaway
     assert servo == steer_to_turn(action_to_steer(0.5, P), P)
 
@@ -175,6 +175,6 @@ def test_speed_cap_is_required():
 
 
 def test_launch_jump_stays_below_measured_breakaway():
-    """起步跳点 = 高位实测最低破静点 1594 再留 8;不能跳过它(那就是突加油门)。
+    """起步跳点紧贴高位实测最低破静点 1594 下方;不能跳过它。
     低位(上电锁成 ~1500)时破静 1552,这个跳点会冲出去 —— 靠"先开服务再开电调"的规程保证高位。"""
-    assert P.pwm_mid < LAUNCH_FROM <= 1594 - 8
+    assert P.pwm_mid < LAUNCH_FROM < 1594

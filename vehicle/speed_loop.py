@@ -196,7 +196,8 @@ class SpeedLoop:
             self._learn_breakaway()
         if self.last_pwm < self.floor:
             start = max(self.last_pwm, float(c.launch_from))
-            self.last_pwm = min(self.floor, start + c.up_rate * dt)
+            # 跳点比 floor 高时第一拍就到跳点(不被 floor 截回去),之后照常按 up_rate 爬
+            self.last_pwm = min(max(self.floor, start), start + c.up_rate * dt)
             return self.last_pwm
 
         was_stalled = self.stalled
