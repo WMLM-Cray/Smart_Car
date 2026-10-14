@@ -1,0 +1,48 @@
+--- level L5 ---
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+{"model": "models/road_v2.5/candidate_b036.npz", "level": "L5", "episodes": 500, "success": 0.944, "reasons": {"collision": 12, "goal": 472, "off_track": 16}, "by_cap": {"0.45-1.30": [0.935672514619883, 171], "1.30-2.15": [0.9363057324840764, 157], "2.15-3.00": [0.9593023255813954, 172]}}
+--- level L5s ---
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+{"model": "models/road_v2.5/candidate_b036.npz", "level": "L5s", "episodes": 500, "success": 0.88, "reasons": {"collision": 19, "goal": 440, "off_track": 41}, "by_cap": {"0.45-1.30": [0.9017341040462428, 173], "1.30-2.15": [0.8616352201257862, 159], "2.15-3.00": [0.875, 168]}}
+--- level L6h ---
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+{"model": "models/road_v2.5/candidate_b036.npz", "level": "L6h", "episodes": 500, "success": 0.98, "reasons": {"collision": 1, "goal": 490, "off_track": 9}, "by_cap": {"0.45-1.30": [0.9941860465116279, 172], "1.30-2.15": [0.9819277108433735, 166], "2.15-3.00": [0.9629629629629629, 162]}}
+--- level L4c ---
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+{"model": "models/road_v2.5/candidate_b036.npz", "level": "L4c", "episodes": 500, "success": 0.968, "reasons": {"collision": 16, "goal": 484}, "by_cap": {"0.45-1.30": [0.9693251533742331, 163], "1.30-2.15": [0.9877300613496932, 163], "2.15-3.00": [0.9482758620689655, 174]}}
+--- level L6f ---
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+{"model": "models/road_v2.5/candidate_b036.npz", "level": "L6f", "episodes": 500, "success": 0.952, "reasons": {"collision": 11, "goal": 476, "off_track": 13}, "by_cap": {"0.45-1.30": [0.963855421686747, 166], "1.30-2.15": [0.9529411764705882, 170], "2.15-3.00": [0.9390243902439024, 164]}}

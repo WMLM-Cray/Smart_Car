@@ -1,0 +1,5 @@
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+{"model": "runs/road_v2.5_rl/candidate_009.npz", "level": "L6f", "episodes": 500, "success": 0.946, "reasons": {"collision": 12, "goal": 473, "off_track": 15}, "by_cap": {"0.45-1.30": [0.9397590361445783, 166], "1.30-2.15": [0.9647058823529412, 170], "2.15-3.00": [0.9329268292682927, 164]}}

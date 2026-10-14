@@ -1,0 +1,283 @@
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+{
+ "model": "runs/road_v2.5_rl/candidate_009.npz",
+ "summary": {
+  "A 0.50": {
+   "teacher": 1.0,
+   "teacher_lap1": 59.36166666666442,
+   "student": 0.7666666666666667,
+   "reasons": {
+    "goal": 23,
+    "collision": 7
+   },
+   "lap1": 57.92608695651956,
+   "lap2": 56.39130434784726,
+   "mean_speed": 0.6148730799806376
+  },
+  "A 0.60": {
+   "teacher": 1.0,
+   "teacher_lap1": 56.37666666666402,
+   "student": 0.9333333333333333,
+   "reasons": {
+    "goal": 28,
+    "collision": 2
+   },
+   "lap1": 57.123214285711484,
+   "lap2": 55.40178571430916,
+   "mean_speed": 0.6210573715301909
+  },
+  "A 0.70": {
+   "teacher": 1.0,
+   "teacher_lap1": 51.16999999999839,
+   "student": 0.9666666666666667,
+   "reasons": {
+    "goal": 29,
+    "collision": 1
+   },
+   "lap1": 52.25517241379128,
+   "lap2": 50.44655172415539,
+   "mean_speed": 0.6771228503514194
+  },
+  "A 0.80": {
+   "teacher": 1.0,
+   "teacher_lap1": 46.07666666666607,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 46.753333333332606,
+   "lap2": 44.83166666667736,
+   "mean_speed": 0.7598831602817169
+  },
+  "A 0.90": {
+   "teacher": 1.0,
+   "teacher_lap1": 42.575000000000095,
+   "student": 0.9666666666666667,
+   "reasons": {
+    "goal": 29,
+    "collision": 1
+   },
+   "lap1": 42.49310344827598,
+   "lap2": 40.534482758626154,
+   "mean_speed": 0.8377885031485109
+  },
+  "A 1.00": {
+   "teacher": 1.0,
+   "teacher_lap1": 40.07833333333393,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 39.51666666666737,
+   "lap2": 37.47166666666844,
+   "mean_speed": 0.9033255653297989
+  },
+  "B 0.50": {
+   "teacher": 1.0,
+   "teacher_lap1": 58.19333333333101,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 58.373333333331,
+   "lap2": 56.57500000002238,
+   "mean_speed": 0.5948030974631929
+  },
+  "B 0.60": {
+   "teacher": 1.0,
+   "teacher_lap1": 55.24666666666424,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 55.634999999997504,
+   "lap2": 53.82833333335491,
+   "mean_speed": 0.6185945183301508
+  },
+  "B 0.70": {
+   "teacher": 1.0,
+   "teacher_lap1": 49.968333333331955,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 50.8533333333318,
+   "lap2": 48.97166666668238,
+   "mean_speed": 0.6769617355969284
+  },
+  "B 0.80": {
+   "teacher": 1.0,
+   "teacher_lap1": 45.3133333333329,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 45.24999999999957,
+   "lap2": 43.31833333334216,
+   "mean_speed": 0.762749339594206
+  },
+  "B 0.90": {
+   "teacher": 1.0,
+   "teacher_lap1": 42.065000000000204,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 41.158333333333715,
+   "lap2": 39.12166666667044,
+   "mean_speed": 0.8425582931216601
+  },
+  "B 1.00": {
+   "teacher": 1.0,
+   "teacher_lap1": 39.738333333334005,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 38.34333333333427,
+   "lap2": 36.243333333333645,
+   "mean_speed": 0.9067570769600181
+  },
+  "C 0.50": {
+   "teacher": 1.0,
+   "teacher_lap1": 60.09833333333115,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 59.741666666664464,
+   "lap2": 57.89333333335552,
+   "mean_speed": 0.5949888950980362
+  },
+  "C 0.60": {
+   "teacher": 1.0,
+   "teacher_lap1": 57.06833333333054,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 57.03166666666389,
+   "lap2": 55.14500000002327,
+   "mean_speed": 0.6189562923139934
+  },
+  "C 0.70": {
+   "teacher": 1.0,
+   "teacher_lap1": 51.67999999999827,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 52.16833333333154,
+   "lap2": 50.236666666683966,
+   "mean_speed": 0.6778131750561831
+  },
+  "C 0.80": {
+   "teacher": 1.0,
+   "teacher_lap1": 46.39833333333267,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 46.444999999999325,
+   "lap2": 44.50833333334364,
+   "mean_speed": 0.7631447831090677
+  },
+  "C 0.90": {
+   "teacher": 1.0,
+   "teacher_lap1": 42.72666666666673,
+   "student": 0.9333333333333333,
+   "reasons": {
+    "goal": 28,
+    "collision": 2
+   },
+   "lap1": 42.09285714285733,
+   "lap2": 40.05535714286207,
+   "mean_speed": 0.844959341716239
+  },
+  "C 1.00": {
+   "teacher": 1.0,
+   "teacher_lap1": 40.11666666666726,
+   "student": 0.9666666666666667,
+   "reasons": {
+    "goal": 29,
+    "collision": 1
+   },
+   "lap1": 39.13103448275941,
+   "lap2": 37.06379310344958,
+   "mean_speed": 0.9116207233440093
+  },
+  "D 0.50": {
+   "teacher": 1.0,
+   "teacher_lap1": 58.37499999999769,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 58.64999999999772,
+   "lap2": 56.81500000002233,
+   "mean_speed": 0.5948533512737161
+  },
+  "D 0.60": {
+   "teacher": 1.0,
+   "teacher_lap1": 55.41833333333088,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 55.91999999999744,
+   "lap2": 54.07833333335525,
+   "mean_speed": 0.6186042387401383
+  },
+  "D 0.70": {
+   "teacher": 1.0,
+   "teacher_lap1": 50.1299999999986,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 51.1049999999984,
+   "lap2": 49.18500000001599,
+   "mean_speed": 0.6771591162845737
+  },
+  "D 0.80": {
+   "teacher": 1.0,
+   "teacher_lap1": 45.34833333333289,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 45.49166666666619,
+   "lap2": 43.52166666667578,
+   "mean_speed": 0.7629737860540442
+  },
+  "D 0.90": {
+   "teacher": 1.0,
+   "teacher_lap1": 42.05166666666687,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 41.21500000000036,
+   "lap2": 39.18333333333718,
+   "mean_speed": 0.8451032056715914
+  },
+  "D 1.00": {
+   "teacher": 1.0,
+   "teacher_lap1": 39.69166666666735,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 38.41166666666759,
+   "lap2": 36.34000000000041,
+   "mean_speed": 0.9088448475583303
+  }
+ }
+}

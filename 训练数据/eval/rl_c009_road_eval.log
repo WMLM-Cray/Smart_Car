@@ -1,0 +1,52 @@
+--- level L5 ---
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+{"model": "runs/road_v2.5_rl/candidate_009.npz", "level": "L5", "episodes": 500, "success": 0.95, "reasons": {"collision": 16, "goal": 475, "off_track": 9}, "by_cap": {"0.45-1.30": [0.9590643274853801, 171], "1.30-2.15": [0.9299363057324841, 157], "2.15-3.00": [0.9593023255813954, 172]}}
+--- level L5s ---
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+{"model": "runs/road_v2.5_rl/candidate_009.npz", "level": "L5s", "episodes": 500, "success": 0.878, "reasons": {"collision": 24, "goal": 439, "off_track": 37}, "by_cap": {"0.45-1.30": [0.9075144508670521, 173], "1.30-2.15": [0.8490566037735849, 159], "2.15-3.00": [0.875, 168]}}
+--- level L6h ---
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+{"model": "runs/road_v2.5_rl/candidate_009.npz", "level": "L6h", "episodes": 500, "success": 0.956, "reasons": {"collision": 6, "goal": 478, "off_track": 16}, "by_cap": {"0.45-1.30": [0.9418604651162791, 172], "1.30-2.15": [0.9759036144578314, 166], "2.15-3.00": [0.9506172839506173, 162]}}
+--- level L4c ---
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+{"model": "runs/road_v2.5_rl/candidate_009.npz", "level": "L4c", "episodes": 500, "success": 0.962, "reasons": {"collision": 18, "goal": 481, "off_track": 1}, "by_cap": {"0.45-1.30": [0.9754601226993865, 163], "1.30-2.15": [0.9693251533742331, 163], "2.15-3.00": [0.9425287356321839, 174]}}
+--- level L6f ---
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+{"model": "runs/road_v2.5_rl/candidate_009.npz", "level": "L6f", "episodes": 500, "success": 0.946, "reasons": {"collision": 12, "goal": 473, "off_track": 15}, "by_cap": {"0.45-1.30": [0.9397590361445783, 166], "1.30-2.15": [0.9647058823529412, 170], "2.15-3.00": [0.9329268292682927, 164]}}

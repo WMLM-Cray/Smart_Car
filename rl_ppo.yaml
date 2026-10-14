@@ -1,0 +1,41 @@
+# RL(PPO)实验配置 —— training/road_rl.py 的唯一默认值来源。
+# 命令行参数可覆盖这里的值;解析后的完整配置(含覆盖)会写进 runs/*/config.json,
+# 供实验记录与复现。参数含义见 road_rl.py 各参数的 help 与 docs/RL复现.md。
+# 种子划分约定(互不重叠):DAgger 训练 10M / 挑模型 50M / RL 赛道池 20M / 评测 90M。
+
+# ===== 速度契约 =====
+schema: road_v2.5          # 赛道池按哪个速度契约抽车辆参数(要和 train --init 的一致)
+
+# ===== 赛道池(pool 子命令)=====
+pool_seed0: 20000000       # RL 赛道池种子起点,与训练/挑模型/测试种子不重叠
+count: 4000                # 池里多少局
+mix: 'L5:0.2,L5s:0.2,L6h:0.15,L6f:0.15,L4:0.15,L6:0.1,L3:0.05'   # 各路段采样占比
+cap_max: 1.8               # 速度上限抽样上限 m/s
+
+# ===== 奖励(RlEnv,原 road_rl 内联常量外置)=====
+crash: 50.0                # 撞/出界扣分(m 当量)。10 时 RL 拿 ~5% 撞车换 ~14% 提速(2026-09-30 第一轮),用户要稳定优先
+time_cost: 0.02            # 每拍时间代价(m),相当于 0.4 m/s 以下"不划算"
+slip: 0.5                  # 每拍 × 打滑程度(0~1)
+max_steps: 3000            # 一局最多多少拍(截断;截断局 GAE 要对末态 bootstrap)
+
+# ===== PPO 训练(train 子命令)=====
+iters: 300
+episodes: 112              # 每轮采多少局
+workers: 7
+torch_threads: 2
+seed: 0                    # PPO 自身随机种子(采样、初始化),与赛道种子无关
+gamma: 0.99
+lam: 0.95
+clip: 0.15
+epochs: 2
+minibatch: 4096
+lr: 0.00005
+lr_critic: 0.0003             # 首轮(lr_critic=0.001,epochs=4)在 iter36 单轮崩溃(goal 0.83->0.09),2026-10-14 调保守
+std0: 0.1                  # 探索噪声初值(动作 ±1 刻度)
+anchor: 1.0                # 偏离初始模型的惩罚系数
+anchor_decay: 0.995
+anchor_min: 0.6              # 锚定系数下限,不许离初始模型太远(首轮 0.3 不够,2026-10-14 上调)
+critic_warmup: 5           # 前几轮只训价值网络
+eval_every: 5              # 每几轮在挑模型种子上评估一次
+eval_levels: 'L5,L5s,L6h,L4c,L6f'
+eval_count: 240
