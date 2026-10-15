@@ -82,6 +82,11 @@ class Level:
     obstacles: tuple = (0, 0)              # 每条路的障碍个数范围
     obstacle_w: tuple = (0.2, 0.7)         # 横向宽 m
     obstacle_l: tuple = (0.05, 0.5)        # 纵向深 m(0.05 = 一块薄板)
+    # --- 直角口袋(2026-10-15):尖 90° 弯出去的那条走廊往反方向多伸出一截死胡同(T 字口一边短一边长)---
+    # 实车:从门洞出来进横走廊,一头几米外就封死、另一头是路。训练里的路全是单线,拐弯外侧直接是墙角,没见过。
+    # 深度上限 2.5:再深末端墙就出了 BEV(左右 4 m),两边看起来一样,老师往一边拐的标签学不来
+    pocket_chance: float = 0.0             # 有墙的尖 90° 弯做成口袋的概率
+    pocket_depth: tuple = (0.3, 2.5)       # 口袋从来车路外侧墙算起的深度 m
 
 
 LEVELS = (
@@ -158,6 +163,11 @@ LEVELS = (
     Level('LOE3', width=(1.3, 2.5), angles=(45.0, 90.0, 135.0), r_in=(0.0, 2.0),
           sharp_chance=0.4, uturn_chance=0.15, jog_chance=0.2, taper_chance=0.15,
           n_elems=(3, 6), straight=(0.8, 3.5), edge=True, obstacles=(1, 3)),
+    # 直角口袋(2026-10-15):全是墙的直角走廊,70% 的尖直角弯外侧多一截死胡同。按深度分三档从浅到深依次训。
+    # 只做有墙的:没墙时相机(3 m、视场有限)看不到口袋末端,深口袋和真岔路分不出来
+    *[Level(name, width=(0.9, 2.0), angles=(90.0,), sharp_chance=1.0, jog_chance=0.3, n_elems=(3, 5),
+            straight=(1.0, 3.0), wall_chance=1.0, pocket_chance=0.7, pocket_depth=d)
+      for name, d in (('LT3a', (0.2, 0.7)), ('LT3b', (0.7, 1.4)), ('LT3c', (1.4, 2.5)))],
 )
 
 
@@ -184,6 +194,9 @@ class Road:
     # 路中障碍:每个 4 个角 (n, 4, 2)。墙段已并进 walls(雷达、碰撞);规划用的可行域在障碍那一截从被挡的一侧收窄
     # (half_left/half_right + 材质记成 WALL),假地面分割扣掉它和它挡住的那一扇
     obstacles: np.ndarray = field(default_factory=lambda: np.zeros((0, 4, 2)))
+    # 直角口袋:每个一个多边形 (n, 5, 2)(拐角外侧 + 死胡同),墙已并进 walls;假地面分割把它算地面。
+    # 规划和出界判断不认它(开进口袋 = 走错)
+    pockets: np.ndarray = field(default_factory=lambda: np.zeros((0, 5, 2)))
 
     @property
     def normal(self) -> np.ndarray:
@@ -222,6 +235,16 @@ class Road:
         rel = np.asarray(xy, float) - self.centre[i]
         n = (-math.sin(self.heading[i]), math.cos(self.heading[i]))
         return i, float(rel[0] * n[0] + rel[1] * n[1])
+
+
+def inside_many(poly: np.ndarray, pts: np.ndarray) -> np.ndarray:
+    """一批点 (n, 2) 是否在闭合多边形内(射线法)。"""
+    a, b = poly[None], np.roll(poly, -1, axis=0)[None]
+    x, y = pts[:, :1], pts[:, 1:]
+    cross = (a[..., 1] > y) != (b[..., 1] > y)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        xi = a[..., 0] + (y - a[..., 1]) * (b[..., 0] - a[..., 0]) / (b[..., 1] - a[..., 1])
+    return np.count_nonzero(cross & (x < xi), axis=1) % 2 == 1
 
 
 def inside(poly: np.ndarray, xy) -> bool:
@@ -537,6 +560,62 @@ def add_obstacles(road: Road, rng: np.random.Generator, lv: Level) -> None:
     road.walls = np.concatenate([road.walls.reshape(-1, 2, 2)] + segs)
 
 
+def _line_x(p, d, q, e):
+    """直线 p + t·d 和 q + u·e 的交点。"""
+    t, _ = np.linalg.solve(np.array([d, -e]).T, q - p)
+    return p + t * d
+
+
+def add_pockets(road: Road, rng: np.random.Generator, lv: Level) -> None:
+    """按 lv.pocket_chance 把有墙的尖 90° 弯做成口袋(就地改 road):出弯那条走廊往反方向伸出 pocket_depth 再封墙。
+    拐角外侧的圆角墙换成方角;口袋压到别的路段就不做。"""
+    if lv.pocket_chance <= 0:                           # 不抽随机数:别的级别逐位不变
+        return
+    polys, add, drop = [], [], np.zeros(len(road.walls), bool)
+    for e in road.elems:
+        if e['kind'] != 'arc' or abs(e['angle']) != 90.0 or e['r_in'] > 0.1:
+            continue
+        if rng.random() >= lv.pocket_chance:
+            continue
+        depth = rng.uniform(*lv.pocket_depth)
+        sign = 1.0 if e['angle'] > 0 else -1.0
+        i0, i1 = e['_i0'], e['_i1']
+        outer, mat = (road.right, road.mat_right) if sign > 0 else (road.left, road.mat_left)
+        inner = road.left if sign > 0 else road.right
+        lo, hi = max(0, i0 - 2), min(len(mat) - 1, i1 + 2)
+        if not np.all(np.asarray(mat)[lo:hi + 1] == WALL):
+            continue
+        d0 = np.array([math.cos(road.heading[i0]), math.sin(road.heading[i0])])
+        d1 = np.array([math.cos(road.heading[i1]), math.sin(road.heading[i1])])
+        p0, p1 = outer[i0], outer[i1]
+        a = _line_x(p0, d0, inner[i1], d1)               # 来车外侧墙 × 出弯内侧墙:口袋开口的一角
+        b = _line_x(p0, d0, p1, d1)                      # 方角顶点
+        a2, b2 = a - depth * d1, b - depth * d1
+        poly = np.array([p0, a, a2, b2, p1])
+        # 口袋不能压到别的路段(弧长隔得远、离口袋近于半宽 + 0.4)
+        far = np.abs(road.s - road.s[i0]) > 3.0
+        probe = np.vstack([poly, (a2 + b2) / 2, (a + b2) / 2])
+        dist = np.hypot(road.centre[far, None, 0] - probe[None, :, 0], road.centre[far, None, 1] - probe[None, :, 1])
+        if far.any() and np.any(dist < road.half[far, None] + 0.4):
+            continue
+        # 拆掉外侧圆角墙(端点落在圆角上的段),换成方角 + 口袋三面墙;两头各多铺一格接上原来的直墙
+        rc = e['r_in'] + e['width'] / 2
+        c = road.centre[i0] + sign * rc * road.normal[i0]
+        r_out = e['r_in'] + e['width']
+        w = road.walls.reshape(-1, 2) - c
+        on_arc = ((np.abs(np.hypot(w[:, 0], w[:, 1]) - r_out) < 0.05) & (w @ d0 > 1e-3) & (w @ d1 < -1e-3))
+        drop |= on_arc.reshape(-1, 2).any(axis=1)
+        for q0, q1 in ((p0 - WALL_STEP * d0, a), (a, a2), (a2, b2), (b2, p1 + WALL_STEP * d1)):
+            pts, _ = _resample(np.array([q0, q1]), WALL_STEP)
+            add.append(np.stack([pts[:-1], pts[1:]], axis=1))
+        polys.append(poly)
+        e['pocket'] = depth
+    if not polys:
+        return
+    road.walls = np.concatenate([road.walls[~drop]] + add)
+    road.pockets = np.asarray(polys, float)
+
+
 def generate(rng: np.random.Generator, lv: Level, tries: int = 50) -> Road:
     """按 lv 生成一条不自重叠的路。可通性另外查(road_check)。"""
     for _ in range(tries):
@@ -544,6 +623,7 @@ def generate(rng: np.random.Generator, lv: Level, tries: int = 50) -> Road:
         _materials(rng, lv, elems)
         road = build(elems, cone_spacing=rng.uniform(*lv.cone_spacing))
         if not self_overlaps(road):
+            add_pockets(road, rng, lv)
             add_obstacles(road, rng, lv)
             return road
     raise RuntimeError(f'{lv.name}: {tries} 次都生成了自重叠的路,参数范围有问题')

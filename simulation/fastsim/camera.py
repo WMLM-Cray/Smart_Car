@@ -24,7 +24,7 @@ import numpy as np
 
 from common.bev import CellType
 from common.params import CarParams, TrackParams
-from simulation.fastsim.road import EDGE, NONE, WALL
+from simulation.fastsim.road import EDGE, NONE, WALL, inside_many
 
 TAPE_STEP = 0.10                # 胶带沿线取点间距 m
 
@@ -193,6 +193,8 @@ class FakeFloorSeg:
         ml, mr = np.asarray(road.mat_left)[i], np.asarray(road.mat_right)[i]
         stop = (WALL, EDGE)                                            # 墙挡住地面;EDGE 外是别的材质
         free = ~(((d > hl) & np.isin(ml, stop)) | ((d < -hr) & np.isin(mr, stop)))
+        for poly in getattr(road, 'pockets', ()):                      # 直角口袋也是地面(旧 pickle 没有这个字段)
+            free |= inside_many(poly, w)
         if self.cone_tree is not None:
             dc, _ = self.cone_tree.query(w)
             free &= dc > road.cone_radius
