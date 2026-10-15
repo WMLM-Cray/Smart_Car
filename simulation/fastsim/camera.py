@@ -197,7 +197,7 @@ class FakeFloorSeg:
             dc, _ = self.cone_tree.query(w)
             free &= dc > road.cone_radius
             free &= ~self._shadow(x + c * self.p.camera_x, y + s * self.p.camera_x, yaw)
-        if len(road.obstacles):
+        if len(getattr(road, 'obstacles', ())):         # 旧测试集 pickle 里的 Road 没有这个字段
             free &= ~self._obstacle_shadow(x + c * self.p.camera_x, y + s * self.p.camera_x, yaw)
         return b[free]
 
