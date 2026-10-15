@@ -1,0 +1,79 @@
+18:05:37 iter 0 steps=74540 buf=74540 goal=0.946 {'goal': 106, 'off_track': 5, 'collision': 1} ret=15.00 ep_time=34.0s q1=0.1 drift=0.087 upd=20000 [39s/126s]
+18:08:15 iter 1 steps=71837 buf=146377 goal=0.929 {'goal': 104, 'collision': 3, 'off_track': 5} ret=12.11 ep_time=32.7s q1=0.3 drift=0.049 upd=20000 [37s/120s]
+18:10:56 iter 2 steps=66685 buf=213062 goal=0.920 {'goal': 103, 'off_track': 6, 'collision': 3} ret=10.54 ep_time=30.2s q1=0.4 drift=0.262 upd=20000 [35s/126s]
+18:13:30 iter 3 steps=66565 buf=279627 goal=0.920 {'goal': 103, 'off_track': 7, 'collision': 2} ret=10.57 ep_time=31.0s q1=-0.3 drift=0.080 upd=20000 [34s/120s]
+18:18:54 iter 4 steps=74145 buf=353772 goal=0.946 {'goal': 106, 'off_track': 2, 'collision': 4} ret=12.30 ep_time=34.1s q1=-0.9 drift=0.061 upd=20000 [42s/112s] | eval=0.967 {'L5': 0.9375, 'L5s': 0.9583333333333334, 'L6h': 0.9583333333333334, 'L4c': 0.9791666666666666, 'L6f': 1.0}
+18:21:29 iter 5 steps=64783 buf=418555 goal=0.911 {'goal': 102, 'off_track': 6, 'collision': 4} ret=9.92 ep_time=30.4s q1=-1.1 drift=0.065 upd=20000 [36s/118s]
+18:23:56 iter 6 steps=66132 buf=484687 goal=0.866 {'goal': 97, 'off_track': 8, 'collision': 7} ret=8.65 ep_time=32.0s q1=-1.4 drift=0.098 upd=20000 [33s/114s]
+18:26:20 iter 7 steps=70577 buf=500000 goal=0.964 {'goal': 108, 'off_track': 2, 'collision': 2} ret=14.57 ep_time=31.8s q1=-1.8 drift=0.262 upd=20000 [31s/112s]
+18:28:47 iter 8 steps=71100 buf=500000 goal=0.938 {'goal': 105, 'off_track': 4, 'collision': 3} ret=13.05 ep_time=32.4s q1=-2.1 drift=0.065 upd=20000 [35s/112s]
+18:33:55 iter 9 steps=70149 buf=500000 goal=0.920 {'goal': 103, 'off_track': 7, 'collision': 2} ret=11.68 ep_time=32.1s q1=-2.3 drift=0.061 upd=20000 [30s/111s] | eval=0.950 {'L5': 0.9375, 'L5s': 0.9583333333333334, 'L6h': 0.9375, 'L4c': 0.9583333333333334, 'L6f': 0.9583333333333334}
+18:36:17 iter 10 steps=72748 buf=500000 goal=0.938 {'goal': 105, 'collision': 3, 'off_track': 4} ret=12.40 ep_time=33.5s q1=-2.8 drift=0.148 upd=20000 [30s/112s]
+18:38:49 iter 11 steps=67541 buf=500000 goal=0.920 {'goal': 103, 'off_track': 3, 'collision': 6} ret=11.49 ep_time=31.5s q1=-3.3 drift=0.177 upd=20000 [35s/116s]
+18:41:30 iter 12 steps=70699 buf=500000 goal=0.893 {'goal': 100, 'off_track': 10, 'collision': 2} ret=9.97 ep_time=33.1s q1=-3.7 drift=0.138 upd=20000 [36s/126s]
+18:44:11 iter 13 steps=71496 buf=500000 goal=0.920 {'goal': 103, 'off_track': 5, 'collision': 4} ret=12.39 ep_time=32.9s q1=-4.0 drift=0.174 upd=20000 [38s/123s]
+18:49:54 iter 14 steps=73484 buf=500000 goal=0.955 {'goal': 107, 'off_track': 4, 'collision': 1} ret=14.88 ep_time=33.1s q1=-4.3 drift=0.084 upd=20000 [37s/126s] | eval=0.954 {'L5': 0.9375, 'L5s': 0.9791666666666666, 'L6h': 0.9375, 'L4c': 0.9375, 'L6f': 0.9791666666666666}
+18:52:46 iter 15 steps=67356 buf=500000 goal=0.911 {'goal': 102, 'off_track': 8, 'collision': 2} ret=10.98 ep_time=31.7s q1=-4.5 drift=0.108 upd=20000 [48s/124s]
+18:55:27 iter 16 steps=65548 buf=500000 goal=0.938 {'goal': 105, 'collision': 1, 'off_track': 6} ret=12.53 ep_time=29.8s q1=-5.1 drift=0.140 upd=20000 [38s/123s]
+18:58:10 iter 17 steps=66534 buf=500000 goal=0.893 {'goal': 100, 'off_track': 7, 'collision': 5} ret=8.63 ep_time=31.4s q1=-5.6 drift=0.091 upd=20000 [40s/123s]
+19:00:49 iter 18 steps=68745 buf=500000 goal=0.893 {'goal': 100, 'off_track': 6, 'collision': 6} ret=10.64 ep_time=32.2s q1=-6.4 drift=0.147 upd=20000 [36s/124s]
+19:06:30 iter 19 steps=69727 buf=500000 goal=0.920 {'goal': 103, 'off_track': 5, 'collision': 4} ret=11.94 ep_time=31.9s q1=-6.4 drift=0.155 upd=20000 [39s/124s] | eval=0.942 {'L5': 0.9166666666666666, 'L5s': 0.9166666666666666, 'L6h': 0.9583333333333334, 'L4c': 0.9375, 'L6f': 0.9791666666666666}
+19:09:12 iter 20 steps=78606 buf=500000 goal=0.938 {'off_track': 5, 'goal': 105, 'collision': 2} ret=15.29 ep_time=36.5s q1=-6.9 drift=0.175 upd=20000 [39s/123s]
+19:12:08 iter 21 steps=80535 buf=500000 goal=0.902 {'goal': 101, 'off_track': 11} ret=11.19 ep_time=37.3s q1=-7.2 drift=0.236 upd=20000 [52s/125s]
+19:14:46 iter 22 steps=68324 buf=500000 goal=0.848 {'off_track': 13, 'goal': 95, 'collision': 4} ret=8.02 ep_time=32.4s q1=-7.4 drift=0.169 upd=20000 [36s/122s]
+19:17:36 iter 23 steps=70155 buf=500000 goal=0.893 {'goal': 100, 'off_track': 9, 'collision': 3} ret=11.05 ep_time=32.2s q1=-7.6 drift=0.230 upd=20000 [44s/126s]
+19:23:19 iter 24 steps=68945 buf=500000 goal=0.893 {'goal': 100, 'off_track': 10, 'collision': 2} ret=9.85 ep_time=32.4s q1=-7.7 drift=0.148 upd=20000 [39s/122s] | eval=0.958 {'L5': 0.9375, 'L5s': 0.9375, 'L6h': 0.9583333333333334, 'L4c': 0.9583333333333334, 'L6f': 1.0}
+19:26:03 iter 25 steps=70439 buf=500000 goal=0.875 {'goal': 98, 'collision': 8, 'off_track': 6} ret=8.29 ep_time=33.7s q1=-8.6 drift=0.202 upd=20000 [38s/126s]
+19:28:45 iter 26 steps=65603 buf=500000 goal=0.938 {'goal': 105, 'collision': 3, 'off_track': 4} ret=12.16 ep_time=30.2s q1=-8.9 drift=0.179 upd=20000 [36s/126s]
+19:31:24 iter 27 steps=71802 buf=500000 goal=0.893 {'goal': 100, 'collision': 2, 'off_track': 10} ret=10.20 ep_time=33.8s q1=-8.8 drift=0.190 upd=20000 [39s/120s]
+19:33:57 iter 28 steps=70996 buf=500000 goal=0.893 {'goal': 100, 'off_track': 9, 'collision': 3} ret=9.57 ep_time=32.8s q1=-9.2 drift=0.368 upd=20000 [34s/119s]
+19:39:27 iter 29 steps=71622 buf=500000 goal=0.884 {'goal': 99, 'collision': 4, 'off_track': 9} ret=9.49 ep_time=33.8s q1=-9.7 drift=0.234 upd=20000 [37s/115s] | eval=0.958 {'L5': 0.9166666666666666, 'L5s': 0.9583333333333334, 'L6h': 0.9583333333333334, 'L4c': 0.9583333333333334, 'L6f': 1.0}
+19:42:13 iter 30 steps=72454 buf=500000 goal=0.911 {'collision': 6, 'goal': 102, 'off_track': 4} ret=10.52 ep_time=34.0s q1=-9.8 drift=0.444 upd=20000 [39s/127s]
+19:45:09 iter 31 steps=72520 buf=500000 goal=0.857 {'collision': 6, 'goal': 96, 'off_track': 10} ret=8.53 ep_time=34.3s q1=-10.2 drift=0.278 upd=20000 [49s/128s]
+19:48:01 iter 32 steps=67578 buf=500000 goal=0.857 {'goal': 96, 'off_track': 12, 'collision': 4} ret=7.63 ep_time=31.0s q1=-9.7 drift=0.274 upd=20000 [42s/129s]
+19:50:55 iter 33 steps=69724 buf=500000 goal=0.839 {'goal': 94, 'collision': 2, 'off_track': 16} ret=6.67 ep_time=33.5s q1=-10.1 drift=0.265 upd=20000 [45s/129s]
+19:56:49 iter 34 steps=73456 buf=500000 goal=0.938 {'goal': 105, 'off_track': 6, 'collision': 1} ret=12.62 ep_time=33.8s q1=-10.8 drift=0.218 upd=20000 [41s/129s] | eval=0.912 {'L5': 0.8541666666666666, 'L5s': 0.8958333333333334, 'L6h': 0.8958333333333334, 'L4c': 0.9375, 'L6f': 0.9791666666666666}
+19:59:30 iter 35 steps=64449 buf=500000 goal=0.884 {'goal': 99, 'collision': 4, 'off_track': 9} ret=8.78 ep_time=30.7s q1=-11.7 drift=0.204 upd=20000 [35s/126s]
+20:02:11 iter 36 steps=69239 buf=500000 goal=0.902 {'goal': 101, 'off_track': 9, 'collision': 2} ret=10.23 ep_time=31.9s q1=-11.5 drift=0.304 upd=20000 [40s/121s]
+20:04:47 iter 37 steps=67952 buf=500000 goal=0.911 {'goal': 102, 'collision': 3, 'off_track': 7} ret=11.24 ep_time=30.7s q1=-11.8 drift=0.212 upd=20000 [40s/116s]
+20:07:34 iter 38 steps=67515 buf=500000 goal=0.929 {'goal': 104, 'off_track': 8} ret=12.64 ep_time=31.1s q1=-11.6 drift=0.221 upd=20000 [37s/130s]
+20:13:40 iter 39 steps=66549 buf=500000 goal=0.920 {'goal': 103, 'collision': 4, 'off_track': 5} ret=10.59 ep_time=30.6s q1=-11.7 drift=0.211 upd=20000 [45s/129s] | eval=0.963 {'L5': 0.9166666666666666, 'L5s': 0.9791666666666666, 'L6h': 0.9583333333333334, 'L4c': 0.9583333333333334, 'L6f': 1.0}
+20:16:34 iter 40 steps=68247 buf=500000 goal=0.884 {'goal': 99, 'off_track': 13} ret=8.76 ep_time=32.1s q1=-11.4 drift=0.272 upd=20000 [46s/128s]
+20:19:20 iter 41 steps=71544 buf=500000 goal=0.982 {'goal': 110, 'off_track': 2} ret=15.46 ep_time=32.2s q1=-11.2 drift=0.253 upd=20000 [38s/128s]
+20:22:11 iter 42 steps=65957 buf=500000 goal=0.929 {'goal': 104, 'off_track': 6, 'collision': 2} ret=11.12 ep_time=30.5s q1=-11.0 drift=0.292 upd=20000 [40s/131s]
+20:24:57 iter 43 steps=65809 buf=500000 goal=0.902 {'goal': 101, 'off_track': 9, 'collision': 2} ret=9.65 ep_time=30.6s q1=-10.3 drift=0.229 upd=20000 [39s/128s]
+20:30:41 iter 44 steps=66096 buf=500000 goal=0.920 {'off_track': 6, 'goal': 103, 'collision': 3} ret=11.06 ep_time=30.1s q1=-9.6 drift=0.498 upd=20000 [34s/124s] | eval=0.942 {'L5': 0.9166666666666666, 'L5s': 0.8958333333333334, 'L6h': 0.9583333333333334, 'L4c': 0.9375, 'L6f': 1.0}
+20:33:17 iter 45 steps=70672 buf=500000 goal=0.911 {'collision': 3, 'goal': 102, 'off_track': 7} ret=11.61 ep_time=32.5s q1=-9.6 drift=0.198 upd=20000 [33s/123s]
+20:35:56 iter 46 steps=72565 buf=500000 goal=0.875 {'off_track': 7, 'goal': 98, 'collision': 7} ret=9.77 ep_time=34.7s q1=-9.7 drift=0.232 upd=20000 [32s/127s]
+20:38:35 iter 47 steps=68051 buf=500000 goal=0.911 {'goal': 102, 'off_track': 7, 'collision': 3} ret=10.87 ep_time=31.5s q1=-9.7 drift=0.191 upd=20000 [35s/124s]
+20:41:25 iter 48 steps=70692 buf=500000 goal=0.884 {'goal': 99, 'off_track': 8, 'collision': 5} ret=10.39 ep_time=33.4s q1=-9.9 drift=0.570 upd=20000 [44s/126s]
+20:47:13 iter 49 steps=68523 buf=500000 goal=0.884 {'goal': 99, 'off_track': 6, 'collision': 7} ret=9.33 ep_time=32.1s q1=-9.7 drift=0.191 upd=20000 [42s/118s] | eval=0.958 {'L5': 0.9375, 'L5s': 0.9583333333333334, 'L6h': 0.9583333333333334, 'L4c': 0.9375, 'L6f': 1.0}
+20:49:55 iter 50 steps=64433 buf=500000 goal=0.848 {'goal': 95, 'collision': 2, 'off_track': 15} ret=7.27 ep_time=30.6s q1=-10.0 drift=0.160 upd=20000 [34s/128s]
+20:52:35 iter 51 steps=64721 buf=500000 goal=0.920 {'goal': 103, 'off_track': 6, 'collision': 3} ret=11.27 ep_time=29.6s q1=-10.2 drift=0.318 upd=20000 [38s/122s]
+20:55:10 iter 52 steps=67695 buf=500000 goal=0.893 {'goal': 100, 'off_track': 11, 'collision': 1} ret=9.49 ep_time=31.5s q1=-11.0 drift=0.221 upd=20000 [35s/120s]
+20:57:43 iter 53 steps=63700 buf=500000 goal=0.830 {'goal': 93, 'collision': 3, 'off_track': 16} ret=7.09 ep_time=30.8s q1=-10.6 drift=0.305 upd=20000 [33s/120s]
+21:03:20 iter 54 steps=71484 buf=500000 goal=0.911 {'goal': 102, 'off_track': 5, 'collision': 5} ret=11.25 ep_time=32.9s q1=-11.1 drift=0.185 upd=20000 [41s/125s] | eval=0.942 {'L5': 0.9166666666666666, 'L5s': 0.8958333333333334, 'L6h': 0.9583333333333334, 'L4c': 0.9583333333333334, 'L6f': 0.9791666666666666}
+21:06:01 iter 55 steps=70079 buf=500000 goal=0.893 {'collision': 5, 'goal': 100, 'off_track': 7} ret=9.76 ep_time=31.6s q1=-11.4 drift=0.589 upd=20000 [39s/122s]
+21:08:59 iter 56 steps=73442 buf=500000 goal=0.920 {'goal': 103, 'off_track': 7, 'collision': 2} ret=12.36 ep_time=33.9s q1=-11.5 drift=0.189 upd=20000 [48s/130s]
+21:11:35 iter 57 steps=63426 buf=500000 goal=0.848 {'goal': 95, 'off_track': 13, 'collision': 4} ret=7.46 ep_time=30.1s q1=-11.8 drift=0.228 upd=20000 [29s/127s]
+21:14:09 iter 58 steps=66107 buf=500000 goal=0.866 {'collision': 2, 'goal': 97, 'off_track': 13} ret=8.63 ep_time=31.2s q1=-12.2 drift=0.436 upd=20000 [35s/120s]
+21:19:53 iter 59 steps=68140 buf=500000 goal=0.893 {'goal': 100, 'off_track': 6, 'collision': 6} ret=10.89 ep_time=32.3s q1=-12.0 drift=0.280 upd=20000 [39s/125s] | eval=0.921 {'L5': 0.8958333333333334, 'L5s': 0.8333333333333334, 'L6h': 0.9583333333333334, 'L4c': 0.9375, 'L6f': 0.9791666666666666}
+21:22:26 iter 60 steps=62229 buf=500000 goal=0.848 {'goal': 95, 'off_track': 15, 'collision': 2} ret=6.87 ep_time=30.8s q1=-12.2 drift=0.211 upd=20000 [32s/120s]
+21:25:06 iter 61 steps=68804 buf=500000 goal=0.902 {'collision': 3, 'goal': 101, 'off_track': 8} ret=11.43 ep_time=32.2s q1=-12.5 drift=0.320 upd=20000 [38s/122s]
+21:27:46 iter 62 steps=67212 buf=500000 goal=0.821 {'goal': 92, 'off_track': 15, 'collision': 5} ret=6.35 ep_time=31.3s q1=-13.5 drift=0.289 upd=20000 [38s/122s]
+21:30:40 iter 63 steps=67696 buf=500000 goal=0.857 {'goal': 96, 'off_track': 13, 'collision': 3} ret=7.93 ep_time=32.5s q1=-13.7 drift=0.283 upd=20000 [42s/131s]
+21:36:17 iter 64 steps=64919 buf=500000 goal=0.911 {'goal': 102, 'off_track': 4, 'collision': 6} ret=10.06 ep_time=30.8s q1=-14.1 drift=0.242 upd=20000 [33s/123s] | eval=0.904 {'L5': 0.8125, 'L5s': 0.8958333333333334, 'L6h': 0.9166666666666666, 'L4c': 0.9166666666666666, 'L6f': 0.9791666666666666}
+21:38:51 iter 65 steps=60728 buf=500000 goal=0.893 {'goal': 100, 'off_track': 10, 'collision': 2} ret=9.59 ep_time=28.4s q1=-13.8 drift=0.406 upd=20000 [31s/123s]
+21:41:34 iter 66 steps=71160 buf=500000 goal=0.866 {'goal': 97, 'collision': 5, 'off_track': 10} ret=9.28 ep_time=33.7s q1=-14.1 drift=0.429 upd=20000 [41s/121s]
+21:44:20 iter 67 steps=67647 buf=500000 goal=0.884 {'off_track': 10, 'goal': 99, 'collision': 3} ret=9.63 ep_time=31.4s q1=-13.5 drift=0.531 upd=20000 [42s/124s]
+21:47:06 iter 68 steps=65371 buf=500000 goal=0.938 {'goal': 105, 'off_track': 6, 'collision': 1} ret=12.67 ep_time=30.2s q1=-13.7 drift=0.482 upd=20000 [36s/130s]
+21:53:21 iter 69 steps=73915 buf=500000 goal=0.866 {'goal': 97, 'off_track': 11, 'collision': 4} ret=8.75 ep_time=35.0s q1=-13.7 drift=0.480 upd=20000 [40s/131s] | eval=0.925 {'L5': 0.875, 'L5s': 0.8958333333333334, 'L6h': 0.9375, 'L4c': 0.9166666666666666, 'L6f': 1.0}
+21:56:16 iter 70 steps=68211 buf=500000 goal=0.884 {'goal': 99, 'collision': 1, 'off_track': 12} ret=10.69 ep_time=31.1s q1=-13.4 drift=0.250 upd=20000 [41s/134s]
+21:59:09 iter 71 steps=63135 buf=500000 goal=0.857 {'goal': 96, 'off_track': 9, 'collision': 7} ret=6.58 ep_time=30.9s q1=-13.9 drift=0.288 upd=20000 [40s/133s]
+22:01:48 iter 72 steps=68642 buf=500000 goal=0.946 {'goal': 106, 'off_track': 5, 'collision': 1} ret=13.14 ep_time=31.3s q1=-13.1 drift=0.452 upd=20000 [35s/124s]
+22:04:36 iter 73 steps=71510 buf=500000 goal=0.875 {'goal': 98, 'off_track': 10, 'collision': 4} ret=10.64 ep_time=33.0s q1=-13.6 drift=0.315 upd=20000 [47s/121s]
+22:10:15 iter 74 steps=69468 buf=500000 goal=0.857 {'goal': 96, 'off_track': 10, 'collision': 6} ret=7.78 ep_time=33.3s q1=-12.9 drift=0.455 upd=20000 [38s/119s] | eval=0.887 {'L5': 0.8333333333333334, 'L5s': 0.8125, 'L6h': 0.9166666666666666, 'L4c': 0.9166666666666666, 'L6f': 0.9583333333333334}
+22:12:52 iter 75 steps=62777 buf=500000 goal=0.848 {'goal': 95, 'off_track': 15, 'collision': 2} ret=7.78 ep_time=29.8s q1=-13.2 drift=0.686 upd=20000 [36s/121s]
+22:15:20 iter 76 steps=60500 buf=500000 goal=0.812 {'goal': 91, 'off_track': 16, 'collision': 5} ret=5.06 ep_time=29.3s q1=-13.3 drift=0.261 upd=20000 [34s/114s]
+22:17:55 iter 77 steps=63052 buf=500000 goal=0.830 {'goal': 93, 'off_track': 13, 'collision': 6} ret=6.67 ep_time=29.7s q1=-13.4 drift=0.489 upd=20000 [33s/122s]
+22:20:29 iter 78 steps=63941 buf=500000 goal=0.848 {'goal': 95, 'off_track': 12, 'collision': 5} ret=6.44 ep_time=30.3s q1=-13.8 drift=0.345 upd=20000 [36s/118s]

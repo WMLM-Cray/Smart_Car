@@ -1,0 +1,317 @@
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+{"model": "runs/road_v2.5_td3/candidate_004.npz", "level": "L5", "episodes": 500, "success": 0.942, "reasons": {"collision": 11, "goal": 471, "off_track": 18}, "by_cap": {"0.45-1.30": [0.935672514619883, 171], "1.30-2.15": [0.9363057324840764, 157], "2.15-3.00": [0.9534883720930233, 172]}}
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+{"model": "runs/road_v2.5_td3/candidate_004.npz", "level": "L5s", "episodes": 500, "success": 0.884, "reasons": {"collision": 18, "goal": 442, "off_track": 40}, "by_cap": {"0.45-1.30": [0.9017341040462428, 173], "1.30-2.15": [0.8616352201257862, 159], "2.15-3.00": [0.8869047619047619, 168]}}
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+{"model": "runs/road_v2.5_td3/candidate_004.npz", "level": "L6h", "episodes": 500, "success": 0.972, "reasons": {"collision": 1, "goal": 486, "off_track": 13}, "by_cap": {"0.45-1.30": [0.9767441860465116, 172], "1.30-2.15": [0.9819277108433735, 166], "2.15-3.00": [0.9567901234567902, 162]}}
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+{"model": "runs/road_v2.5_td3/candidate_004.npz", "level": "L4c", "episodes": 500, "success": 0.972, "reasons": {"collision": 14, "goal": 486}, "by_cap": {"0.45-1.30": [0.9754601226993865, 163], "1.30-2.15": [0.9877300613496932, 163], "2.15-3.00": [0.9540229885057471, 174]}}
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+{"model": "runs/road_v2.5_td3/candidate_004.npz", "level": "L6f", "episodes": 500, "success": 0.96, "reasons": {"collision": 8, "goal": 480, "off_track": 12}, "by_cap": {"0.45-1.30": [0.9698795180722891, 166], "1.30-2.15": [0.9588235294117647, 170], "2.15-3.00": [0.9512195121951219, 164]}}
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:143: RuntimeWarning: divide by zero encountered in true_divide
+  alphas = np.hstack((
+/usr/lib/python3/dist-packages/scipy/optimize/_lsq/bvls.py:152: RuntimeWarning: invalid value encountered in add
+  x_free += alpha * z
+{
+ "model": "runs/road_v2.5_td3/candidate_004.npz",
+ "summary": {
+  "A 0.50": {
+   "teacher": 1.0,
+   "teacher_lap1": 59.36166666666442,
+   "student": 0.9666666666666667,
+   "reasons": {
+    "goal": 29,
+    "collision": 1
+   },
+   "lap1": 59.46896551723922,
+   "lap2": 57.767241379332134,
+   "mean_speed": 0.5975183749380615
+  },
+  "A 0.60": {
+   "teacher": 1.0,
+   "teacher_lap1": 56.37666666666402,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 56.67999999999729,
+   "lap2": 54.92833333335623,
+   "mean_speed": 0.6207889086527587
+  },
+  "A 0.70": {
+   "teacher": 1.0,
+   "teacher_lap1": 51.16999999999839,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 51.308333333331696,
+   "lap2": 49.49500000001631,
+   "mean_speed": 0.6849211704290331
+  },
+  "A 0.80": {
+   "teacher": 1.0,
+   "teacher_lap1": 46.07666666666607,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 45.384999999999536,
+   "lap2": 43.49500000000902,
+   "mean_speed": 0.7767643031454047
+  },
+  "A 0.90": {
+   "teacher": 1.0,
+   "teacher_lap1": 42.575000000000095,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 40.941666666667075,
+   "lap2": 38.96500000000355,
+   "mean_speed": 0.8635878443814398
+  },
+  "A 1.00": {
+   "teacher": 1.0,
+   "teacher_lap1": 40.07833333333393,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 37.670000000001075,
+   "lap2": 35.61833333333285,
+   "mean_speed": 0.9416952096188992
+  },
+  "B 0.50": {
+   "teacher": 1.0,
+   "teacher_lap1": 58.19333333333101,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 58.14666666666433,
+   "lap2": 56.350000000022376,
+   "mean_speed": 0.5948571141286273
+  },
+  "B 0.60": {
+   "teacher": 1.0,
+   "teacher_lap1": 55.24666666666424,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 55.263333333330905,
+   "lap2": 53.45000000002114,
+   "mean_speed": 0.6206417882892734
+  },
+  "B 0.70": {
+   "teacher": 1.0,
+   "teacher_lap1": 49.968333333331955,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 50.05666666666528,
+   "lap2": 48.195000000014744,
+   "mean_speed": 0.6851051779829463
+  },
+  "B 0.80": {
+   "teacher": 1.0,
+   "teacher_lap1": 45.3133333333329,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 44.173333333333126,
+   "lap2": 42.22333333334084,
+   "mean_speed": 0.7791149294756199
+  },
+  "B 0.90": {
+   "teacher": 1.0,
+   "teacher_lap1": 42.065000000000204,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 39.810000000000656,
+   "lap2": 37.78000000000214,
+   "mean_speed": 0.8683995268948889
+  },
+  "B 1.00": {
+   "teacher": 1.0,
+   "teacher_lap1": 39.738333333334005,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 36.506666666667975,
+   "lap2": 34.44166666666475,
+   "mean_speed": 0.950059885549456
+  },
+  "C 0.50": {
+   "teacher": 1.0,
+   "teacher_lap1": 60.09833333333115,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 59.48999999999777,
+   "lap2": 57.64666666668889,
+   "mean_speed": 0.5950300415619433
+  },
+  "C 0.60": {
+   "teacher": 1.0,
+   "teacher_lap1": 57.06833333333054,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 56.63166666666396,
+   "lap2": 54.78500000002279,
+   "mean_speed": 0.620644390685964
+  },
+  "C 0.70": {
+   "teacher": 1.0,
+   "teacher_lap1": 51.67999999999827,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 51.336666666665025,
+   "lap2": 49.431666666682965,
+   "mean_speed": 0.6852568902836202
+  },
+  "C 0.80": {
+   "teacher": 1.0,
+   "teacher_lap1": 46.39833333333267,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 45.26666666666623,
+   "lap2": 43.306666666675504,
+   "mean_speed": 0.7789852925122063
+  },
+  "C 0.90": {
+   "teacher": 1.0,
+   "teacher_lap1": 42.72666666666673,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 40.72666666666714,
+   "lap2": 38.7083333333366,
+   "mean_speed": 0.8679359345644849
+  },
+  "C 1.00": {
+   "teacher": 1.0,
+   "teacher_lap1": 40.11666666666726,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 37.34333333333448,
+   "lap2": 35.256666666665765,
+   "mean_speed": 0.9500117902473111
+  },
+  "D 0.50": {
+   "teacher": 1.0,
+   "teacher_lap1": 58.37499999999769,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 58.479999999997695,
+   "lap2": 56.64166666668903,
+   "mean_speed": 0.5949183022955078
+  },
+  "D 0.60": {
+   "teacher": 1.0,
+   "teacher_lap1": 55.41833333333088,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 55.584999999997514,
+   "lap2": 53.72000000002151,
+   "mean_speed": 0.6207093108699587
+  },
+  "D 0.70": {
+   "teacher": 1.0,
+   "teacher_lap1": 50.1299999999986,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 50.34833333333188,
+   "lap2": 48.425000000015075,
+   "mean_speed": 0.6853555972527237
+  },
+  "D 0.80": {
+   "teacher": 1.0,
+   "teacher_lap1": 45.34833333333289,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 44.37999999999974,
+   "lap2": 42.40000000000776,
+   "mean_speed": 0.7798387904109112
+  },
+  "D 0.90": {
+   "teacher": 1.0,
+   "teacher_lap1": 42.05166666666687,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 39.911666666667294,
+   "lap2": 37.88000000000227,
+   "mean_speed": 0.8704806624292375
+  },
+  "D 1.00": {
+   "teacher": 1.0,
+   "teacher_lap1": 39.69166666666735,
+   "student": 1.0,
+   "reasons": {
+    "goal": 30
+   },
+   "lap1": 36.59833333333462,
+   "lap2": 34.519999999998184,
+   "mean_speed": 0.9527675201038106
+  }
+ }
+}
