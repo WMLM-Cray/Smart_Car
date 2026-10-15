@@ -197,7 +197,25 @@ class FakeFloorSeg:
             dc, _ = self.cone_tree.query(w)
             free &= dc > road.cone_radius
             free &= ~self._shadow(x + c * self.p.camera_x, y + s * self.p.camera_x, yaw)
+        if len(road.obstacles):
+            free &= ~self._obstacle_shadow(x + c * self.p.camera_x, y + s * self.p.camera_x, yaw)
         return b[free]
+
+    def _obstacle_shadow(self, cx, cy, yaw) -> np.ndarray:
+        """路中障碍(箱子/板子)本身和它挡住的那一扇地面(grid_cam 上的布尔):按相机看到的四个角张成的角度范围,
+        比最近的角远的都算看不到(当障碍比相机 24 cm 高)。"""
+        out = np.zeros(len(self.grid_cam), bool)
+        for box in self.road.obstacles:
+            d = box - (cx, cy)
+            dist = np.hypot(d[:, 0], d[:, 1])
+            if dist.min() > self.cfg.range:
+                continue
+            ang = np.arctan2(d[:, 1], d[:, 0]) - yaw
+            mid = math.atan2(d[:, 1].mean(), d[:, 0].mean()) - yaw
+            rel = (ang - mid + np.pi) % (2 * np.pi) - np.pi              # 以箱子中心方向为零,免得跨 ±π
+            da = (self.grid_a - mid + np.pi) % (2 * np.pi) - np.pi
+            out |= (da >= rel.min()) & (da <= rel.max()) & (self.grid_r > dist.min())
+        return out
 
     def _shadow(self, cx, cy, yaw) -> np.ndarray:
         """被锥桶挡住、相机看不到的地面格(grid_cam 上的布尔)。桶高 70 cm > 相机高 24 cm,桶后面那一扇

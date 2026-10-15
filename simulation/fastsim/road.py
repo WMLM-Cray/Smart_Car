@@ -76,6 +76,12 @@ class Level:
     loop_main: tuple | None = None        # 主直道长度范围(闭合解出来,超范围重抽)
     loop_bend_max: float | None = None    # S 弯半径上限(默认 1.8)
     loop_turn_angles: tuple | None = None # 折角可选角度(默认 45/90/135)
+    # --- 路中障碍(2026-10-15):路面上摆雷达扫得到的箱子/板子,要从旁边绕过去 ---
+    # 实车走廊:展板、叠起来的垫子、椅子迎面摆着,模型照直开到截停 —— 训练里唯一"迎面是墙"的是直角弯,
+    # 路一定往左或右拐;路中间突然立着东西、绕过去再回到路上的情形从没见过。
+    obstacles: tuple = (0, 0)              # 每条路的障碍个数范围
+    obstacle_w: tuple = (0.2, 0.7)         # 横向宽 m
+    obstacle_l: tuple = (0.05, 0.5)        # 纵向深 m(0.05 = 一块薄板)
 
 
 LEVELS = (
@@ -145,6 +151,13 @@ LEVELS = (
     Level('LE4', width=(0.9, 2.5), angles=(45.0, 90.0, 135.0), r_in=(0.0, 2.0),
           sharp_chance=0.4, uturn_chance=0.15, jog_chance=0.2, taper_chance=0.15,
           n_elems=(4, 7), straight=(0.3, 3.0), edge=True),
+    # 路中障碍(2026-10-15):L3 / LE3 的几何 + 每条路 1~3 个箱子/板子。路宽下限放到 1.3,窄路上再摆障碍就过不去了
+    Level('LO3', width=(1.3, 2.5), angles=(45.0, 90.0, 135.0), r_in=(0.0, 2.0),
+          sharp_chance=0.4, uturn_chance=0.15, jog_chance=0.2, taper_chance=0.15,
+          n_elems=(3, 6), straight=(0.8, 3.5), obstacles=(1, 3)),
+    Level('LOE3', width=(1.3, 2.5), angles=(45.0, 90.0, 135.0), r_in=(0.0, 2.0),
+          sharp_chance=0.4, uturn_chance=0.15, jog_chance=0.2, taper_chance=0.15,
+          n_elems=(3, 6), straight=(0.8, 3.5), edge=True, obstacles=(1, 3)),
 )
 
 
@@ -168,6 +181,9 @@ class Road:
     # 只剩 0.019m —— A 上全灭的直接原因(2026-09-29)。给 None 就退回对称的 half。
     half_left: np.ndarray | None = None
     half_right: np.ndarray | None = None
+    # 路中障碍:每个 4 个角 (n, 4, 2)。墙段已并进 walls(雷达、碰撞);规划用的可行域在障碍那一截从被挡的一侧收窄
+    # (half_left/half_right + 材质记成 WALL),假地面分割扣掉它和它挡住的那一扇
+    obstacles: np.ndarray = field(default_factory=lambda: np.zeros((0, 4, 2)))
 
     @property
     def normal(self) -> np.ndarray:
@@ -466,6 +482,61 @@ def self_overlaps(road: Road, clearance: float = 0.4) -> bool:
     return bool(np.any(far & (d < need)))
 
 
+OBST_START, OBST_END = 2.5, 2.0       # 起点后、终点前这么远内不摆障碍 m
+OBST_SPACING = 2.5                     # 两个障碍沿路至少隔这么远 m
+OBST_PASS = 0.65                       # 绕行那一侧至少留这么宽 m(车宽 0.35 + 两侧墙余量,再留一点)
+OBST_LONG = 0.3                        # 规划可行域收窄的那一截前后再各多算这么长(车身有长度)
+
+
+def add_obstacles(road: Road, rng: np.random.Generator, lv: Level) -> None:
+    """按 lv.obstacles 在路面上摆障碍(就地改 road)。每个障碍随机挑一侧留出绕行空间,另一侧可以贴边。"""
+    if lv.obstacles[1] <= 0:                            # 不抽随机数:别的级别生成的路逐位不变(测试集指纹)
+        return
+    n = int(rng.integers(lv.obstacles[0], lv.obstacles[1] + 1))
+    if n <= 0 or road.length < OBST_START + OBST_END + 0.5:
+        return
+    hl, hr = road.half_l.copy(), road.half_r.copy()
+    ml, mr = np.asarray(road.mat_left).copy(), np.asarray(road.mat_right).copy()
+    boxes, used = [], []
+    for _ in range(n * 10):
+        if len(boxes) == n:
+            break
+        s0 = rng.uniform(OBST_START, road.length - OBST_END)
+        if any(abs(s0 - u) < OBST_SPACING for u in used):
+            continue
+        i = int(np.searchsorted(road.s, s0))
+        w, depth = rng.uniform(*lv.obstacle_w), rng.uniform(*lv.obstacle_l)
+        go_left = rng.random() < 0.5                    # 从左边绕
+        room = hl[i] + hr[i] - w - OBST_PASS             # 障碍能横向挪动的余地
+        if room < 0:
+            continue
+        # 横向位置:障碍靠被挡那一侧,离那侧边界 0 ~ room(0 = 贴边)
+        o = (-hr[i] + w / 2 + rng.uniform(0, room)) if go_left else (hl[i] - w / 2 - rng.uniform(0, room))
+        c, nrm = road.centre[i], road.normal[i]
+        t = np.array([nrm[1], -nrm[0]])                  # 路的前进方向
+        ctr = c + nrm * o
+        corners = np.array([ctr + t * a * depth / 2 + nrm * b * w / 2 for a, b in ((-1, -1), (1, -1), (1, 1), (-1, 1))])
+        span = (road.s >= s0 - depth / 2 - OBST_LONG) & (road.s <= s0 + depth / 2 + OBST_LONG)
+        if go_left:
+            hr[span] = np.minimum(hr[span], -(o + w / 2))
+            mr[span] = WALL
+        else:
+            hl[span] = np.minimum(hl[span], o - w / 2)
+            ml[span] = WALL
+        boxes.append(corners)
+        used.append(s0)
+    if not boxes:
+        return
+    road.half_left, road.half_right, road.mat_left, road.mat_right = hl, hr, ml, mr
+    road.obstacles = np.asarray(boxes, float)
+    segs = []
+    for b in road.obstacles:
+        for k in range(4):
+            p, _ = _resample(np.array([b[k], b[(k + 1) % 4]]), WALL_STEP)
+            segs.append(np.stack([p[:-1], p[1:]], axis=1))
+    road.walls = np.concatenate([road.walls.reshape(-1, 2, 2)] + segs)
+
+
 def generate(rng: np.random.Generator, lv: Level, tries: int = 50) -> Road:
     """按 lv 生成一条不自重叠的路。可通性另外查(road_check)。"""
     for _ in range(tries):
@@ -473,6 +544,7 @@ def generate(rng: np.random.Generator, lv: Level, tries: int = 50) -> Road:
         _materials(rng, lv, elems)
         road = build(elems, cone_spacing=rng.uniform(*lv.cone_spacing))
         if not self_overlaps(road):
+            add_obstacles(road, rng, lv)
             return road
     raise RuntimeError(f'{lv.name}: {tries} 次都生成了自重叠的路,参数范围有问题')
 
