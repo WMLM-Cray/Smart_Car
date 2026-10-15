@@ -26,15 +26,15 @@ torch_threads: 2
 seed: 0                    # PPO 自身随机种子(采样、初始化),与赛道种子无关
 gamma: 0.99
 lam: 0.95
-clip: 0.2
-epochs: 4
+clip: 0.15
+epochs: 2
 minibatch: 4096
-lr: 0.0001
-lr_critic: 0.001
+lr: 0.00005
+lr_critic: 0.0003             # 首轮(lr_critic=0.001,epochs=4)在 iter36 单轮崩溃(goal 0.83->0.09),2026-10-14 调保守
 std0: 0.1                  # 探索噪声初值(动作 ±1 刻度)
 anchor: 1.0                # 偏离初始模型的惩罚系数
 anchor_decay: 0.995
-anchor_min: 0.3            # 锚定系数下限,不许离初始模型太远
+anchor_min: 0.6              # 锚定系数下限,不许离初始模型太远(首轮 0.3 不够,2026-10-14 上调)
 critic_warmup: 5           # 前几轮只训价值网络
 eval_every: 5              # 每几轮在挑模型种子上评估一次
 eval_levels: 'L5,L5s,L6h,L4c,L6f'
