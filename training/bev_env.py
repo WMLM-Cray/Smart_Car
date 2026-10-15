@@ -88,13 +88,16 @@ class BevEnv:
         env = self.env
         enc_speed = env.car.v + (env.rng.normal(0, 0.02) if env.noise else 0.0)
         gyro = env.car.yaw_rate + (env.rng.normal(0, env.cp.gyro_sigma) if env.noise else 0.0)
-        pose = self.pose
+        return self.image(), scalars(enc_speed, env.pl.cap, gyro, env.pl.enc)
+
+    def image(self):
+        """这一拍的 BEV 图;开了 aug 就按一个新的随机亚格偏移裁(再调一次 = 同一时刻、另一种量化相位)。"""
+        env, pose = self.env, self.pose
         if self.aug_rng is not None:
             d, a = self.aug
             pose = (pose[0] + self.aug_rng.uniform(-d, d), pose[1] + self.aug_rng.uniform(-d, d),
                     pose[2] + self.aug_rng.uniform(-a, a))
-        img = bev_image(self.bev, pose, env.t, env.ranges, env.angles, self.scan_pose, free=self.free)
-        return img, scalars(enc_speed, env.pl.cap, gyro, env.pl.enc)
+        return bev_image(self.bev, pose, env.t, env.ranges, env.angles, self.scan_pose, free=self.free)
 
     def step(self, action):
         why = self.env.step(action)

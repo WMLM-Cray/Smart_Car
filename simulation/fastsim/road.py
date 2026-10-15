@@ -87,6 +87,9 @@ class Level:
     # 深度上限 2.5:再深末端墙就出了 BEV(左右 4 m),两边看起来一样,老师往一边拐的标签学不来
     pocket_chance: float = 0.0             # 有墙的尖 90° 弯做成口袋的概率
     pocket_depth: tuple = (0.3, 2.5)       # 口袋从来车路外侧墙算起的深度 m
+    # 无锥桶(v4 bev,2026-10-16):车上没有 YOLO,锥桶层永远是空的;实车走廊/大厅只有墙和地面换材质。
+    # True 时每侧在 墙 / EDGE 里抽(wall_chance 是墙的概率),元素之间换的也是墙 <-> EDGE,不出锥桶
+    cone_free: bool = False
 
 
 LEVELS = (
@@ -168,6 +171,19 @@ LEVELS = (
     *[Level(name, width=(0.9, 2.0), angles=(90.0,), sharp_chance=1.0, jog_chance=0.3, n_elems=(3, 5),
             straight=(1.0, 3.0), wall_chance=1.0, pocket_chance=0.7, pocket_depth=d)
       for name, d in (('LT3a', (0.2, 0.7)), ('LT3b', (0.7, 1.4)), ('LT3c', (1.4, 2.5)))],
+    # --- v4 bev 无锥桶版(2026-10-16):几何同 L3 / L4 / LO3 / LT3,边界只有墙和 EDGE(各半,元素之间可换)---
+    Level('LW3', width=(0.9, 2.5), angles=(45.0, 90.0, 135.0), r_in=(0.0, 2.0),
+          sharp_chance=0.4, uturn_chance=0.15, jog_chance=0.2, taper_chance=0.15,
+          n_elems=(3, 6), straight=(0.4, 3.0), cone_free=True),
+    Level('LW4', width=(0.9, 2.5), angles=(45.0, 90.0, 135.0), r_in=(0.0, 2.0),
+          sharp_chance=0.4, uturn_chance=0.15, jog_chance=0.2, taper_chance=0.15,
+          gap_chance=0.2, one_side_none_chance=0.1, n_elems=(4, 7), straight=(0.3, 3.0), cone_free=True),
+    Level('LWO3', width=(1.3, 2.5), angles=(45.0, 90.0, 135.0), r_in=(0.0, 2.0),
+          sharp_chance=0.4, uturn_chance=0.15, jog_chance=0.2, taper_chance=0.15,
+          n_elems=(3, 6), straight=(0.8, 3.5), obstacles=(1, 3), cone_free=True),
+    *[Level(name, width=(0.9, 2.0), angles=(90.0,), sharp_chance=1.0, jog_chance=0.3, n_elems=(3, 5),
+            straight=(1.0, 3.0), wall_chance=1.0, pocket_chance=0.7, pocket_depth=d, cone_free=True)
+      for name, d in (('LWT3a', (0.2, 0.7)), ('LWT3b', (0.7, 1.4)), ('LWT3c', (1.4, 2.5)))],
 )
 
 
@@ -334,7 +350,8 @@ def _gap_elements(rng: np.random.Generator, lv: Level) -> list[dict]:
 
 def _materials(rng: np.random.Generator, lv: Level, elems: list[dict]) -> None:
     """每个元素两侧各选一种材质。整条路先抽一个"风格",元素之间小概率换。"""
-    style = [WALL if rng.random() < lv.wall_chance else CONE for _ in range(2)]
+    other = EDGE if lv.cone_free else CONE
+    style = [WALL if rng.random() < lv.wall_chance else other for _ in range(2)]
     if lv.edge:
         style = [EDGE, EDGE]
     for e in elems:
@@ -344,7 +361,7 @@ def _materials(rng: np.random.Generator, lv: Level, elems: list[dict]) -> None:
         side = []
         for k in range(2):
             if rng.random() < 0.15 and not lv.edge:
-                style[k] = WALL if style[k] == CONE else CONE
+                style[k] = WALL if style[k] == other else other
             side.append(style[k])
         if e['kind'] == 'straight' and rng.random() < lv.one_side_none_chance:
             side[int(rng.integers(2))] = NONE

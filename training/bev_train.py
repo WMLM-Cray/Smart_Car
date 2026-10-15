@@ -32,22 +32,28 @@ TRAIN_SEED0, SELECT_SEED0 = 30_000_000, 60_000_000     # 和 road_train(10M/50M)
 
 
 def run_episode(seed, level, weights=None, beta=0.0, collect=False, enc=None, a_lat=0.45, cap_max=None,
-                free=False, seg=(0.1, 0.0), aug=(0.0, 0.0)):
-    """seg = (地面分割周期 s, 推理延迟 s),aug = (裁图平移抖动 m, 转角抖动 rad),见 BevEnv。"""
+                free=False, seg=(0.1, 0.0), aug=(0.0, 0.0), pair=False, lag_max=None):
+    """seg = (地面分割周期 s, 推理延迟 s),aug = (裁图平移抖动 m, 转角抖动 rad),见 BevEnv。
+    pair:采集时每帧再裁一张(另一种亚格偏移),给一致性损失;lag_max:指令延迟拍数改成每局 0..lag_max 均匀抽。"""
     try:
         road, pl, start, P, _ = sample_episode(seed, level, enc=enc, a_lat=a_lat, cap_max=cap_max)
     except RuntimeError:
         return None
+    if lag_max is not None:
+        from dataclasses import replace
+        pl = replace(pl, lag=int(np.random.default_rng(seed + 17).integers(0, lag_max + 1)))
     benv = BevEnv(road, pl, seed, start, noise=True, free=free, seg_period=seg[0], seg_lag=seg[1], aug=aug)
     teacher = SeenTeacher(benv, P, a_lat)
     rng = np.random.default_rng(seed + 1)
-    imgs, scs, ys = [], [], []
+    imgs, scs, ys, imgs2 = [], [], [], []
     why, n = None, 0
     while why is None:
         img, sc = benv.observation()
         label = teacher()
         if collect:
             imgs.append(np.packbits(img.astype(bool).ravel()))
+            if pair:
+                imgs2.append(np.packbits(benv.image().astype(bool).ravel()))
             scs.append(sc)
             ys.append(label)
         if weights is None or rng.random() < beta:
@@ -58,7 +64,8 @@ def run_episode(seed, level, weights=None, beta=0.0, collect=False, enc=None, a_
         n += 1
     row = dict(seed=seed, level=level, reason=why, cap=pl.cap, time=benv.env.t, steps=n)
     if collect:
-        return np.asarray(imgs), np.asarray(scs, np.float32), np.asarray(ys, np.float32), row
+        return np.asarray(imgs), np.asarray(scs, np.float32), np.asarray(ys, np.float32), row, \
+            (np.asarray(imgs2) if pair else None)
     return row
 
 
@@ -67,23 +74,27 @@ def _job(args):
 
 
 class Replay:
-    def __init__(self, cap, c):
+    def __init__(self, cap, c, pair=False):
         self.c, self.bits = c, c * H * W
         self.img = np.zeros((cap, (self.bits + 7) // 8), np.uint8)
+        self.img2 = np.zeros_like(self.img) if pair else None      # 同一帧另一种亚格偏移(一致性损失)
         self.sc = np.zeros((cap, N_SCALAR), np.float32)
         self.y = np.zeros((cap, 2), np.float32)
         self.size = self.ptr = 0
 
-    def add(self, img, sc, y):
+    def add(self, img, sc, y, img2=None):
         for i in range(len(y)):
             self.img[self.ptr], self.sc[self.ptr], self.y[self.ptr] = img[i], sc[i], y[i]
+            if self.img2 is not None:
+                self.img2[self.ptr] = img2[i]
             self.ptr = (self.ptr + 1) % len(self.y)
             self.size = min(len(self.y), self.size + 1)
 
     def batch(self, rng, n):
         i = rng.integers(0, self.size, n)
-        img = np.unpackbits(self.img[i], axis=1)[:, :self.bits].reshape(n, self.c, H, W).astype(np.float32)
-        return img, self.sc[i], self.y[i]
+        def unpack(a):
+            return np.unpackbits(a[i], axis=1)[:, :self.bits].reshape(n, self.c, H, W).astype(np.float32)
+        return unpack(self.img), self.sc[i], self.y[i], (unpack(self.img2) if self.img2 is not None else None)
 
 
 def summarize(rows):
@@ -122,6 +133,10 @@ def main():
                     help='每轮评估用的地面分割周期和延迟(按部署条件挑模型)')
     ap.add_argument('--aug', type=float, nargs=2, default=(0.0, 0.0), metavar=('SHIFT_M', 'YAW_DEG'),
                     help='采集时每拍裁图位姿抖动(±平移 m、±转角 °),治 BEV 格子量化敏感;评估不抖。v4 用 0.05 1')
+    ap.add_argument('--consist', type=float, default=0.0,
+                    help='一致性损失权重:同一帧两种亚格偏移的输出差的平方(要配 --aug);v4 用 1')
+    ap.add_argument('--lag-max', type=int, default=None,
+                    help='采集时指令延迟每局 0..N 拍均匀抽(默认按 Plant.sample 的 0..1);实车打方向延迟没量过,v4 用 3')
     ap.add_argument('--schema', default=SCHEMA, help='bev_v1(5 通道)/ bev_v2(+可行驶地面,6 通道);'
                     'bev_v2 可从 bev_v1 模型 --init(多出来的通道权重置 0)')
     a = ap.parse_args()
@@ -159,7 +174,10 @@ def main():
     names = {l.name for l in LEVELS}
     assert all(n in names for n, _ in mix)
     ev_levels = a.eval_levels.split(',')
-    replay = Replay(a.replay, c_in)
+    pair = a.consist > 0
+    if pair and tuple(a.aug) == (0.0, 0.0):
+        raise SystemExit('--consist 要配 --aug(两张图一样,一致性损失恒为 0)')
+    replay = Replay(a.replay, c_in, pair)
     brng = np.random.default_rng(a.seed + 1)
     wy = torch.tensor([1.0, 0.5])
     seed = TRAIN_SEED0
@@ -171,21 +189,24 @@ def main():
             for _ in range(a.episodes_per_round):
                 seg = (float(rng.uniform(*a.seg_period)), float(rng.uniform(*a.seg_lag)))
                 jobs.append((seed, mix[int(rng.choice(len(mix), p=probs))][0], wts, beta, True, enc,
-                             a.a_lat, a.cap_max, free, seg, (a.aug[0], math.radians(a.aug[1]))))
+                             a.a_lat, a.cap_max, free, seg, (a.aug[0], math.radians(a.aug[1])), pair, a.lag_max))
                 seed += 1
             t0 = time.time()
             got = [g for g in ex.map(_job, jobs, chunksize=2) if g is not None]
-            for img, sc, y, _ in got:
-                replay.add(img, sc, y)
+            for img, sc, y, _, img2 in got:
+                replay.add(img, sc, y, img2)
             collect = summarize([g[3] for g in got])
             t_collect = time.time() - t0
 
             t0 = time.time()
             losses = []
             for _ in range(a.updates):
-                img, sc, y = replay.batch(brng, a.batch)
+                img, sc, y, img2 = replay.batch(brng, a.batch)
                 pred = net(torch.from_numpy(img), torch.from_numpy(sc))
                 loss = (((pred - torch.from_numpy(y)) ** 2) * wy).mean()
+                if pair:        # 同一帧换一种量化相位,输出该一样:不许按"墙落在哪一格"出转角
+                    pred2 = net(torch.from_numpy(img2), torch.from_numpy(sc))
+                    loss = loss + a.consist * (((pred - pred2) ** 2) * wy).mean()
                 opt.zero_grad()
                 loss.backward()
                 opt.step()
