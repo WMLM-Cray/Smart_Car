@@ -48,6 +48,11 @@ SENSOR_TIMEOUT = 0.3        # 实测 /encoder 34Hz、/scan 12Hz、/IMU_data 55Hz
 ENABLE_TIMEOUT = 0.3        # /policy_enable 是心跳不是开关
 GUARD_STOP = 0.25           # 同 steer_policy_node:保险杠前净空小于这个就回中位(米)
 STUCK_SECONDS = 3.0         # 同 steer_policy_node:连续截停这么久就当卡死
+# 转向避障:模型要走的路线 AVOID_CLEAR 内会碰到雷达障碍,就在 AVOID_STEERS 个候选转角里挑离模型最近、走得够远的;
+# 都不够远就挑走得最远的。模型没见过迎面的障碍(仿真的路中间不会立一块板),会直直开过去(2026-10-15 走廊实测)
+AVOID_CLEAR = 1.0
+AVOID_STEERS = 15
+AVOID_KEEP = 0.05           # 上一拍往哪边绕,这一拍同侧候选少算这么多 rad,别左右来回切
 # 起步第一拍直接跳到这里;0.8 s 不动就回中位 0.3 s 再跳高 4(阶梯起步,见 SpeedLoopConfig.retry_hold:
 # 10-12 实测电调不认从破静点以下慢爬上来的油门,回一次中位再直跳才认)。
 # 破静点实测:11.24 V 和 12.5 V 都是 1594(09-23/24),09-30 高位 1594,10-12 走廊 ~1595;电压只挪 4~10。
@@ -83,6 +88,8 @@ class RoadCarController:
         self.event = None
         self.gap = None
         self.cam_jpg = None         # 最新一张地面分割调试图(JPEG 字节),逐帧回看用
+        self.avoid_side = 0.0       # 上一拍绕行的方向(+1 左 / -1 右 / 0 没绕)
+        self.steer_cmd = None       # 这一拍实际打的转角(避障后)
 
     def neutral(self):
         """中位:油门回 1540、方向回正,速度环从中位重新爬(学到的 floor 保留)。"""
@@ -153,7 +160,8 @@ class RoadCarController:
         if d is STOP:
             self.event, self.block_t = 'stale', None
             return self.neutral()
-        steer, target = d
+        model_steer, target = d
+        steer = self.steer_cmd = self.avoid(model_steer)
         servo = steer_to_turn(steer, self.p)
         # 防撞按**当前要打的转角**算扫掠路径。截停时方向照发、油门回中位;策略不出倒车,
         # 所以只报卡死、不自动倒车(雷达在车头,背后看不见)
@@ -165,8 +173,26 @@ class RoadCarController:
             self.gap = gap
             self.loop.reset()
             return self.p.pwm_mid, servo
-        self.event, self.block_t = None, None
+        self.event = 'avoid' if steer != model_steer else None
+        self.block_t = None
         return round(self.loop.update(target, self.rt.speed, CONTROL_PERIOD)), servo
+
+    def avoid(self, steer):
+        """转向避障(见 AVOID_CLEAR)。雷达没数据时原样返回(过期由运行时回中位)。"""
+        g = self.guard.gap(steer)
+        if g is None or g >= AVOID_CLEAR:
+            self.avoid_side = 0.0
+            return steer
+        cands = np.linspace(-self.p.max_steer, self.p.max_steer, AVOID_STEERS)
+        gaps = np.array([self.guard.gap(float(c)) or 0.0 for c in cands])
+        ok = gaps >= AVOID_CLEAR
+        if ok.any():
+            cost = np.abs(cands - steer) - AVOID_KEEP * (np.sign(cands) == self.avoid_side)
+            pick = float(cands[ok][np.argmin(cost[ok])])
+        else:
+            pick = float(cands[np.argmax(gaps)])
+        self.avoid_side = float(np.sign(pick))
+        return pick
 
 
 def load_policy(path):
@@ -292,7 +318,10 @@ def create_node_class():
             elif ev == 'stuck' and self.last_event != 'stuck':
                 log.error(f'已连续截停 {STUCK_SECONDS:.0f}s 以上,车卡住了 —— 前方 {self.ctl.gap:.2f}m,'
                           f'策略不会倒车,需要人工干预')
-            elif ev is None and self.last_event in ('guard', 'stuck'):
+            elif ev == 'avoid' and self.last_event != 'avoid':
+                d = self.ctl.d
+                log.info(f'避障:模型 {math.degrees(d[0]):+.0f}° -> {math.degrees(self.ctl.steer_cmd):+.0f}°')
+            elif ev in (None, 'avoid') and self.last_event in ('guard', 'stuck'):
                 log.info('脱困,恢复行驶')
             self.last_event = ev
 

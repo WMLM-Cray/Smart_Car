@@ -10,8 +10,8 @@ from common.road_policy import RoadPolicy
 from simulation.fastsim.road import LEVELS, generate
 from simulation.fastsim.road_env import Plant, RoadEnv
 from vehicle import road_car_node
-from vehicle.road_car_node import GUARD_STOP, LAUNCH_FROM, STUCK_SECONDS, RoadCarController
-from vehicle.scan_guard import BUMPER_AHEAD
+from vehicle.road_car_node import AVOID_CLEAR, GUARD_STOP, LAUNCH_FROM, STUCK_SECONDS, RoadCarController
+from vehicle.scan_guard import BUMPER_AHEAD, LIDAR_X
 from vehicle.speed_loop import PWM_HARD_MAX
 
 MODEL = 'models/road_v2/candidate_167.npz'
@@ -142,11 +142,11 @@ def test_any_stale_sensor_sends_neutral(stale):
 def test_guard_stops_throttle_keeps_steering_and_reports_stuck():
     wall = np.full(N, 5.0)
     ang = -math.pi + np.arange(N) * INC
-    wall[np.abs(ang) < 0.3] = BUMPER_AHEAD + 0.10   # 保险杠前约 0.10m
+    wall[np.abs(ang) < 1.2] = BUMPER_AHEAD + 0.10   # 正前方一整面墙,保险杠前约 0.10m:往哪打都绕不开
     ctl = ready(FakePolicy(action=(0.0, 1.0)), ranges=wall)
     pwm, servo = ctl.tick(10.05)
     assert ctl.event == 'guard' and ctl.gap < GUARD_STOP
-    assert pwm == P.pwm_mid and servo == steer_to_turn(action_to_steer(0.0, P), P)
+    assert pwm == P.pwm_mid and servo == steer_to_turn(ctl.steer_cmd, P)
     t = 10.05
     while t < 10.05 + STUCK_SECONDS + 0.2:
         t += 0.05
@@ -154,6 +154,41 @@ def test_guard_stops_throttle_keeps_steering_and_reports_stuck():
         feed(ctl, t)
         assert ctl.tick(t)[0] == P.pwm_mid
     assert ctl.event == 'stuck'
+
+
+def _box(ranges, x0, x1, y0, y1):
+    """后轴系里 x∈[x0,x1]、y∈[y0,y1] 的一块障碍(雷达看到它的近边)。"""
+    ang = -math.pi + np.arange(N) * INC
+    for x in np.arange(x0, x1, 0.01):
+        for y in np.arange(y0, y1, 0.01):
+            dx = x - LIDAR_X
+            a = math.atan2(y, dx)
+            k = int(round((a + math.pi) / INC)) % N
+            ranges[k] = min(ranges[k], math.hypot(dx, y))
+    return ranges
+
+
+def test_avoid_steers_around_an_obstacle_ahead_instead_of_driving_into_it():
+    """正前方 0.8 m 一块 0.4 m 宽的板,模型要直走:避障换一个走得开的转角,不截停。"""
+    r = _box(np.full(N, 5.0), 1.2, 1.25, -0.2, 0.2)
+    ctl = ready(FakePolicy(action=(0.0, 1.0)), ranges=r)
+    pwm, servo = ctl.tick(10.05)
+    assert ctl.event == 'avoid' and abs(ctl.steer_cmd) > 0.05
+    assert ctl.guard.gap(ctl.steer_cmd) >= AVOID_CLEAR and pwm > P.pwm_mid
+    side = np.sign(ctl.steer_cmd)
+    for k in range(5):                                           # 接着几拍还往同一边绕,不左右来回切
+        t = 10.1 + 0.05 * k
+        ctl.on_scan(FakeScan(r), t)
+        feed(ctl, t)
+        ctl.tick(t)
+        assert np.sign(ctl.steer_cmd) == side
+
+
+def test_avoid_leaves_the_model_alone_when_the_path_is_clear():
+    r = _box(np.full(N, 5.0), 1.2, 1.25, 0.5, 0.9)              # 板在左前方,不挡直行
+    ctl = ready(FakePolicy(action=(0.0, 1.0)), ranges=r)
+    ctl.tick(10.05)
+    assert ctl.event is None and ctl.steer_cmd == action_to_steer(0.0, P)
 
 
 @pytest.mark.parametrize('cap', ['0.3', '1.2'])
