@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import argparse
 import collections
+import multiprocessing as mp
+import queue
 import threading
 import time
 
@@ -68,6 +70,15 @@ class LatestFrame:
             return self.seq, self.frame, self.stamp
 
 
+def npu_worker(model, conn):
+    """子进程里跑 NPU 推理:ais_bench 推理期间不放 Python 全局锁,放在主进程里会卡住后处理线程和 ROS 回调。"""
+    from ais_bench.infer.interface import InferSession
+    sess = InferSession(0, model)
+    conn.send('ready')
+    while (x := conn.recv()) is not None:
+        conn.send(sess.infer([x])[0][0])
+
+
 def to_cloud(PointCloud2, PointField, xy, stamp_ns, frame_id='base_footprint'):
     m = PointCloud2()
     m.header.stamp.sec, m.header.stamp.nanosec = divmod(int(stamp_ns), 1_000_000_000)
@@ -91,10 +102,13 @@ def main(argv=None):
 
     import cv2
     import rclpy
-    from ais_bench.infer.interface import InferSession
     from rclpy.node import Node
     from sensor_msgs.msg import CompressedImage, LaserScan, PointCloud2, PointField
 
+    npu, child = mp.get_context('spawn').Pipe()
+    worker = mp.get_context('spawn').Process(target=npu_worker, args=(a.model, child), daemon=True)
+    worker.start()
+    assert npu.recv() == 'ready'
     rclpy.init(args=[])
     node = Node('ground_seg_node')
     pub = node.create_publisher(PointCloud2, TOPIC, 2)
@@ -102,26 +116,24 @@ def main(argv=None):
     log = node.get_logger()
     p = CarParams()
     fixer = GroundFixer(size[0] // 4, size[1] // 4, p)
-    scans = collections.deque(maxlen=4)              # (时刻 ns, (ranges, angle_min, angle_increment))
+    scans = collections.deque(maxlen=12)             # 最近 ~1 s(12 Hz):后处理时这帧已拍下 ~0.35 s,(时刻 ns, (ranges, angle_min, angle_increment))
 
     def on_scan(m):
         scans.append((m.header.stamp.sec * 1_000_000_000 + m.header.stamp.nanosec,
                       (np.asarray(m.ranges, np.float32), m.angle_min, m.angle_increment)))
     node.create_subscription(LaserScan, '/scan', on_scan, 2)
-    sess = InferSession(0, a.model)
     cam = LatestFrame(cv2, lambda: node.get_clock().now().nanoseconds, size=p.camera_size)
     threading.Thread(target=rclpy.spin, args=(node,), daemon=True).start()
     log.info(f'{a.model} 输入 {size[0]}x{size[1]},发 {TOPIC} 最高 {a.rate:.0f} Hz,订 /scan 修俯仰')
 
-    seq, period, n, t_sum, t0 = 0, 1.0 / a.rate, 0, 0.0, time.monotonic()
-    try:
-        while rclpy.ok():
-            start = time.monotonic()
-            seq, frame, stamp = cam.get(seq)
-            if frame is None:
-                log.warn('摄像头没有画面', throttle_duration_sec=2.0)
-                continue
-            mask = sess.infer([preprocess(cv2, frame, size)])[0][0]
+    # 推理(子进程,NPU)和后处理(修俯仰、发布、调试图,CPU)流水线并行:NPU 算这一帧时 CPU 处理上一帧
+    jobs = queue.Queue(maxsize=1)
+    stats = {'n': 0, 'pre': 0.0, 'npu': 0.0, 'post': 0.0, 't0': time.monotonic()}
+
+    def post_loop():
+        while True:
+            seq, frame, stamp, mask = jobs.get()
+            t = time.monotonic()
             near = min(list(scans), key=lambda s: abs(s[0] - stamp), default=None)
             scan = near[1] if near is not None and abs(near[0] - stamp) <= SCAN_DT * 1e9 else None
             xy, info = fixer.process(mask > 0, stamp * 1e-9, scan)
@@ -135,11 +147,32 @@ def main(argv=None):
                 im = CompressedImage(format='jpeg', data=cv2.imencode('.jpg', ov, [cv2.IMWRITE_JPEG_QUALITY, 70])[1].tobytes())
                 im.header.stamp.sec, im.header.stamp.nanosec = divmod(int(stamp), 1_000_000_000)
                 dbg.publish(im)
-            n, t_sum = n + 1, t_sum + time.monotonic() - start
-            if time.monotonic() - t0 > 10.0:
-                log.info(f'{n / (time.monotonic() - t0):.1f} Hz,每帧 {1000 * t_sum / n:.0f} ms;'
+            stats['n'] += 1
+            stats['post'] += time.monotonic() - t
+            dt = time.monotonic() - stats['t0']
+            if dt > 10.0:
+                n = stats['n']
+                log.info(f'{n / dt:.1f} Hz;每帧 预处理 {1000 * stats["pre"] / n:.0f} + NPU {1000 * stats["npu"] / n:.0f} ms,'
+                         f'后处理 {1000 * stats["post"] / n:.0f} ms(并行);'
                          f'俯仰 {np.degrees(info.pitch):+.2f}° {info.source} 墙点 {info.walls} 截断 {info.cut}')
-                n, t_sum, t0 = 0, 0.0, time.monotonic()
+                stats.update(n=0, pre=0.0, npu=0.0, post=0.0, t0=time.monotonic())
+    threading.Thread(target=post_loop, daemon=True).start()
+
+    seq, period = 0, 1.0 / a.rate
+    try:
+        while rclpy.ok():
+            start = time.monotonic()
+            seq, frame, stamp = cam.get(seq)
+            if frame is None:
+                log.warn('摄像头没有画面', throttle_duration_sec=2.0)
+                continue
+            x = preprocess(cv2, frame, size)
+            t = time.monotonic()
+            npu.send(x)
+            mask = npu.recv()
+            stats['pre'] += t - start
+            stats['npu'] += time.monotonic() - t
+            jobs.put((seq, frame, stamp, mask))          # 后处理还没做完上一帧就在这儿等
             time.sleep(max(0.0, period - (time.monotonic() - start)))
     finally:
         rclpy.shutdown()
