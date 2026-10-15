@@ -3,7 +3,9 @@
 
 抱车会让里程计和实际位置脱节,所以一段 = 车一直在地上;检测到被抱起来(IMU 倾斜 / 晃动 / 加速度不对)
 就结束这一段,放下静止 SETTLE 秒后从零开新的一段(调用方要同时清空 BEV 运行时)。也可以手动分段。
-每段存一个目录:seg.npz(网格 + 路径 + 标记)、map.png(全局图)、mark_NN.jpg(标记现场)。
+每段存一个目录:seg.npz(网格 + 路径 + 标记)、map.png(全局图)、mark_NN.jpg(标记现场);
+开车时(road_car_node)另存逐帧回看:frames.npz(每 FRAME_DT 秒一帧的 BEV 输入 + 决策 + 事件)和
+frames/cam_NNNN.jpg(地面分割调试图,有新的才存),用 evaluation/logbook_frames.py 画成视频。
 """
 from __future__ import annotations
 
@@ -21,6 +23,7 @@ PICKUP_ACC = 1.5        # 加速度模长偏离静止值超过这个 m/s²
 PICKUP_HOLD = 0.25      # 上面任一条持续这么久才算被抱起(滤掉过坎的颠簸)
 SETTLE = 1.5            # 放下后静止这么久才开新段
 PATH_DT = 0.2           # 路径和决策每这么久记一条
+FRAME_DT = 0.3          # 逐帧回看每这么久记一帧(BEV 输入 float16 6×80×80 ≈ 77 KB,压缩后一分钟几 MB)
 CLEAR_STOP = 0.10       # 雷达射线穿过的格子记"空",离回波点这么近的不记(斜扫墙面时别把墙自己擦掉)
 CLAMP = 6               # 证据封顶:最多 6 帧相反的观测就能把一格翻过来
 OCC_ON = 2              # 雷达证据 >= 这个才画成障碍(只被扫到一次的噪点不画)
@@ -127,7 +130,8 @@ class Logbook:
         self.seg += 1
         self.lidar, self.free = Grid(), Grid()
         self.path, self.marks = [], []
-        self.last_path_t = -1e9
+        self.frames, self.cams, self.last_cam = [], {}, None
+        self.last_path_t = self.last_frame_t = -1e9
         self.t0 = time.time()
         self.active = True
 
@@ -176,6 +180,17 @@ class Logbook:
             self.last_path_t = t
             self.path.append((t, *pose, float('nan') if steer is None else steer, target, speed))
 
+    def add_frame(self, t, pose, steer, target, speed, event, bev_img, cam_jpg=None):
+        """逐帧回看:模型这一拍的 BEV 输入 + 决策 + 事件(None / stale / guard / stuck);cam_jpg = 最新一张地面分割调试图。"""
+        if not self.active or bev_img is None or t - self.last_frame_t < FRAME_DT:
+            return
+        self.last_frame_t = t
+        if cam_jpg is not None and cam_jpg is not self.last_cam:
+            self.cams[len(self.frames)] = cam_jpg
+            self.last_cam = cam_jpg
+        self.frames.append((t, *pose, float('nan') if steer is None else steer, target, speed, event or '',
+                            np.asarray(bev_img, np.float16)))
+
     def mark(self, t, pose, steer, target, speed, cam_bgr, bev_bgr, cv2):
         """记一个问题现场;返回编号。"""
         if not self.active:
@@ -198,6 +213,21 @@ class Logbook:
                  path=np.array(self.path, np.float64))        # t x y yaw steer target speed
         with open(os.path.join(self.dir(), 'marks.json'), 'w', encoding='utf-8') as f:
             json.dump(self.marks, f, ensure_ascii=False, indent=1)
+        if self.frames:
+            fd = os.path.join(self.dir(), 'frames')
+            os.makedirs(fd, exist_ok=True)
+            for k, jpg in self.cams.items():
+                fn = os.path.join(fd, f'cam_{k:04d}.jpg')
+                if not os.path.exists(fn):
+                    with open(fn, 'wb') as f:
+                        f.write(jpg)
+            have = sorted(self.cams)
+            cam = [max([k for k in have if k <= i], default=-1) for i in range(len(self.frames))]
+            F = self.frames
+            np.savez_compressed(os.path.join(self.dir(), 'frames.npz'),
+                                num=np.array([f[:7] for f in F], np.float64),      # t x y yaw steer target speed
+                                event=np.array([f[7] for f in F]), bev=np.stack([f[8] for f in F]),
+                                cam=np.array(cam, np.int32))                         # 这一帧对应的 cam_NNNN.jpg(-1 = 没有)
 
     def render(self, cv2, px=2):
         """当前段的全局图(BGR):黑 = 雷达障碍(证据 >= OCC_ON),浅绿 = 摄像头地面(证据 > 0),蓝线 = 路径,

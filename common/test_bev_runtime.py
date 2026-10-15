@@ -209,3 +209,35 @@ def test_car_node_logs_global_map_in_segments(tmp_path):
     assert not book.active and (tmp_path / 'log' / 'seg_01' / 'seg.npz').is_file()
     run(t, t + 1.0, True)
     assert book.seg == 2 and book.active
+
+
+def test_car_node_records_frames_for_replay(tmp_path):
+    """开车时逐帧记 BEV 输入 + 决策 + 摄像头调试图,段收尾时存 frames.npz 和 frames/cam_NNNN.jpg。"""
+    from vehicle.bev_logbook import FRAME_DT, Logbook
+    from vehicle.road_car_node import RoadCarController, load_policy
+    book = Logbook(str(tmp_path / 'log'))
+    ctl = RoadCarController(load_policy(_model(tmp_path)), 0.7, book=book)
+    ang = np.linspace(-math.pi, math.pi, 360, endpoint=False)
+
+    class Scan:
+        angle_min, angle_increment, range_min, range_max = ang[0], ang[1] - ang[0], 0.15, 25.0
+        ranges = list(np.full(360, 2.0))
+
+    t = 0.0
+    while t < 3.0:
+        ctl.on_encoder(0.0, t)
+        ctl.on_imu(0.0, t)
+        ctl.on_scan(Scan, t)
+        ctl.on_enable(True, t)
+        if abs(t - 1.0) < 1e-6:
+            ctl.cam_jpg = b'jpg-1'
+        ctl.tick(t)
+        t = round(t + 0.05, 6)
+    book.pause()
+    z = np.load(tmp_path / 'log' / 'seg_01' / 'frames.npz')
+    n = len(z['num'])
+    assert abs(n - 3.0 / FRAME_DT) <= 2 and z['bev'].shape[1:] == (5, 80, 80)
+    assert z['num'][-1, 5] > 0                                      # 记的是模型的目标速度
+    k = int(z['cam'][-1])
+    assert k >= 0 and (z['cam'][:k] == -1).all()
+    assert (tmp_path / 'log' / 'seg_01' / 'frames' / f'cam_{k:04d}.jpg').read_bytes() == b'jpg-1'

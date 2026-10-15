@@ -82,6 +82,7 @@ class RoadCarController:
         self.seg_saved = None
         self.event = None
         self.gap = None
+        self.cam_jpg = None         # 最新一张地面分割调试图(JPEG 字节),逐帧回看用
 
     def neutral(self):
         """中位:油门回 1540、方向回正,速度环从中位重新爬(学到的 floor 保留)。"""
@@ -136,7 +137,15 @@ class RoadCarController:
         return None
 
     def tick(self, now):
-        d = self.rt.decide(now)
+        cmd = self._tick(now)
+        if self.book is not None and self.rt.enabled:
+            d = self.d if isinstance(self.d, tuple) else (None, 0.0)
+            self.book.add_frame(now, self.rt.odom.pose, d[0], d[1], self.rt.speed, self.event,
+                                getattr(self.rt, 'last_img', None), self.cam_jpg)
+        return cmd
+
+    def _tick(self, now):
+        d = self.d = self.rt.decide(now)
         self.seg_saved = self.book_tick(now, d) if self.book is not None else None
         if d is None:
             self.event = None
@@ -182,7 +191,7 @@ def create_node_class():
     from geometry_msgs.msg import Twist
     from nav_msgs.msg import Odometry
     from rclpy.node import Node
-    from sensor_msgs.msg import Imu, LaserScan, PointCloud2
+    from sensor_msgs.msg import CompressedImage, Imu, LaserScan, PointCloud2
     from std_msgs.msg import Bool
 
     class RoadCarNode(Node):
@@ -207,6 +216,7 @@ def create_node_class():
             self.create_subscription(Bool, '/policy_enable', self.on_enable, 1)
             if getattr(self.ctl.rt.policy, 'free', False):            # bev_v2:订阅地面分割
                 self.create_subscription(PointCloud2, FREE_TOPIC, self.on_free, 2)
+                self.create_subscription(CompressedImage, '/ground_debug', self.on_cam, 1)   # 逐帧回看配图
             self.last_event = None
             self.last_floor = self.ctl.loop.floor
             self.create_timer(CONTROL_PERIOD, self.tick)
@@ -246,6 +256,9 @@ def create_node_class():
         def on_free(self, m):
             xy = np.frombuffer(bytes(m.data), np.float32).reshape(-1, 2).astype(np.float64)
             self.ctl.on_free(xy, m.header.stamp.sec + m.header.stamp.nanosec * 1e-9, self.now())
+
+        def on_cam(self, m):
+            self.ctl.cam_jpg = bytes(m.data)
 
         def on_enable(self, m):
             was = self.ctl.rt.enabled

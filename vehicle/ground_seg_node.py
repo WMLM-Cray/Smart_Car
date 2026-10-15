@@ -27,7 +27,7 @@ from common.ground_fix import GroundFixer
 from common.params import CarParams
 
 TOPIC = '/ground_free'
-DEBUG_TOPIC = '/ground_debug'     # 2 Hz:原图叠地面蒙版(JPEG,sensor_msgs/CompressedImage),给影子模式网页看
+DEBUG_TOPIC = '/ground_debug'     # 每帧(~3 Hz,有人订才发):原图叠地面蒙版 + 姿态状态(JPEG),影子网页和开车回看用
 MEAN = np.array([0.485, 0.456, 0.406], np.float32)
 STD = np.array([0.229, 0.224, 0.225], np.float32)
 SCAN_DT = 0.05                    # 雷达和相机帧时间差超过这么多 s 就不拿来修俯仰 / 截断
@@ -138,7 +138,7 @@ def main(argv=None):
             scan = near[1] if near is not None and abs(near[0] - stamp) <= SCAN_DT * 1e9 else None
             xy, info = fixer.process(mask > 0, stamp * 1e-9, scan)
             pub.publish(to_cloud(PointCloud2, PointField, xy, stamp))
-            if seq % 5 == 0 and dbg.get_subscription_count():
+            if dbg.get_subscription_count():                # 有人订才编码(影子网页、road_car_node 逐帧回看)
                 g = cv2.resize(mask.astype(np.uint8), (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_NEAREST) > 0
                 ov = frame.copy()
                 ov[g] = (0.5 * ov[g] + 0.5 * np.array([40, 160, 60])).astype(np.uint8)
