@@ -9,8 +9,8 @@
 header.stamp = 取到这帧的时刻(road_car_node 按这个时刻的位姿登记)。点已按 5 cm 栅格去重。
 模型由 SegFormer 导出(地面类 = ADE20K floor/road/grass/sidewalk/earth/rug/... 共 12 类),输入 1×3×H×W
 RGB 归一化,输出 1×H/4×W/4 uint8。NPU 实测 512×512 每帧 54 ms、256×320 22 ms(2026-10-10)。
-投影只用 CarParams 的相机内参、畸变、外参;每帧用 /scan 在线修俯仰、去孤岛、雷达截断(common/ground_fix.py):
-俯仰被雷达确认时取相机前 3 m 内,否则 2 m 内。
+投影只用 CarParams 的相机内参、畸变、外参;每帧用 /scan 在线修俯仰/横滚、按方向和雷达墙对齐、去孤岛、
+雷达截断(common/ground_fix.py):姿态被雷达确认时取相机前 3 m 内,否则 2 m 内(和雷达墙对齐的方向到墙为止)。
 """
 from __future__ import annotations
 
@@ -142,7 +142,8 @@ def main(argv=None):
                 g = cv2.resize(mask.astype(np.uint8), (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_NEAREST) > 0
                 ov = frame.copy()
                 ov[g] = (0.5 * ov[g] + 0.5 * np.array([40, 160, 60])).astype(np.uint8)
-                cv2.putText(ov, f'pitch {np.degrees(info.pitch):+.2f} {info.source} {info.why} walls {info.walls} cut {info.cut}',
+                cv2.putText(ov, f'pitch {np.degrees(info.pitch):+.2f} roll {np.degrees(info.roll):+.2f} {info.source} {info.why} '
+                            f'walls {info.walls} sec {info.aligned} -{info.cut} +{info.filled}',
                             (8, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
                 im = CompressedImage(format='jpeg', data=cv2.imencode('.jpg', ov, [cv2.IMWRITE_JPEG_QUALITY, 70])[1].tobytes())
                 im.header.stamp.sec, im.header.stamp.nanosec = divmod(int(stamp), 1_000_000_000)
@@ -154,7 +155,8 @@ def main(argv=None):
                 n = stats['n']
                 log.info(f'{n / dt:.1f} Hz;每帧 预处理 {1000 * stats["pre"] / n:.0f} + NPU {1000 * stats["npu"] / n:.0f} ms,'
                          f'后处理 {1000 * stats["post"] / n:.0f} ms(并行);'
-                         f'俯仰 {np.degrees(info.pitch):+.2f}° {info.source} {info.why} 墙点 {info.walls} 截断 {info.cut}')
+                         f'俯仰 {np.degrees(info.pitch):+.2f}° 横滚 {np.degrees(info.roll):+.2f}° {info.source} {info.why} '
+                         f'墙点 {info.walls} 对齐扇区 {info.aligned} 删 {info.cut} 补 {info.filled}')
                 stats.update(n=0, pre=0.0, npu=0.0, post=0.0, t0=time.monotonic())
     threading.Thread(target=post_loop, daemon=True).start()
 
