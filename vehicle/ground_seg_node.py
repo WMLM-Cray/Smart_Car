@@ -9,23 +9,26 @@
 header.stamp = 取到这帧的时刻(road_car_node 按这个时刻的位姿登记)。点已按 5 cm 栅格去重。
 模型由 SegFormer 导出(地面类 = ADE20K floor/road/grass/sidewalk/earth/rug/... 共 12 类),输入 1×3×H×W
 RGB 归一化,输出 1×H/4×W/4 uint8。NPU 实测 512×512 每帧 54 ms、256×320 22 ms(2026-10-10)。
-投影只用 CarParams 的相机内参、畸变、外参(common/ground_proj.py),只取相机前 3 m 内。
+投影只用 CarParams 的相机内参、畸变、外参;每帧用 /scan 在线修俯仰、去孤岛、雷达截断(common/ground_fix.py):
+俯仰被雷达确认时取相机前 3 m 内,否则 2 m 内。
 """
 from __future__ import annotations
 
 import argparse
+import collections
 import threading
 import time
 
 import numpy as np
 
-from common.ground_proj import GroundLut
+from common.ground_fix import GroundFixer
 from common.params import CarParams
 
 TOPIC = '/ground_free'
 DEBUG_TOPIC = '/ground_debug'     # 2 Hz:原图叠地面蒙版(JPEG,sensor_msgs/CompressedImage),给影子模式网页看
 MEAN = np.array([0.485, 0.456, 0.406], np.float32)
 STD = np.array([0.229, 0.224, 0.225], np.float32)
+SCAN_DT = 0.05                    # 雷达和相机帧时间差超过这么多 s 就不拿来修俯仰 / 截断
 
 
 def preprocess(cv2, frame, size):
@@ -83,7 +86,6 @@ def main(argv=None):
     ap.add_argument('--size', type=int, nargs=2, default=None, metavar=('H', 'W'),
                     help='模型输入尺寸;默认从文件名 *_HxW.om 读')
     ap.add_argument('--rate', type=float, default=10.0, help='最高帧率 Hz(训练里地面分割 10 Hz)')
-    ap.add_argument('--max-range', type=float, default=3.0, help='只取相机前这么远 m')
     a = ap.parse_args(argv)
     size = tuple(a.size) if a.size else tuple(int(v) for v in a.model.rsplit('_', 1)[1].split('.')[0].split('x'))
 
@@ -91,7 +93,7 @@ def main(argv=None):
     import rclpy
     from ais_bench.infer.interface import InferSession
     from rclpy.node import Node
-    from sensor_msgs.msg import CompressedImage, PointCloud2, PointField
+    from sensor_msgs.msg import CompressedImage, LaserScan, PointCloud2, PointField
 
     rclpy.init(args=[])
     node = Node('ground_seg_node')
@@ -99,11 +101,17 @@ def main(argv=None):
     dbg = node.create_publisher(CompressedImage, DEBUG_TOPIC, 1)
     log = node.get_logger()
     p = CarParams()
-    lut = GroundLut(size[0] // 4, size[1] // 4, p, a.max_range)
+    fixer = GroundFixer(size[0] // 4, size[1] // 4, p)
+    scans = collections.deque(maxlen=4)              # (时刻 ns, (ranges, angle_min, angle_increment))
+
+    def on_scan(m):
+        scans.append((m.header.stamp.sec * 1_000_000_000 + m.header.stamp.nanosec,
+                      (np.asarray(m.ranges, np.float32), m.angle_min, m.angle_increment)))
+    node.create_subscription(LaserScan, '/scan', on_scan, 2)
     sess = InferSession(0, a.model)
     cam = LatestFrame(cv2, lambda: node.get_clock().now().nanoseconds, size=p.camera_size)
     threading.Thread(target=rclpy.spin, args=(node,), daemon=True).start()
-    log.info(f'{a.model} 输入 {size[0]}x{size[1]},地面格 {int(lut.valid.sum())},发 {TOPIC} 最高 {a.rate:.0f} Hz')
+    log.info(f'{a.model} 输入 {size[0]}x{size[1]},发 {TOPIC} 最高 {a.rate:.0f} Hz,订 /scan 修俯仰')
 
     seq, period, n, t_sum, t0 = 0, 1.0 / a.rate, 0, 0.0, time.monotonic()
     try:
@@ -114,17 +122,23 @@ def main(argv=None):
                 log.warn('摄像头没有画面', throttle_duration_sec=2.0)
                 continue
             mask = sess.infer([preprocess(cv2, frame, size)])[0][0]
-            pub.publish(to_cloud(PointCloud2, PointField, lut.points(mask), stamp))
+            near = min(list(scans), key=lambda s: abs(s[0] - stamp), default=None)
+            scan = near[1] if near is not None and abs(near[0] - stamp) <= SCAN_DT * 1e9 else None
+            xy, info = fixer.process(mask > 0, stamp * 1e-9, scan)
+            pub.publish(to_cloud(PointCloud2, PointField, xy, stamp))
             if seq % 5 == 0 and dbg.get_subscription_count():
                 g = cv2.resize(mask.astype(np.uint8), (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_NEAREST) > 0
                 ov = frame.copy()
                 ov[g] = (0.5 * ov[g] + 0.5 * np.array([40, 160, 60])).astype(np.uint8)
+                cv2.putText(ov, f'pitch {np.degrees(info.pitch):+.2f} {info.source} walls {info.walls} cut {info.cut}',
+                            (8, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
                 im = CompressedImage(format='jpeg', data=cv2.imencode('.jpg', ov, [cv2.IMWRITE_JPEG_QUALITY, 70])[1].tobytes())
                 im.header.stamp.sec, im.header.stamp.nanosec = divmod(int(stamp), 1_000_000_000)
                 dbg.publish(im)
             n, t_sum = n + 1, t_sum + time.monotonic() - start
             if time.monotonic() - t0 > 10.0:
-                log.info(f'{n / (time.monotonic() - t0):.1f} Hz,每帧 {1000 * t_sum / n:.0f} ms')
+                log.info(f'{n / (time.monotonic() - t0):.1f} Hz,每帧 {1000 * t_sum / n:.0f} ms;'
+                         f'俯仰 {np.degrees(info.pitch):+.2f}° {info.source} 墙点 {info.walls} 截断 {info.cut}')
                 n, t_sum, t0 = 0, 0.0, time.monotonic()
             time.sleep(max(0.0, period - (time.monotonic() - start)))
     finally:
