@@ -31,12 +31,13 @@ TRAIN_SEED0, SELECT_SEED0 = 30_000_000, 60_000_000     # 和 road_train(10M/50M)
 
 
 def run_episode(seed, level, weights=None, beta=0.0, collect=False, enc=None, a_lat=0.45, cap_max=None,
-                free=False):
+                free=False, seg=(0.1, 0.0)):
+    """seg = (地面分割周期 s, 推理延迟 s),见 BevEnv。"""
     try:
         road, pl, start, P, _ = sample_episode(seed, level, enc=enc, a_lat=a_lat, cap_max=cap_max)
     except RuntimeError:
         return None
-    benv = BevEnv(road, pl, seed, start, noise=True, free=free)
+    benv = BevEnv(road, pl, seed, start, noise=True, free=free, seg_period=seg[0], seg_lag=seg[1])
     teacher = SeenTeacher(benv, P, a_lat)
     rng = np.random.default_rng(seed + 1)
     imgs, scs, ys = [], [], []
@@ -112,6 +113,12 @@ def main():
     ap.add_argument('--eval-count', type=int, default=192)
     ap.add_argument('--init', type=Path, default=None, help='从已有 bev_v1 模型接着训(课程下一阶段)')
     ap.add_argument('--beta0', type=float, default=1.0, help='第 0 轮老师开的比例;--init 续训时可给 0')
+    ap.add_argument('--seg-period', type=float, nargs=2, default=(0.1, 0.1), metavar=('LO', 'HI'),
+                    help='bev_v2 采集时每局地面分割周期在 [LO, HI] 均匀抽(实车 M2F-T 288 ~0.33 s)')
+    ap.add_argument('--seg-lag', type=float, nargs=2, default=(0.0, 0.0), metavar=('LO', 'HI'),
+                    help='采集时每局地面分割延迟在 [LO, HI] 均匀抽(实车 ~0.35 s)')
+    ap.add_argument('--eval-seg', type=float, nargs=2, default=(0.1, 0.0), metavar=('PERIOD', 'LAG'),
+                    help='每轮评估用的地面分割周期和延迟(按部署条件挑模型)')
     ap.add_argument('--schema', default=SCHEMA, help='bev_v1(5 通道)/ bev_v2(+可行驶地面,6 通道);'
                     'bev_v2 可从 bev_v1 模型 --init(多出来的通道权重置 0)')
     a = ap.parse_args()
@@ -159,8 +166,9 @@ def main():
             wts = None if (r == 0 and a.init is None) else weights_of(ema)
             jobs = []
             for _ in range(a.episodes_per_round):
+                seg = (float(rng.uniform(*a.seg_period)), float(rng.uniform(*a.seg_lag)))
                 jobs.append((seed, mix[int(rng.choice(len(mix), p=probs))][0], wts, beta, True, enc,
-                             a.a_lat, a.cap_max, free))
+                             a.a_lat, a.cap_max, free, seg))
                 seed += 1
             t0 = time.time()
             got = [g for g in ex.map(_job, jobs, chunksize=2) if g is not None]
@@ -187,7 +195,8 @@ def main():
             t0 = time.time()
             wts = weights_of(ema)
             ev = [e for e in ex.map(_job, [(SELECT_SEED0 + i, ev_levels[i % len(ev_levels)], wts, 0.0, False,
-                                             enc, a.a_lat, a.cap_max, free) for i in range(a.eval_count)],
+                                             enc, a.a_lat, a.cap_max, free, tuple(a.eval_seg))
+                                            for i in range(a.eval_count)],
                                     chunksize=2) if e is not None]
             summ = summarize(ev)
             by = {n: summarize([e for e in ev if e['level'] == n])['success'] for n in ev_levels}
