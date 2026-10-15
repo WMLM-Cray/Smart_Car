@@ -3,7 +3,7 @@ import math
 
 import numpy as np
 
-from simulation.fastsim.road import LEVELS, OBST_PASS, add_obstacles, generate
+from simulation.fastsim.road import LEVELS, OBST_BLOCK, OBST_PASS, add_obstacles, generate
 from simulation.fastsim.road_env import Plant, RoadEnv
 
 LV = {l.name: l for l in LEVELS}
@@ -25,8 +25,9 @@ def test_obstacles_block_one_side_and_leave_room_on_the_other():
             i, d = road.project(box.mean(0))
             n = road.normal[i]
             lat = (box - road.centre[i]) @ n                     # 四个角的横向位置
-            room = max(road.half_l[i] - lat.max(), lat.min() + road.half_r[i])
-            assert room >= OBST_PASS - 1e-6                      # 可行域已收窄,但还留着绕行空间
+            gaps = sorted([road.half[i] - lat.max(), lat.min() + road.half[i]])   # 按原路宽(可行域已被障碍收窄)
+            assert gaps[1] >= OBST_PASS - 1e-6                   # 可行域已收窄,但还留着绕行空间
+            assert gaps[0] <= OBST_BLOCK + 1e-6                  # 被挡那一侧车过不去:往哪绕从画面看得出来
 
 
 def test_lidar_sees_the_obstacle_and_driving_into_it_is_a_collision():

@@ -38,8 +38,12 @@ class BevEnv:
     """包一层 RoadEnv:每拍维护 BEV,observation() 给 (图, 标量)。"""
 
     def __init__(self, road, pl, seed, start=(0, 0.0, 0.0), noise=True, robust=False,
-                 yolo_period=YOLO_PERIOD, free=False, seg_period=SEG_PERIOD, seg_lag=0.0):
+                 yolo_period=YOLO_PERIOD, free=False, seg_period=SEG_PERIOD, seg_lag=0.0, aug=(0.0, 0.0)):
         self.env = RoadEnv(road, pl, seed, start, noise=noise, robust=robust)
+        # 裁图位姿抖动 (平移 m, 转角 rad),只在训练采集时开:BEV 是 5 cm 格,墙跨一格网络输出就跳(v3.5m5 横移 0.5 cm
+        # 转角跳 10°,2026-10-15)。每拍按随机亚格偏移裁图,同一几何见过各种量化相位,学成对格子位置不敏感。车上不抖
+        self.aug = aug
+        self.aug_rng = np.random.default_rng(seed + 13) if aug[0] > 0 or aug[1] > 0 else None   # 独立随机流
         self.bev = Bev(lidar_yaw=pl.lidar_yaw)
         self.cam = FakeYolo(road, seed=seed + 7)
         self.yolo_period, self.next_yolo = yolo_period, 0.0
@@ -84,7 +88,12 @@ class BevEnv:
         env = self.env
         enc_speed = env.car.v + (env.rng.normal(0, 0.02) if env.noise else 0.0)
         gyro = env.car.yaw_rate + (env.rng.normal(0, env.cp.gyro_sigma) if env.noise else 0.0)
-        img = bev_image(self.bev, self.pose, env.t, env.ranges, env.angles, self.scan_pose, free=self.free)
+        pose = self.pose
+        if self.aug_rng is not None:
+            d, a = self.aug
+            pose = (pose[0] + self.aug_rng.uniform(-d, d), pose[1] + self.aug_rng.uniform(-d, d),
+                    pose[2] + self.aug_rng.uniform(-a, a))
+        img = bev_image(self.bev, pose, env.t, env.ranges, env.angles, self.scan_pose, free=self.free)
         return img, scalars(enc_speed, env.pl.cap, gyro, env.pl.enc)
 
     def step(self, action):

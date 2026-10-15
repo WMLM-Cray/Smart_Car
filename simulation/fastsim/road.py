@@ -509,6 +509,9 @@ OBST_START, OBST_END = 2.5, 2.0       # 起点后、终点前这么远内不摆�
 OBST_SPACING = 2.5                     # 两个障碍沿路至少隔这么远 m
 OBST_PASS = 0.65                       # 绕行那一侧至少留这么宽 m(车宽 0.35 + 两侧墙余量,再留一点)
 OBST_LONG = 0.3                        # 规划可行域收窄的那一截前后再各多算这么长(车身有长度)
+# 被挡那一侧最多留这么宽 m(车宽 0.35 过不去)。原来是 0 ~ 全部余地,两边都够宽时老师只认随机抽的一边,
+# 学生从画面看不出该往哪绕,学成两边取平均 = 直冲(2026-10-15 v3.5m5 障碍路只到 55%)
+OBST_BLOCK = 0.3
 
 
 def add_obstacles(road: Road, rng: np.random.Generator, lv: Level) -> None:
@@ -533,8 +536,8 @@ def add_obstacles(road: Road, rng: np.random.Generator, lv: Level) -> None:
         room = hl[i] + hr[i] - w - OBST_PASS             # 障碍能横向挪动的余地
         if room < 0:
             continue
-        # 横向位置:障碍靠被挡那一侧,离那侧边界 0 ~ room(0 = 贴边)
-        o = (-hr[i] + w / 2 + rng.uniform(0, room)) if go_left else (hl[i] - w / 2 - rng.uniform(0, room))
+        # 横向位置:障碍靠被挡那一侧,离那侧边界 0 ~ OBST_BLOCK(0 = 贴边)
+        o = (-hr[i] + w / 2 + rng.uniform(0, min(room, OBST_BLOCK))) if go_left else (hl[i] - w / 2 - rng.uniform(0, min(room, OBST_BLOCK)))
         c, nrm = road.centre[i], road.normal[i]
         t = np.array([nrm[1], -nrm[0]])                  # 路的前进方向
         ctr = c + nrm * o
