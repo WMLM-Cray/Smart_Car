@@ -6,6 +6,7 @@
     python -m evaluation.bev_testset run --eps runs/testset_93M.pkl --model runs/bev_v1_d/candidate_014.npz \
         --out runs/test_d014.json
     python -m evaluation.bev_testset compare runs/test_b036.json runs/test_d014.json
+    # bev_v2 按实车地面分割节奏跑(默认 0.1 s、无延迟 = 训练设定):--seg-period 0.33 --seg-lag 0.35
 
 局的生成:training.road_check.sample_episode(seed, level, enc=road_v2.5 契约, cap_max=1.8),seed = seed0 + i,
 每级用同一串 seed(老师 a_lat 用 sample_episode 的默认值;它参与可通性拒绝采样,改了就是另一批局)。
@@ -75,7 +76,7 @@ def _init(path):
 
 
 def _run(args):
-    i, model = args
+    i, model, seg_period, seg_lag = args
     ep = _EPS[i]
     with np.load(model) as z:
         schema = str(z['schema'])
@@ -83,7 +84,8 @@ def _run(args):
         from common.bev_policy import BevPolicy
         from training.bev_env import BevEnv
         pol = BevPolicy(model)
-        b = BevEnv(ep['road'], ep['pl'], ep['seed'], ep['start'], noise=True, free=pol.free)
+        b = BevEnv(ep['road'], ep['pl'], ep['seed'], ep['start'], noise=True, free=pol.free,
+                   seg_period=seg_period, seg_lag=seg_lag)
         why = None
         while why is None:
             why = b.step(pol(*b.observation()))
@@ -106,13 +108,14 @@ def run(a):
     fp = fingerprint(eps)
     levels = [e['level'] for e in eps]
     with ProcessPoolExecutor(a.workers, initializer=_init, initargs=(a.eps,)) as ex:
-        rows = list(ex.map(_run, [(i, a.model) for i in range(len(eps))], chunksize=2))
+        rows = list(ex.map(_run, [(i, a.model, a.seg_period, a.seg_lag) for i in range(len(eps))], chunksize=2))
     for L in dict.fromkeys(levels):
         r = [x for x, l in zip(rows, levels) if l == L]
         print(L, 'n=%d ok=%.3f' % (len(r), np.mean([x['reason'] == 'goal' for x in r])))
     print('all %.4f' % np.mean([x['reason'] == 'goal' for x in rows]))
     with open(a.out, 'w') as f:
-        json.dump(dict(model=a.model, fingerprint=fp, levels=levels, rows=rows), f)
+        json.dump(dict(model=a.model, fingerprint=fp, seg_period=a.seg_period, seg_lag=a.seg_lag,
+                       levels=levels, rows=rows), f)
 
 
 def mcnemar(a_ok, b_ok):
@@ -148,6 +151,8 @@ def main():
     r.add_argument('--model', required=True)
     r.add_argument('--out', required=True)
     r.add_argument('--workers', type=int, default=8)
+    r.add_argument('--seg-period', type=float, default=0.1, help='bev_v2 假地面分割周期 s(实车 M2F-T 288 ~0.33)')
+    r.add_argument('--seg-lag', type=float, default=0.0, help='假地面分割拍摄到登记的延迟 s(实车 ~0.35)')
     c = sub.add_parser('compare')
     c.add_argument('a')
     c.add_argument('b')

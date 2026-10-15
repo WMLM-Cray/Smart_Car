@@ -3,7 +3,8 @@
 位姿:用 FastSim 的真位姿(车上用雷达里程计,用户实测漂移很小,先不建漂移模型)。
 雷达:每次 RoadEnv 真扫描时,按**扫描那一刻**的位姿登记进 BEV。
 摄像头:每 yolo_period 秒检测一次(香橙派上 YOLO 帧率待实测,先按 10 Hz [假设])。
-地面分割(bev_v2,free=True):每 seg_period 秒一次,可行驶地面登记进 FREE 层(FakeFloorSeg)。
+地面分割(bev_v2,free=True):每 seg_period 秒拍一次,seg_lag 秒后(推理延迟)按拍摄那一刻的位姿登记进 FREE 层
+(FakeFloorSeg;和车上 BevRuntime.on_free 一样)。默认 0.1 s、无延迟是训练时的设定;实车 M2F-T 288 是 ~0.33 s / ~0.35 s。
 
 老师(SeenTeacher):特权车辆参数(和 road_train 一样);重规划窗口只到"左右边界都被雷达扫到过"
 的地方,窗口没到路终点时末端限速 sqrt(a_lat·R_MIN)。它**不是**严格只用学生 BEV 里的信息:
@@ -37,14 +38,15 @@ class BevEnv:
     """包一层 RoadEnv:每拍维护 BEV,observation() 给 (图, 标量)。"""
 
     def __init__(self, road, pl, seed, start=(0, 0.0, 0.0), noise=True, robust=False,
-                 yolo_period=YOLO_PERIOD, free=False):
+                 yolo_period=YOLO_PERIOD, free=False, seg_period=SEG_PERIOD, seg_lag=0.0):
         self.env = RoadEnv(road, pl, seed, start, noise=noise, robust=robust)
         self.bev = Bev(lidar_yaw=pl.lidar_yaw)
         self.cam = FakeYolo(road, seed=seed + 7)
         self.yolo_period, self.next_yolo = yolo_period, 0.0
         self.free = free
         self.seg = FakeFloorSeg(road, seed=seed + 11) if free else None    # 独立随机流:不改 bev_v1 的局
-        self.next_seg = 0.0
+        self.seg_period, self.seg_lag, self.next_seg = seg_period, seg_lag, 0.0
+        self.seg_queue = []                                               # (到达时刻, 拍摄位姿, 点)
         self.scan_hooks = []
         env, scan = self.env, self.env._scan
 
@@ -72,9 +74,11 @@ class BevEnv:
             self.bev.update_camera(kinds, xy, self.pose, self.env.t)
             self.next_yolo += self.yolo_period
         if self.seg is not None and self.env.t >= self.next_seg:
-            xy = self.seg.detect(self.pose)
-            self.bev.update_camera(np.full(len(xy), int(CellType.FREE)), xy, self.pose, self.env.t)
-            self.next_seg += SEG_PERIOD
+            self.seg_queue.append((self.env.t + self.seg_lag, self.pose, self.seg.detect(self.pose)))
+            self.next_seg += self.seg_period
+        while self.seg_queue and self.env.t >= self.seg_queue[0][0] - 1e-9:
+            _, pose, xy = self.seg_queue.pop(0)
+            self.bev.update_camera(np.full(len(xy), int(CellType.FREE)), xy, pose, self.env.t)
 
     def observation(self):
         env = self.env

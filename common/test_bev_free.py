@@ -129,6 +129,20 @@ def test_benv_free_episode_fills_channel_5():
     assert BevEnv(road, Plant.sample(rng), 2, noise=False).observation()[0].shape == (C, 80, 80)
 
 
+def test_seg_lag_delays_free_layer_and_registers_at_capture_pose():
+    """seg_lag:拍摄后这么久才登记进 FREE 层(实车推理延迟)。"""
+    from simulation.fastsim.road_env import Plant
+    from training.bev_env import BevEnv
+    road = _road()
+    pl = Plant.sample(np.random.default_rng(2))
+    benv = BevEnv(road, pl, 2, noise=False, free=True, seg_period=0.33, seg_lag=0.35)
+    assert benv.observation()[0][5].sum() == 0                  # t=0 拍的还没到
+    assert len(benv.seg_queue) == 1 and len(benv.seg_queue[0][2]) > 0
+    while benv.env.t < 0.35:
+        benv.step(np.array([0.0, 0.5], np.float32))
+    assert benv.observation()[0][5].sum() > 100
+
+
 def test_edge_road_has_no_lidar_objects_and_floor_stops_at_edge():
     from simulation.fastsim.road import EDGE
     road = _road('LE4', seed=4)
