@@ -21,7 +21,7 @@ from common.road_runtime import RoadRuntime
 
 MAX_DT = 0.2            # 两次积分间隔超过这个就当传感器断过,不积分(停车/过期时 RoadRuntime 已回中位)
 POSE_HISTORY = 1.0      # 位姿历史留这么久 s,给按拍摄时刻登记的摄像头结果查
-FREE_TIMEOUT = 0.5      # bev_v2 地面分割 ~10 Hz;断了 FREE 层只会变空、模型照开,所以当传感器过期回中位
+FREE_TIMEOUT = 1.0      # bev_v2 地面分割 M2F-T 288 ~3 Hz(每帧 ~0.33 s,B0 时是 10 Hz / 0.5 s);断了 FREE 层只会变空、模型照开,所以当传感器过期回中位
 
 
 class BevRuntime(RoadRuntime):

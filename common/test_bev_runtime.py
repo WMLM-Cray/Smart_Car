@@ -165,8 +165,10 @@ def test_v2_stops_without_ground_seg(tmp_path):
     v2.on_free(np.zeros((0, 2)), stamp=0.0, now=0.1)        # 一帧没认出地面也算活着
     feed(v2, 0.1)
     assert v2.decide(0.15) is not STOP
-    feed(v2, 0.65)
-    assert v2.decide(0.7) is STOP                           # 0.6 s 没新分割
+    feed(v2, 0.6)
+    assert v2.decide(0.65) is not STOP                      # 0.55 s 没新分割:3 Hz 下正常的间隔
+    feed(v2, 1.15)
+    assert v2.decide(1.2) is STOP                           # 1.1 s 没新分割
     v1 = BevRuntime(BevPolicy(_model(tmp_path)), speed_cap=0.7)
     feed(v1, 0.0)
     assert v1.decide(0.05) is not STOP
