@@ -92,6 +92,7 @@ class FixInfo:
     inlier: float         # 贴合比例(没算时 0)
     cut: int              # 雷达截断删掉的点数
     points: int           # 发出去的点数
+    why: str = ''         # 这帧雷达没修成俯仰的原因(调试用):few / view / cost Nr / inlier / edge
 
 
 class GroundFixer:
@@ -106,9 +107,9 @@ class GroundFixer:
         self.last_i, self.last_t = self.calib, -math.inf
 
     def estimate(self, edge: np.ndarray, walls: np.ndarray):
-        """-> (候选下标, 贴合比例) 或 (None, 贴合比例)。"""
+        """-> (候选下标, 贴合比例, '') 或 (None, 贴合比例, 原因)。"""
         if len(walls) < MIN_WALL:
-            return None, 0.0
+            return None, 0.0, 'few'
         W, H = self.p.camera_size
         row_px = H / self.rows
         costs = []
@@ -121,22 +122,24 @@ class GroundFixer:
             if good.sum() < MIN_WALL or np.ptp(col[good]) < MIN_SPREAD * self.cols:
                 continue
             costs.append((np.median(np.abs(d[good])), i, float(np.mean(np.abs(d[good]) < FIT_ROWS * row_px))))
-        if not costs:
-            return None, 0.0
+        if not costs:                                                   # 视野里的墙点不够多 / 不够铺开
+            return None, 0.0, 'view'
         low = min(c for c, _, _ in costs)
         if low > MAX_COST * row_px:                                     # 怎么转都贴不上:墙前有矮东西 / 掩码错
-            return None, 0.0
+            return None, 0.0, f'cost {low / row_px:.1f}r'
         # 掩码一行 ≈ 0.85°,代价曲线底部是平的:一样好的候选里取离标定值最近的,别被量化噪声带跑
         _, i, inlier = min((t for t in costs if t[0] <= low + TIE_ROWS * row_px), key=lambda t: abs(t[1] - self.calib))
-        if inlier < MIN_INLIER or i in (0, len(self.params) - 1):     # 多数点贴不上,或顶到候选边界
-            return None, inlier
-        return i, inlier
+        if inlier < MIN_INLIER:                                         # 多数点贴不上
+            return None, inlier, 'inlier'
+        if i in (0, len(self.params) - 1):                              # 顶到候选边界
+            return None, inlier, 'edge'
+        return i, inlier, ''
 
     def process(self, mask: np.ndarray, now: float, scan=None) -> tuple[np.ndarray, FixInfo]:
         """scan = (ranges, angle_min, angle_increment) 或 None。返回 (地面点 (n,2), FixInfo)。"""
         floor = bottom_connected(mask)
         walls = wall_points(*scan, self.p) if scan is not None else np.empty((0, 2))
-        i, inlier = self.estimate(floor_edge(floor, self.p.camera_size[1]), walls)
+        i, inlier, why = self.estimate(floor_edge(floor, self.p.camera_size[1]), walls)
         if i is not None:
             self.last_i, self.last_t, source = i, now, 'lidar'
         elif now - self.last_t <= HOLD_S:
@@ -154,7 +157,7 @@ class GroundFixer:
             cut, xy = int((~keep).sum()), xy[keep]
         if len(xy):
             xy = np.unique(np.round(xy / 0.05).astype(np.int32), axis=0).astype(np.float64) * 0.05
-        return xy, FixInfo(float(self.pitches[i]), source, len(walls), inlier, cut, len(xy))
+        return xy, FixInfo(float(self.pitches[i]), source, len(walls), inlier, cut, len(xy), why)
 
     def lidar_keep(self, xy, ranges, angle_min, angle_inc) -> np.ndarray:
         """比同方向雷达回波远 CUT_MARGIN 以上的点给 False;那根没有有效回波就不管。"""

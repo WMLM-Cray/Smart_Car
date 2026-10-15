@@ -142,7 +142,7 @@ def main(argv=None):
                 g = cv2.resize(mask.astype(np.uint8), (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_NEAREST) > 0
                 ov = frame.copy()
                 ov[g] = (0.5 * ov[g] + 0.5 * np.array([40, 160, 60])).astype(np.uint8)
-                cv2.putText(ov, f'pitch {np.degrees(info.pitch):+.2f} {info.source} walls {info.walls} cut {info.cut}',
+                cv2.putText(ov, f'pitch {np.degrees(info.pitch):+.2f} {info.source} {info.why} walls {info.walls} cut {info.cut}',
                             (8, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
                 im = CompressedImage(format='jpeg', data=cv2.imencode('.jpg', ov, [cv2.IMWRITE_JPEG_QUALITY, 70])[1].tobytes())
                 im.header.stamp.sec, im.header.stamp.nanosec = divmod(int(stamp), 1_000_000_000)
@@ -154,7 +154,7 @@ def main(argv=None):
                 n = stats['n']
                 log.info(f'{n / dt:.1f} Hz;每帧 预处理 {1000 * stats["pre"] / n:.0f} + NPU {1000 * stats["npu"] / n:.0f} ms,'
                          f'后处理 {1000 * stats["post"] / n:.0f} ms(并行);'
-                         f'俯仰 {np.degrees(info.pitch):+.2f}° {info.source} 墙点 {info.walls} 截断 {info.cut}')
+                         f'俯仰 {np.degrees(info.pitch):+.2f}° {info.source} {info.why} 墙点 {info.walls} 截断 {info.cut}')
                 stats.update(n=0, pre=0.0, npu=0.0, post=0.0, t0=time.monotonic())
     threading.Thread(target=post_loop, daemon=True).start()
 
