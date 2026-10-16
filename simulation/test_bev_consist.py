@@ -34,3 +34,22 @@ def test_no_yolo_keeps_cones_on_the_road_but_empties_the_cone_layer():
     img_on, img_off = on.observation()[0], off.observation()[0]
     assert img_on[1].any() and not img_off[1].any()         # 锥桶层:有 YOLO 才有
     assert img_off[0].any() or img_off[4].any()             # 雷达照样扫到(锥桶 + 其他)
+
+
+def test_guard_stops_like_the_car():
+    """直走廊尽头一堵墙:离墙远时照常走,保险杠前不到 0.25 m 就判 guard(和车上截停同一规则)。"""
+    from simulation.fastsim.road import WALL, build
+    from simulation.fastsim.road_env import Plant
+    from training.bev_env import BevEnv
+    road = build([dict(kind='straight', length=3.0, width=1.2, mat=(WALL, WALL))])
+    import numpy as np
+    from simulation.fastsim.road import _resample
+    p, _ = _resample(np.array([road.left[-1], road.right[-1]]), 0.2)
+    road.walls = np.concatenate([road.walls, np.stack([p[:-1], p[1:]], axis=1)])      # 尽头封墙
+    pl = Plant.sample(np.random.default_rng(0))
+    far = BevEnv(road, pl, 0, (0, 0.0, 0.0), noise=False, guard=True)
+    assert far.step((0.0, 0.5)) is None
+    i = len(road.centre) - 1 - int(0.55 / 0.05)                 # 后轴离墙 0.55 m:车头离墙 0.135 m
+    near = BevEnv(road, pl, 0, (i, 0.0, 0.0), noise=False, guard=True)
+    assert near.step((0.0, 0.5)) == 'guard'
+    assert BevEnv(road, pl, 0, (i, 0.0, 0.0), noise=False).step((0.0, 0.5)) != 'guard'   # 默认不管

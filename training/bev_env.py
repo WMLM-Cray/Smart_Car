@@ -39,7 +39,7 @@ class BevEnv:
 
     def __init__(self, road, pl, seed, start=(0, 0.0, 0.0), noise=True, robust=False,
                  yolo_period=YOLO_PERIOD, free=False, seg_period=SEG_PERIOD, seg_lag=0.0, aug=(0.0, 0.0),
-                 yolo=True):
+                 yolo=True, guard=False):
         self.env = RoadEnv(road, pl, seed, start, noise=noise, robust=robust)
         # 裁图位姿抖动 (平移 m, 转角 rad),只在训练采集时开:BEV 是 5 cm 格,墙跨一格网络输出就跳(v3.5m5 横移 0.5 cm
         # 转角跳 10°,2026-10-15)。每拍按随机亚格偏移裁图,同一几何见过各种量化相位,学成对格子位置不敏感。车上不抖
@@ -56,6 +56,15 @@ class BevEnv:
         self.seg_period, self.seg_lag, self.next_seg = seg_period, seg_lag, 0.0
         self.seg_queue = []                                               # (到达时刻, 拍摄位姿, 点)
         self.scan_hooks = []
+        # guard=True:和车上 road_car_node 一样按将要打的转角扫车身矩形,保险杠前净空 < GUARD_STOP 就算这局失败('guard')。
+        # 车上截停后油门回中位、策略不出倒车,基本就卡死了;仿真里原来不管,模型在锥桶方角贴着开也算过(2026-10-16:
+        # 无锥桶 r29 在 L6f 16 局里 12 局会触发截停,老师 1 局)
+        self.guard = None
+        if guard:
+            from vehicle.road_car_node import GUARD_STOP
+            from vehicle.scan_guard import ScanGuard
+            self.guard, self.guard_stop = ScanGuard(), GUARD_STOP
+            self.scan_hooks.append(lambda pose: self._guard_scan())
         env, scan = self.env, self.env._scan
 
         def scan_and_register():
@@ -68,6 +77,8 @@ class BevEnv:
 
         env._scan = scan_and_register
         self.scan_pose = self.pose                                        # 构造时已扫过的那一帧
+        if self.guard is not None:
+            self._guard_scan()
         self.bev.update_lidar(env.ranges, env.angles, self.scan_pose, 0.0)
         self._camera()
 
@@ -103,7 +114,22 @@ class BevEnv:
                     pose[2] + self.aug_rng.uniform(-a, a))
         return bev_image(self.bev, pose, env.t, env.ranges, env.angles, self.scan_pose, free=self.free)
 
+    def _guard_scan(self):
+        """把这一帧雷达按 ScanGuard.update 的规则换成后轴系前方点(车上喂的是同一份 /scan)。"""
+        from vehicle.scan_guard import FRONT_HALF_ANGLE, LIDAR_X
+        e = self.env
+        a = (np.asarray(e.angles, float) + np.pi) % (2 * np.pi) - np.pi
+        r = np.asarray(e.ranges, float)
+        ok = np.isfinite(r) & (r > 0.05) & (np.abs(a) <= FRONT_HALF_ANGLE)
+        x, y = r[ok] * np.cos(a[ok]) + LIDAR_X, r[ok] * np.sin(a[ok])
+        self.guard.points = list(zip(x[x > 0], y[x > 0]))
+
     def step(self, action):
+        if self.guard is not None:
+            from common.pwm import action_to_steer
+            steer = action_to_steer(float(np.clip(action[0], -1, 1)), self.env.cp)
+            if self.guard._clear(steer) < self.guard_stop:
+                return 'guard'
         why = self.env.step(action)
         self._camera()
         return why
