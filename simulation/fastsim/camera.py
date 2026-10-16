@@ -135,6 +135,12 @@ class FloorSegConfig:
     edge_sigma: float = 0.05    # 每帧边界整体偏移(外扩为正)m
     jitter: float = 0.03        # 逐点边界抖动 m
     miss: float = 0.05          # 整帧失败(什么都不给)的概率
+    # 按车上的投影方式出点(2026-10-16):车上是分割输出每个像素中心经 GroundLut 投到地面的一个点,远处行距
+    # ~ d²/h·0.85°(3 m 处 ~0.5 m),BEV 里是一道道条纹;姿态没被雷达确认时只要 2 m(common/ground_fix)。
+    # 原来按 5 cm 密网铺满 3 m,实车正前方 2~2.5 / 2.5~3 m 的地面格填充率 0.48 / 0.16,仿真 1.0 / 1.0。
+    # None = 老的密网;(rows, cols) = 分割输出尺寸(M2F-T 288x384 -> 72x96)
+    lut: tuple | None = None
+    sure: float = 0.3           # lut 模式下每帧姿态被雷达确认(取 3 m,否则 2 m)的概率;0.3 时各距离段填充率对上实车
 
 
 class FakeFloorSeg:
@@ -163,6 +169,12 @@ class FakeFloorSeg:
         g = np.stack([gx.ravel(), gy.ravel()], axis=1)
         keep = (np.hypot(g[:, 0], g[:, 1]) <= cfg.range) & (np.abs(np.arctan2(g[:, 1], g[:, 0])) <= params.camera_hfov / 2)
         self.grid_cam = g[keep]
+        if cfg.lut is not None:                 # 车上的像素中心投影点,按 5 cm 去重(同 GroundLut.points)
+            from common.ground_proj import GroundLut
+            lut = GroundLut(*cfg.lut, params, cfg.range)
+            xy = lut.xy[lut.valid]
+            _, first = np.unique(np.floor(xy / 0.05).astype(np.int64), axis=0, return_index=True)
+            self.grid_cam = xy[np.sort(first)] - (params.camera_x, 0.0)
         self.grid_body = self.grid_cam + (params.camera_x, 0.0)
         self.grid_r = np.hypot(self.grid_cam[:, 0], self.grid_cam[:, 1])
         self.grid_a = np.arctan2(self.grid_cam[:, 1], self.grid_cam[:, 0])
@@ -181,6 +193,10 @@ class FakeFloorSeg:
         cfg, rng, road = self.cfg, self.rng, self.road
         if rng.random() < cfg.miss:
             return np.zeros((0, 2))
+        reach = cfg.range
+        if cfg.lut is not None:
+            from common.ground_fix import RANGE_UNSURE
+            reach = cfg.range if rng.random() < cfg.sure else RANGE_UNSURE
         x, y, yaw = pose
         c, s = math.cos(yaw), math.sin(yaw)
         b = self.grid_body
@@ -201,6 +217,8 @@ class FakeFloorSeg:
             free &= ~self._shadow(x + c * self.p.camera_x, y + s * self.p.camera_x, yaw)
         if len(getattr(road, 'obstacles', ())):         # 旧测试集 pickle 里的 Road 没有这个字段
             free &= ~self._obstacle_shadow(x + c * self.p.camera_x, y + s * self.p.camera_x, yaw)
+        if reach < cfg.range:
+            free &= self.grid_r <= reach
         return b[free]
 
     def _obstacle_shadow(self, cx, cy, yaw) -> np.ndarray:

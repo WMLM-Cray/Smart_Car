@@ -53,3 +53,19 @@ def test_guard_stops_like_the_car():
     near = BevEnv(road, pl, 0, (i, 0.0, 0.0), noise=False, guard=True)
     assert near.step((0.0, 0.5)) == 'guard'
     assert BevEnv(road, pl, 0, (i, 0.0, 0.0), noise=False).step((0.0, 0.5)) != 'guard'   # 默认不管
+
+
+def test_floor_seg_lut_mode_is_sparse_far_and_sometimes_short():
+    """车上的投影方式:远处像素行稀(条纹),一部分帧只到 2 m;默认还是老的密网。"""
+    from dataclasses import replace
+    from simulation.fastsim.camera import FakeFloorSeg, FloorSegConfig
+    from simulation.fastsim.road import WALL, build
+    road = build([dict(kind='straight', length=10.0, width=3.0, mat=(WALL, WALL))])
+    pose = (1.0, 0.0, 0.0)
+    clean = dict(miss=0.0, edge_sigma=0.0, jitter=0.0)
+    dense = FakeFloorSeg(road, cfg=replace(FloorSegConfig(), **clean)).detect(pose)
+    lut = FakeFloorSeg(road, cfg=replace(FloorSegConfig(), lut=(72, 96), **clean), seed=1)
+    far = lambda xy: int(((xy[:, 0] > 2.6) & (xy[:, 0] < 3.2) & (abs(xy[:, 1]) < 0.5)).sum())
+    frames = [lut.detect(pose) for _ in range(30)]
+    assert max(far(f) for f in frames) < far(dense) / 3          # 远处稀
+    assert min(far(f) for f in frames) == 0                      # 有的帧只到 2 m
