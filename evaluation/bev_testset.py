@@ -76,7 +76,7 @@ def _init(path):
 
 
 def _run(args):
-    i, model, seg_period, seg_lag, yolo, guard, seg_lut = args
+    i, model, seg_period, seg_lag, yolo, guard, seg_lut, seg_fill = args
     ep = _EPS[i]
     with np.load(model) as z:
         schema = str(z['schema'])
@@ -85,7 +85,7 @@ def _run(args):
         from training.bev_env import BevEnv
         pol = BevPolicy(model)
         b = BevEnv(ep['road'], ep['pl'], ep['seed'], ep['start'], noise=True, free=pol.free,
-                   seg_period=seg_period, seg_lag=seg_lag, yolo=yolo, guard=guard, seg_lut=seg_lut)
+                   seg_period=seg_period, seg_lag=seg_lag, yolo=yolo, guard=guard, seg_lut=seg_lut, seg_fill=seg_fill)
         why = None
         while why is None:
             why = b.step(pol(*b.observation()))
@@ -109,14 +109,14 @@ def run(a):
     idx = range(0, len(eps), a.every)          # 每 every 局取一局(各级按顺序排,取样后各级比例不变)
     levels = [eps[i]['level'] for i in idx]
     with ProcessPoolExecutor(a.workers, initializer=_init, initargs=(a.eps,)) as ex:
-        rows = list(ex.map(_run, [(i, a.model, a.seg_period, a.seg_lag, not a.no_yolo, a.guard, a.seg_lut) for i in idx],
+        rows = list(ex.map(_run, [(i, a.model, a.seg_period, a.seg_lag, not a.no_yolo, a.guard, a.seg_lut, a.seg_fill) for i in idx],
                            chunksize=2))
     for L in dict.fromkeys(levels):
         r = [x for x, l in zip(rows, levels) if l == L]
         print(L, 'n=%d ok=%.3f' % (len(r), np.mean([x['reason'] == 'goal' for x in r])))
     print('all %.4f' % np.mean([x['reason'] == 'goal' for x in rows]))
     with open(a.out, 'w') as f:
-        json.dump(dict(model=a.model, fingerprint=fp, seg_period=a.seg_period, seg_lag=a.seg_lag, yolo=not a.no_yolo, guard=a.guard, seg_lut=a.seg_lut, every=a.every,
+        json.dump(dict(model=a.model, fingerprint=fp, seg_period=a.seg_period, seg_lag=a.seg_lag, yolo=not a.no_yolo, guard=a.guard, seg_lut=a.seg_lut, seg_fill=a.seg_fill, every=a.every,
                        levels=levels, rows=rows), f)
 
 
@@ -159,6 +159,7 @@ def main():
     r.add_argument('--no-yolo', action='store_true', help='锥桶层恒空(车上没跑 YOLO 时的部署条件)')
     r.add_argument('--guard', action='store_true', help='按车上截停规则判失败(保险杠前 < 0.25 m = guard)')
     r.add_argument('--seg-lut', action='store_true', help='假地面分割按车上的像素投影出点(部署条件)')
+    r.add_argument('--seg-fill', action='store_true', help='配 --seg-lut:补行间的缝(车上 --fill)')
     r.add_argument('--every', type=int, default=1,
                    help='每隔几局取一局(5 = 1600 局取 320):区分 80%% 和 90%% 用不着上千局,省时间')
     c = sub.add_parser('compare')

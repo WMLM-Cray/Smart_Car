@@ -91,6 +91,26 @@ class GroundLut:
         self.xy = np.c_[gx, gy]
         self.shape = (rows, cols)
 
+    def fill_rows(self, mask: np.ndarray, step: float = 0.05) -> np.ndarray:
+        """同一列上下相邻两格都是地面时,在它们的投影点之间每 step 补一个点(不含两端) -> (n,2)。
+
+        远处一行像素投到地面跨很长(3 m 处 ~0.5 m),只取像素中心时 BEV 里是一道道条纹(2026-10-16 实车)。
+        缝里的地面和像素中心是同一块,条纹只是采样造成的,和遮挡无关;上下两格有一格不是地面就不补
+        (那是真边界或被挡住了)。"""
+        ok = mask.astype(bool) & self.valid.reshape(self.shape)
+        pair = ok[:-1] & ok[1:]                                     # (r, c) 和 (r+1, c) 都是地面
+        if not pair.any():
+            return np.empty((0, 2))
+        xy = self.xy.reshape(self.shape + (2,))
+        a, b = xy[:-1][pair], xy[1:][pair]
+        n = np.floor(np.hypot(*(a - b).T) / step).astype(int)       # 段内要补几个点
+        if n.max() < 1:
+            return np.empty((0, 2))
+        k = np.arange(1, n.max() + 1)
+        t = k[None, :] / (n[:, None] + 1)                          # (段, k)
+        pts = a[:, None, :] + t[..., None] * (b - a)[:, None, :]
+        return pts[k[None, :] <= n[:, None]]
+
     def points(self, mask: np.ndarray, cell: float = 0.05) -> np.ndarray:
         """mask (rows, cols) bool -> 地面点 (n,2);按 cell 栅格去重(BEV 栅格 5 cm,多了没用)。"""
         sel = mask.ravel().astype(bool) & self.valid

@@ -39,7 +39,7 @@ class BevEnv:
 
     def __init__(self, road, pl, seed, start=(0, 0.0, 0.0), noise=True, robust=False,
                  yolo_period=YOLO_PERIOD, free=False, seg_period=SEG_PERIOD, seg_lag=0.0, aug=(0.0, 0.0),
-                 yolo=True, guard=False, seg_lut=False):
+                 yolo=True, guard=False, seg_lut=False, seg_fill=False):
         self.env = RoadEnv(road, pl, seed, start, noise=noise, robust=robust)
         # 裁图位姿抖动 (平移 m, 转角 rad),只在训练采集时开:BEV 是 5 cm 格,墙跨一格网络输出就跳(v3.5m5 横移 0.5 cm
         # 转角跳 10°,2026-10-15)。每拍按随机亚格偏移裁图,同一几何见过各种量化相位,学成对格子位置不敏感。车上不抖
@@ -55,7 +55,7 @@ class BevEnv:
         # seg_lut:假地面分割按车上的像素投影出点(远处条纹、没确认时只到 2 m),见 FloorSegConfig.lut
         from dataclasses import replace as _replace
         from simulation.fastsim.camera import FloorSegConfig
-        seg_cfg = _replace(FloorSegConfig(), lut=(72, 96)) if seg_lut else FloorSegConfig()
+        seg_cfg = _replace(FloorSegConfig(), lut=(72, 96), fill=seg_fill) if seg_lut else FloorSegConfig()
         self.seg = FakeFloorSeg(road, cfg=seg_cfg, seed=seed + 11) if free else None    # 独立随机流:不改 bev_v1 的局
         self.seg_period, self.seg_lag, self.next_seg = seg_period, seg_lag, 0.0
         self.seg_queue = []                                               # (到达时刻, 拍摄位姿, 点)

@@ -140,6 +140,7 @@ class FloorSegConfig:
     # 原来按 5 cm 密网铺满 3 m,实车正前方 2~2.5 / 2.5~3 m 的地面格填充率 0.48 / 0.16,仿真 1.0 / 1.0。
     # None = 老的密网;(rows, cols) = 分割输出尺寸(M2F-T 288x384 -> 72x96)
     lut: tuple | None = None
+    fill: bool = False          # lut 模式下补行间的缝(和车上 ground_seg_node --fill 同一个 GroundLut.fill_rows)
     sure: float = 0.3           # lut 模式下每帧姿态被雷达确认(取 3 m,否则 2 m)的概率;0.3 时各距离段填充率对上实车
 
 
@@ -169,12 +170,11 @@ class FakeFloorSeg:
         g = np.stack([gx.ravel(), gy.ravel()], axis=1)
         keep = (np.hypot(g[:, 0], g[:, 1]) <= cfg.range) & (np.abs(np.arctan2(g[:, 1], g[:, 0])) <= params.camera_hfov / 2)
         self.grid_cam = g[keep]
-        if cfg.lut is not None:                 # 车上的像素中心投影点,按 5 cm 去重(同 GroundLut.points)
+        if cfg.lut is not None:                 # 车上的像素中心投影点
             from common.ground_proj import GroundLut
-            lut = GroundLut(*cfg.lut, params, cfg.range)
-            xy = lut.xy[lut.valid]
-            _, first = np.unique(np.floor(xy / 0.05).astype(np.int64), axis=0, return_index=True)
-            self.grid_cam = xy[np.sort(first)] - (params.camera_x, 0.0)
+            self.lut = GroundLut(*cfg.lut, params, cfg.range)
+            self.lut_idx = np.flatnonzero(self.lut.valid)
+            self.grid_cam = self.lut.xy[self.lut_idx] - (params.camera_x, 0.0)
         self.grid_body = self.grid_cam + (params.camera_x, 0.0)
         self.grid_r = np.hypot(self.grid_cam[:, 0], self.grid_cam[:, 1])
         self.grid_a = np.arctan2(self.grid_cam[:, 1], self.grid_cam[:, 0])
@@ -217,6 +217,11 @@ class FakeFloorSeg:
             free &= ~self._shadow(x + c * self.p.camera_x, y + s * self.p.camera_x, yaw)
         if len(getattr(road, 'obstacles', ())):         # 旧测试集 pickle 里的 Road 没有这个字段
             free &= ~self._obstacle_shadow(x + c * self.p.camera_x, y + s * self.p.camera_x, yaw)
+        if cfg.lut is not None and cfg.fill:   # 上下相邻都是地面的像素之间补点(被挡 / 边界外的格是 False,自然不补)
+            full = np.zeros(self.lut.valid.size, bool)
+            full[self.lut_idx] = free
+            pts = np.vstack([b[free], self.lut.fill_rows(full.reshape(self.lut.shape))])
+            return pts[np.hypot(pts[:, 0] - self.p.camera_x, pts[:, 1]) <= reach]
         if reach < cfg.range:
             free &= self.grid_r <= reach
         return b[free]

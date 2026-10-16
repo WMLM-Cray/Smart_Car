@@ -97,6 +97,8 @@ def main(argv=None):
     ap.add_argument('--size', type=int, nargs=2, default=None, metavar=('H', 'W'),
                     help='模型输入尺寸;默认从文件名 *_HxW.om 读')
     ap.add_argument('--rate', type=float, default=10.0, help='最高帧率 Hz(训练里地面分割 10 Hz)')
+    ap.add_argument('--fill', action='store_true',
+                    help='补远处像素行之间的缝(远处一行投到地面 ~0.5 m,不补是一道道条纹);v4 第 4 段起的模型按补过的训')
     a = ap.parse_args(argv)
     size = tuple(a.size) if a.size else tuple(int(v) for v in a.model.rsplit('_', 1)[1].split('.')[0].split('x'))
 
@@ -115,7 +117,7 @@ def main(argv=None):
     dbg = node.create_publisher(CompressedImage, DEBUG_TOPIC, 1)
     log = node.get_logger()
     p = CarParams()
-    fixer = GroundFixer(size[0] // 4, size[1] // 4, p)
+    fixer = GroundFixer(size[0] // 4, size[1] // 4, p, fill=a.fill)
     scans = collections.deque(maxlen=12)             # 最近 ~1 s(12 Hz):后处理时这帧已拍下 ~0.35 s,(时刻 ns, (ranges, angle_min, angle_increment))
 
     def on_scan(m):
