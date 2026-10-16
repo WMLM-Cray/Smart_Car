@@ -76,7 +76,7 @@ def _init(path):
 
 
 def _run(args):
-    i, model, seg_period, seg_lag = args
+    i, model, seg_period, seg_lag, yolo = args
     ep = _EPS[i]
     with np.load(model) as z:
         schema = str(z['schema'])
@@ -85,7 +85,7 @@ def _run(args):
         from training.bev_env import BevEnv
         pol = BevPolicy(model)
         b = BevEnv(ep['road'], ep['pl'], ep['seed'], ep['start'], noise=True, free=pol.free,
-                   seg_period=seg_period, seg_lag=seg_lag)
+                   seg_period=seg_period, seg_lag=seg_lag, yolo=yolo)
         why = None
         while why is None:
             why = b.step(pol(*b.observation()))
@@ -108,13 +108,14 @@ def run(a):
     fp = fingerprint(eps)
     levels = [e['level'] for e in eps]
     with ProcessPoolExecutor(a.workers, initializer=_init, initargs=(a.eps,)) as ex:
-        rows = list(ex.map(_run, [(i, a.model, a.seg_period, a.seg_lag) for i in range(len(eps))], chunksize=2))
+        rows = list(ex.map(_run, [(i, a.model, a.seg_period, a.seg_lag, not a.no_yolo) for i in range(len(eps))],
+                           chunksize=2))
     for L in dict.fromkeys(levels):
         r = [x for x, l in zip(rows, levels) if l == L]
         print(L, 'n=%d ok=%.3f' % (len(r), np.mean([x['reason'] == 'goal' for x in r])))
     print('all %.4f' % np.mean([x['reason'] == 'goal' for x in rows]))
     with open(a.out, 'w') as f:
-        json.dump(dict(model=a.model, fingerprint=fp, seg_period=a.seg_period, seg_lag=a.seg_lag,
+        json.dump(dict(model=a.model, fingerprint=fp, seg_period=a.seg_period, seg_lag=a.seg_lag, yolo=not a.no_yolo,
                        levels=levels, rows=rows), f)
 
 
@@ -153,6 +154,7 @@ def main():
     r.add_argument('--workers', type=int, default=8)
     r.add_argument('--seg-period', type=float, default=0.1, help='bev_v2 假地面分割周期 s(实车 M2F-T 288 ~0.33)')
     r.add_argument('--seg-lag', type=float, default=0.0, help='假地面分割拍摄到登记的延迟 s(实车 ~0.35)')
+    r.add_argument('--no-yolo', action='store_true', help='锥桶层恒空(车上没跑 YOLO 时的部署条件)')
     c = sub.add_parser('compare')
     c.add_argument('a')
     c.add_argument('b')

@@ -38,7 +38,8 @@ class BevEnv:
     """包一层 RoadEnv:每拍维护 BEV,observation() 给 (图, 标量)。"""
 
     def __init__(self, road, pl, seed, start=(0, 0.0, 0.0), noise=True, robust=False,
-                 yolo_period=YOLO_PERIOD, free=False, seg_period=SEG_PERIOD, seg_lag=0.0, aug=(0.0, 0.0)):
+                 yolo_period=YOLO_PERIOD, free=False, seg_period=SEG_PERIOD, seg_lag=0.0, aug=(0.0, 0.0),
+                 yolo=True):
         self.env = RoadEnv(road, pl, seed, start, noise=noise, robust=robust)
         # 裁图位姿抖动 (平移 m, 转角 rad),只在训练采集时开:BEV 是 5 cm 格,墙跨一格网络输出就跳(v3.5m5 横移 0.5 cm
         # 转角跳 10°,2026-10-15)。每拍按随机亚格偏移裁图,同一几何见过各种量化相位,学成对格子位置不敏感。车上不抖
@@ -47,6 +48,9 @@ class BevEnv:
         self.bev = Bev(lidar_yaw=pl.lidar_yaw)
         self.cam = FakeYolo(road, seed=seed + 7)
         self.yolo_period, self.next_yolo = yolo_period, 0.0
+        # yolo=False:不登记假 YOLO(锥桶/胶带/区域层恒空),和车上一样(车上没跑 YOLO,2026-10-16)。
+        # 路上的锥桶照样在,雷达照样扫得到、撞了照样算撞
+        self.yolo = yolo
         self.free = free
         self.seg = FakeFloorSeg(road, seed=seed + 11) if free else None    # 独立随机流:不改 bev_v1 的局
         self.seg_period, self.seg_lag, self.next_seg = seg_period, seg_lag, 0.0
@@ -73,7 +77,7 @@ class BevEnv:
         return (c.x, c.y, c.yaw)
 
     def _camera(self):
-        if self.env.t >= self.next_yolo:
+        if self.yolo and self.env.t >= self.next_yolo:
             kinds, xy = self.cam.detect(self.pose)
             self.bev.update_camera(kinds, xy, self.pose, self.env.t)
             self.next_yolo += self.yolo_period
