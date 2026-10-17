@@ -1,6 +1,6 @@
 """L 型拐角测试:按实车 1014 seg_06 的几何(m5 直冲墙角、截停)在 fastsim 里搭一个左拐的 L,看哪些条件下模型不拐。
 
-    python -m evaluation.l_test C:/tmp/m5/v3_5m5.npz C:/tmp/m5/v4g_009.npz [teacher] [--seeds 2]
+    python -m evaluation.l_test models/a.npz models/b.npz [teacher] [--seeds 2]
 
 实车那段(车的起点坐标系,x 前 y 左):右边是墙(y ≈ -1.9),正前方 7 m 是墙,出口在左边(一大片屋子,家具零散);
 车贴右墙往前开了 6.3 m,停在离前墙 0.7 m 处。这里:进口直道 + 尖 90° 左弯(外侧方角)+ 出口直道,

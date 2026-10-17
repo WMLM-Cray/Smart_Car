@@ -1,7 +1,7 @@
 """实景地图闭环复现:拿车上 Logbook 一段的建图当场地,从实车那段的起点、按车上的条件(截停、地面分割投影 + 补缝、
 无 YOLO、速度上限 0.7)让几个模型各开几局,和实车那次比开了多远、怎么结束的。
 
-    python -m evaluation.real_map_replay runs/drv_1015b/logbook_1015_181810/seg_03 C:/tmp/m5/v3_5m5.npz C:/tmp/m5/v4g_009.npz
+    python -m evaluation.real_map_replay runs/drv_1015b/logbook_1015_181810/seg_03 models/a.npz models/b.npz
 
 每局换一个种子(车辆参数按 Plant.sample 抽,速度上限固定 0.7、起步等待固定 0.5 s);结束原因:
 guard(车上截停,实车到这一步基本卡死)、collision、unknown(开出建图时见过的范围,后面没有图,算"没出事")、timeout。

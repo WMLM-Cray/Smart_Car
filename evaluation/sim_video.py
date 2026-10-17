@@ -1,7 +1,7 @@
 """fastsim 一局做成视频:左边是车上同款全局图(累积的雷达障碍 + 地面分割,simulation/fastsim/map_view),
 右边是模型那一拍的 BEV 输入。现在支持 evaluation/l_test 的 L 型拐角。
 
-    python -m evaluation.sim_video C:/tmp/m5/v3_5m5.npz --out runs/l_video/m5.mp4 --width 6 --open-left --yaw 0 --seed 7000
+    python -m evaluation.sim_video models/a.npz --out runs/l_video/a.mp4 --width 6 --open-left --yaw 0 --seed 7000
 
 全局图和车上一样按 Logbook 累积(雷达射线穿过的格减分、地面分割按拍摄位姿登记),所以看到的就是车"已经看到过"的东西。
 视频 20 帧/s,每帧 = 仿真 0.1 s(2 倍速)。
