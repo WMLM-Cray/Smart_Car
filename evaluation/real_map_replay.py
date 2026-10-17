@@ -5,7 +5,7 @@
 
 每局换一个种子(车辆参数按 Plant.sample 抽,速度上限固定 0.7、起步等待固定 0.5 s);结束原因:
 guard(车上截停,实车到这一步基本卡死)、collision、unknown(开出建图时见过的范围,后面没有图,算"没出事")、timeout。
---png 画图:点阵底图 + 实车路径(白)+ 各模型每局路径。
+--png 画图:车上同款点阵图 + 实车路径(蓝)+ 各模型每局路径(红 / 橙 / 紫)。
 """
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ CAP = 0.7               # 车上网页设的速度上限
 SEG_PERIOD, SEG_LAG = 0.33, 0.35     # 车上 M2F-T 288 地面分割的周期 / 延迟(training/bev_env 文档)
 WARM = 2.0              # 出发前原地攒 BEV 的时间 s:车上放行前 BEV 早就在攒了,第一拍不是只有一帧雷达、没有地面层
                         # (不攒的话 1014 seg_04 三个模型第一拍都往右前一个近处障碍打方向、当场截停,实车那拍只打了 -0.05)
-COLORS = [(80, 80, 255), (80, 220, 80), (255, 160, 60), (220, 80, 220), (60, 220, 220)]
+COLORS = [(40, 40, 220), (0, 140, 255), (180, 60, 160), (60, 160, 60), (120, 120, 0)]     # 模型路径(BGR):红、橙、紫、绿、青;实车是蓝
 
 
 def real_path(seg, ref=None, T=None):
@@ -112,32 +112,24 @@ def main(argv=None):
         print('图 ->', a.png)
 
 
-def draw(cv2, world, real, paths, px=4):
-    """点阵底图(障碍白点、见过的地面暗绿点)+ 实车路径白线 + 各模型路径(颜色按模型)。"""
-    h, w = world.occ.shape
-    img = np.zeros((h * px, w * px, 3), np.uint8)
-    for grid, col in ((world.free, (40, 90, 40)), (world.occ, (230, 230, 230))):
-        i, j = np.nonzero(grid)
-        for d in (1, 2):
-            for e in (1, 2):
-                img[(h - 1 - i) * px + d, j * px + e] = col       # 图上往上 = 里程计 +x
-    def pix(xy):
-        i = np.round(xy[:, 0] / world.cell).astype(int) - world.i0
-        j = np.round(xy[:, 1] / world.cell).astype(int) - world.j0
-        return np.stack([j * px + px // 2, (h - 1 - i) * px + px // 2], 1).astype(np.int32)
+def draw(cv2, world, real, paths, margin=3.0):
+    """车上同款样式(simulation/fastsim/map_view):白底、黑点 = 障碍、浅绿点 = 地面、1 m 网格;
+    实车路径 = 蓝粗线(起点黄圈),各模型每局路径 = 细线(颜色按模型)。裁到所有路径周围 margin 米。"""
+    from simulation.fastsim.map_view import MapView
+    allp = np.vstack([real] + [p for ps in paths.values() for p in ps if len(p)])
+    lo, hi = allp.min(0) - margin, allp.max(0) + margin
+    view = MapView((lo[0], lo[1], hi[0], hi[1]), world.cell)
+    img = view.base(cv2, np.argwhere(world.occ) + (world.i0, world.j0), np.argwhere(world.free) + (world.i0, world.j0))
     for k, (m, ps) in enumerate(paths.items()):
         for p in ps:
-            if len(p) > 1:
-                cv2.polylines(img, [pix(p)], False, COLORS[k % len(COLORS)], 1, cv2.LINE_AA)
-    cv2.polylines(img, [pix(real)], False, (255, 255, 255), 2, cv2.LINE_AA)
-    cv2.circle(img, tuple(int(v) for v in pix(real[:1])[0]), 6, (0, 255, 255), 2)
-    allp = pix(np.vstack([real] + [p for ps in paths.values() for p in ps if len(p)]))   # 裁到路径周围 3 m(拼图时整层楼太大)
-    m = int(3.0 / world.cell * px)
-    (u0, v0), (u1, v1) = allp.min(0) - m, allp.max(0) + m
-    crop = img[max(0, v0):v1, max(0, u0):u1].copy()
+            view.path(cv2, img, p, COLORS[k % len(COLORS)], 1)
+    view.path(cv2, img, real, width=3)
+    cv2.circle(img, tuple(int(v) for v in view.uv(real[:1])[0]), 8, (0, 200, 255), 2)
+    cv2.putText(img, 'real', (8, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (200, 90, 20), 1, cv2.LINE_AA)
     for k, name in enumerate(paths):
-        cv2.putText(crop, os.path.basename(name), (8, 20 + 18 * k), cv2.FONT_HERSHEY_SIMPLEX, 0.5, COLORS[k % len(COLORS)], 1)
-    return crop
+        cv2.putText(img, os.path.basename(name), (8, 40 + 20 * k), cv2.FONT_HERSHEY_SIMPLEX, 0.55,
+                    COLORS[k % len(COLORS)], 1, cv2.LINE_AA)
+    return img
 
 
 if __name__ == '__main__':
