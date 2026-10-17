@@ -67,12 +67,21 @@ class Explore:
         return r, why
 
 
-def make(seed: int, enc, cfg=None):
-    """按种子出一局:随机楼层 + 出发点 + 车辆参数。"""
-    from simulation.fastsim.floorplan import PlanConfig, generate, sample_start
+def levels():
+    """课程:从一间空的长方形房间开始,再加家具,最后整栋楼。"""
+    from simulation.fastsim.floorplan import PlanConfig
+    none = dict(chair_sets=(0, 1), wall_chairs=(0, 1), boxes=(0, 1), pillars=(0, 1))
+    return {'room': PlanConfig(kind='room', **none),
+            'room_f': PlanConfig(kind='room', chair_sets=(1, 3), wall_chairs=(0, 4), boxes=(0, 4)),
+            'building': PlanConfig()}
+
+
+def make(seed: int, enc, level: str = 'building'):
+    """按种子出一局:随机场地(levels())+ 出发点 + 车辆参数。"""
+    from simulation.fastsim.floorplan import generate, sample_start
     from simulation.fastsim.road_env import Plant
     rng = np.random.default_rng(seed)
-    world, info = generate(rng, cfg or PlanConfig())
+    world, info = generate(rng, levels()[level])
     start = sample_start(rng, world, info)
     pl = replace(Plant.sample(rng, enc), cap=CAP)
     return Explore(world, pl, seed, start), info

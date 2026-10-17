@@ -23,6 +23,8 @@ CELL = 0.05
 
 @dataclass(frozen=True)
 class PlanConfig:
+    kind: str = 'building'                          # 'building' = 走廊 + 房间;'room' = 一间长方形房间(课程第一步)
+    room_box: tuple = ((5.0, 12.0), (4.0, 10.0))    # kind='room' 时房间的长、宽 m
     size: tuple = ((20.0, 36.0), (15.0, 28.0))     # 楼的外框 m(x, y)
     corridors: tuple = (2, 5)                       # 走廊条数
     corridor_w: tuple = (1.2, 3.0)                  # 走廊宽 m
@@ -222,10 +224,16 @@ def generate(rng: np.random.Generator, cfg: PlanConfig = PlanConfig(), tries: in
     from scipy.ndimage import binary_dilation
     from simulation.fastsim.real_map import RealMap
     for _ in range(tries):
-        X, Y = rng.uniform(*cfg.size[0]), rng.uniform(*cfg.size[1])
-        floor = np.zeros((int(X / CELL) + 1, int(Y / CELL) + 1), bool)
-        segs = _corridors(rng, cfg, floor, X, Y)
-        rooms = _rooms(rng, cfg, floor, segs, X, Y)
+        if cfg.kind == 'room':
+            X, Y = rng.uniform(*cfg.room_box[0]) + 1.0, rng.uniform(*cfg.room_box[1]) + 1.0
+            floor = np.zeros((int(X / CELL) + 1, int(Y / CELL) + 1), bool)
+            _rect(floor, 0.5, 0.5, X - 0.5, Y - 0.5)
+            segs, rooms = [], [(0.5, 0.5, X - 0.5, Y - 0.5, False)]
+        else:
+            X, Y = rng.uniform(*cfg.size[0]), rng.uniform(*cfg.size[1])
+            floor = np.zeros((int(X / CELL) + 1, int(Y / CELL) + 1), bool)
+            segs = _corridors(rng, cfg, floor, X, Y)
+            rooms = _rooms(rng, cfg, floor, segs, X, Y)
         base = _reach(floor, cfg.car_half).sum()
         for _k in range(4):                                 # 家具把路堵死了就重摆
             legs, solid = _furniture(rng, cfg, floor, rooms)
@@ -246,18 +254,40 @@ def generate(rng: np.random.Generator, cfg: PlanConfig = PlanConfig(), tries: in
     raise RuntimeError(f'{tries} 次都没生成出能开的楼层')
 
 
+def circle_clear() -> float:
+    """满舵绕圈时圆心到障碍至少要多远 m:车身扫过的外半径(前外角)+ 截停净空 + 一格余量。
+    出发点要有一侧能这样一直绕圈 —— 保证每一局都"有解",不会一出发就注定被截停
+    (第一版只要求车头前 1.5 m 空,why_guard 里好几局出发时离墙太近、怎么打都转不开,2026-10-17)。"""
+    from common.params import CarParams
+    from vehicle.road_car_node import GUARD_STOP
+    p = CarParams()
+    R = p.wheelbase / math.tan(p.max_steer)
+    return math.hypot(R + p.width / 2, p.length - p.rear_overhang) + GUARD_STOP + CELL
+
+
 def sample_start(rng, world, info, clear=0.6, ahead=1.5):
-    """随机出发位姿 (x, y, yaw):离障碍 >= clear,车头前 ahead 米内没有障碍。"""
+    """随机出发位姿 (x, y, yaw):离障碍 >= clear,车头前 ahead 米内没有障碍,
+    并且左满舵或右满舵的圆(circle_clear)里没有障碍。"""
     from scipy.ndimage import distance_transform_edt
+
+    from common.params import CarParams
+    p = CarParams()
+    R, need = p.wheelbase / math.tan(p.max_steer), circle_clear()
+    edt = world._edt()
     pad = info['pad']
     ok = info['reach'] & (distance_transform_edt(~(info['legs'] | info['solid']) & info['floor']) * CELL >= clear)
     cand = np.argwhere(ok)
-    for _ in range(200):
+    for _ in range(2000):
         i, j = cand[rng.integers(len(cand))]
         x, y = (i + pad) * CELL, (j + pad) * CELL
         yaw = rng.uniform(-math.pi, math.pi)
-        if world.raycast(x, y, np.array([yaw - 0.3, yaw, yaw + 0.3]), ahead + 0.5).min() > ahead:
-            return x, y, yaw
+        if world.raycast(x, y, np.array([yaw - 0.3, yaw, yaw + 0.3]), ahead + 0.5).min() <= ahead:
+            continue
+        for side in (1, -1):
+            cx, cy = x - side * R * math.sin(yaw), y + side * R * math.cos(yaw)
+            ci, cj = int(round(cx / CELL)) - world.i0, int(round(cy / CELL)) - world.j0
+            if 0 <= ci < edt.shape[0] and 0 <= cj < edt.shape[1] and edt[ci, cj] >= need:
+                return x, y, yaw
     raise RuntimeError('找不到出发点')
 
 

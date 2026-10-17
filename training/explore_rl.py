@@ -44,9 +44,9 @@ def mean_raw(params: dict, img, sc) -> np.ndarray:
 
 def rollout(args):
     """一局随机策略。返回打包的图、标量、动作、logp、奖励、结束原因、新标面积、开过的距离。"""
-    seed, noise_seed, params, log_std, enc, duration = args
+    seed, noise_seed, params, log_std, enc, duration, level = args
     from training.explore_env import make
-    env, _ = make(seed, enc)
+    env, _ = make(seed, enc, level)
     env.b.env.budget_s = env.b.env.t + duration
     rng = np.random.default_rng(noise_seed)
     std = np.exp(log_std)
@@ -66,9 +66,9 @@ def rollout(args):
 
 def evaluate(args):
     """确定性策略跑一局:返回 (结束原因, 新标面积, 距离)。"""
-    seed, params, enc, duration = args
+    seed, params, enc, duration, level = args
     from training.explore_env import make
-    env, _ = make(seed, enc)
+    env, _ = make(seed, enc, level)
     env.b.env.budget_s = env.b.env.t + duration
     why = None
     while why is None:
@@ -125,21 +125,27 @@ def train(a):
                 out_.append(critic(unpack(P, j), S[j])[:, 0].numpy())
         return np.concatenate(out_)
 
+    mix = [(n, float(p_)) for n, p_ in (x.split(':') for x in a.level.split(','))]
+    names, probs = [n for n, _ in mix], np.array([p_ for _, p_ in mix]) / sum(p_ for _, p_ in mix)
+
     def run_eval(ex, it):
+        """每个场地各 eval_count 局(同一批种子)。"""
         w = params_of(actor)
-        ev = list(ex.map(evaluate, [(EVAL_SEED0 + i, w, enc, a.duration) for i in range(a.eval_count)]))
-        crash = np.mean([e[0] in ('guard', 'collision') for e in ev])
-        area = np.mean([e[1] for e in ev])
         np.savez(out / f'candidate_{it:03d}.npz', schema=np.array(schema), **weights_of(actor))
-        return f'eval: 新标面积 {area:.1f} m² 截停/撞 {crash:.0%} 距离 {np.mean([e[2] for e in ev]):.1f} m'
+        msg = []
+        for nm in names:
+            ev = list(ex.map(evaluate, [(EVAL_SEED0 + i, w, enc, a.duration, nm) for i in range(a.eval_count)]))
+            msg.append(f'{nm}: 面积 {np.mean([e[1] for e in ev]):.1f} m² 截停/撞 '
+                       f'{np.mean([e[0] in ("guard", "collision") for e in ev]):.0%}')
+        return 'eval ' + ' / '.join(msg)
 
     with ProcessPoolExecutor(a.workers) as ex:
-        say(f'初始 {a.init} ' + run_eval(ex, -1).replace('candidate', ''))
+        say(f'初始 {a.init} ' + run_eval(ex, -1))
         for it in range(a.iters):
             t0 = time.time()
             w = params_of(actor)
             jobs = [(TRAIN_SEED0 + int(rng.integers(10**7)), int(rng.integers(2**31)), w,
-                     log_std.detach().numpy().copy(), enc, a.duration) for _ in range(a.episodes)]
+                     log_std.detach().numpy().copy(), enc, a.duration, names[rng.choice(len(names), p=probs)]) for _ in range(a.episodes)]
             eps = list(ex.map(rollout, jobs))
             t_roll = time.time() - t0
             P = np.concatenate([e[0] for e in eps])
@@ -198,6 +204,8 @@ def main(argv=None):
     ap.add_argument('--iters', type=int, default=200)
     ap.add_argument('--episodes', type=int, default=64, help='每轮局数')
     ap.add_argument('--duration', type=float, default=60.0, help='每局最长 s')
+    ap.add_argument('--level', default='room:0.3,room_f:0.7',
+                    help='场地混合 名字:比例(training/explore_env.levels:room 空房间、room_f 有家具的房间、building 整栋楼)')
     ap.add_argument('--workers', type=int, default=8)
     ap.add_argument('--torch-threads', type=int, default=8)
     ap.add_argument('--lr', type=float, default=1e-4)
