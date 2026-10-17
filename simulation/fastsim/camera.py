@@ -134,6 +134,7 @@ class FloorSegConfig:
     step: float = 0.05          # 采样间距 m(= BEV 栅格)
     edge_sigma: float = 0.05    # 每帧边界整体偏移(外扩为正)m
     jitter: float = 0.03        # 逐点边界抖动 m
+    edge_bias: float = 0.0      # 边界固定外扩 m:正 = 墙脚被当成地面(点落到墙后),负 = 离墙还有一截就不认了
     miss: float = 0.05          # 整帧失败(什么都不给)的概率
     # 按车上的投影方式出点(2026-10-16):车上是分割输出每个像素中心经 GroundLut 投到地面的一个点,远处行距
     # ~ d²/h·0.85°(3 m 处 ~0.5 m),BEV 里是一道道条纹;姿态没被雷达确认时只要 2 m(common/ground_fix)。
@@ -204,7 +205,7 @@ class FakeFloorSeg:
         _, i = self.centre_tree.query(w)
         n = road.normal[i]
         d = np.einsum('ij,ij->i', w - road.centre[i], n)               # 左正
-        m = rng.normal(0, cfg.edge_sigma) + rng.normal(0, cfg.jitter, len(d))
+        m = cfg.edge_bias + rng.normal(0, cfg.edge_sigma) + rng.normal(0, cfg.jitter, len(d))
         hl, hr = road.half_l[i] + m, road.half_r[i] + m
         ml, mr = np.asarray(road.mat_left)[i], np.asarray(road.mat_right)[i]
         stop = (WALL, EDGE)                                            # 墙挡住地面;EDGE 外是别的材质
