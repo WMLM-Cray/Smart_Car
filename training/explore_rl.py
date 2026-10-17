@@ -200,7 +200,7 @@ def main(argv=None):
     ap.add_argument('--duration', type=float, default=60.0, help='每局最长 s')
     ap.add_argument('--workers', type=int, default=8)
     ap.add_argument('--torch-threads', type=int, default=8)
-    ap.add_argument('--lr', type=float, default=5e-5)
+    ap.add_argument('--lr', type=float, default=1e-4)
     ap.add_argument('--lr-critic', type=float, default=3e-4)
     ap.add_argument('--std0', type=float, default=0.15)
     ap.add_argument('--gamma', type=float, default=0.99)

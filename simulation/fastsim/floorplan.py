@@ -26,6 +26,11 @@ class PlanConfig:
     size: tuple = ((20.0, 36.0), (15.0, 28.0))     # 楼的外框 m(x, y)
     corridors: tuple = (2, 5)                       # 走廊条数
     corridor_w: tuple = (1.2, 3.0)                  # 走廊宽 m
+    # 走廊尽头:车不能倒车,掉头要 ~2.6 m 宽(后轴转弯半径 0.88 m + 车身 + 截停余量),窄走廊的死路进去就出不来。
+    # 第一版每条走廊两头都顶到外墙,v4g 91% 的局在死路 / 墙角被截停,结局全由出发点决定,RL 学不到东西(2026-10-17)。
+    # 现在尽头大多扩成能掉头的门厅,只有 dead_end 的概率保持原样
+    dead_end: float = 0.2                           # 走廊尽头保持死路的概率
+    lobby: tuple = (3.0, 6.0)                       # 门厅边长 m(沿走廊 / 横向各抽一次)
     rooms: tuple = (3, 9)                           # 房间个数(尝试次数 × 3,放不下的跳过)
     room_size: tuple = (3.0, 8.0)                   # 房间边长 m
     hall_chance: float = 0.25                       # 房间做成大厅(边长 8~12 m、开两个门)的概率
@@ -70,7 +75,24 @@ def _corridors(rng, cfg, floor, X, Y):
             _rect(floor, a, c - w / 2, b, c + w / 2)
         else:
             _rect(floor, c - w / 2, a, c + w / 2, b)
+    for k, (d, c, a, b, w) in enumerate(segs):           # 走廊尽头:大多扩成门厅
+        for end, out in ((a, -1), (b, 1)):
+            if k > 0 and _attached(segs[:k], d, c, end):
+                continue                                    # 这头接在别的走廊上,不是尽头
+            if rng.random() < cfg.dead_end:
+                continue
+            L, D = rng.uniform(*cfg.lobby), rng.uniform(*cfg.lobby)
+            s0, s1 = sorted((end, end - out * L))
+            if d == 0:
+                _rect(floor, max(0.5, s0), max(0.5, c - D / 2), min(X - 0.5, s1), min(Y - 0.5, c + D / 2))
+            else:
+                _rect(floor, max(0.5, c - D / 2), max(0.5, s0), min(X - 0.5, c + D / 2), min(Y - 0.5, s1))
     return segs
+
+
+def _attached(prev, d, c, end):
+    """沿方向 d、横向位置 c 的走廊在 end 处是不是落在之前某条(垂直的)走廊上。"""
+    return any(pd != d and abs(pc - end) < pw / 2 + 1e-6 and pa - 1e-6 <= c <= pb + 1e-6 for pd, pc, pa, pb, pw in prev)
 
 
 def _rooms(rng, cfg, floor, segs, X, Y):
