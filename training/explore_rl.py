@@ -205,7 +205,7 @@ def main(argv=None):
     ap.add_argument('--episodes', type=int, default=64, help='每轮局数')
     ap.add_argument('--duration', type=float, default=60.0, help='每局最长 s')
     ap.add_argument('--level', default='room:0.3,room_f:0.7',
-                    help='场地混合 名字:比例(training/explore_env.levels:room 空房间、room_f 有家具的房间、building 整栋楼)')
+                    help='场地混合 名字:比例(training/explore_env.levels:room 空房间、room_n 墙面有起伏、room_f 再加少量家具、building 整栋楼)')
     ap.add_argument('--workers', type=int, default=8)
     ap.add_argument('--torch-threads', type=int, default=8)
     ap.add_argument('--lr', type=float, default=1e-4)

@@ -25,6 +25,12 @@ CELL = 0.05
 class PlanConfig:
     kind: str = 'building'                          # 'building' = 走廊 + 房间;'room' = 一间长方形房间(课程第一步)
     room_box: tuple = ((5.0, 12.0), (4.0, 10.0))    # kind='room' 时房间的长、宽 m
+    # kind='room' 的墙面起伏:浅槽(墙往外凹)、凸起(墙往里凸,壁柱 / 柜子嵌墙)、切角(L 形房间)
+    features: tuple = (0, 1)                        # 起伏个数
+    feature_w: tuple = (0.4, 2.0)                   # 沿墙宽 m
+    recess_d: tuple = (0.2, 0.8)                    # 浅槽深 m
+    bump_d: tuple = (0.1, 0.6)                      # 凸起深 m
+    corner_cut: float = 0.0                         # 切掉一个角(1~2.5 m 见方)的概率
     size: tuple = ((20.0, 36.0), (15.0, 28.0))     # 楼的外框 m(x, y)
     corridors: tuple = (2, 5)                       # 走廊条数
     corridor_w: tuple = (1.2, 3.0)                  # 走廊宽 m
@@ -38,7 +44,8 @@ class PlanConfig:
     hall_chance: float = 0.25                       # 房间做成大厅(边长 8~12 m、开两个门)的概率
     door_w: tuple = (0.8, 1.6)                      # 门宽 m
     wall: float = 0.10                              # 墙厚 m
-    chair_sets: tuple = (2, 8)                      # 桌椅组数(一张桌子 + 2~6 把椅子)
+    chair_sets: tuple = (2, 8)                      # 桌椅组数(一张桌子 + chairs_per_set 把椅子)
+    chairs_per_set: tuple = (2, 7)                  # 每张桌子配几把椅子(上界不含)
     wall_chairs: tuple = (3, 12)                    # 靠墙单放的椅子
     boxes: tuple = (3, 12)                          # 贴墙的箱子 / 柜子
     pillars: tuple = (0, 4)                         # 大厅柱子
@@ -136,6 +143,34 @@ def _rooms(rng, cfg, floor, segs, X, Y):
     return rooms
 
 
+def _wall_features(rng, cfg, floor, x0, y0, x1, y1):
+    """长方形房间 [x0, x1] × [y0, y1] 的墙面起伏(就地改 floor):浅槽 = 墙外多挖一块地面,
+    凸起 = 墙边扣掉一块地面(扣掉的地方外圈自动成墙),切角 = 扣掉一个角。"""
+    if rng.random() < cfg.corner_cut:
+        a, b = rng.uniform(1.0, 2.5), rng.uniform(1.0, 2.5)
+        cx, cy = (x0, y0) if rng.random() < 0.5 else (x1 - a, y0)
+        if rng.random() < 0.5:
+            cy = y1 - b
+        _rect(floor, cx, cy, cx + a, cy + b, False)
+    for _ in range(int(rng.integers(*cfg.features))):
+        side = int(rng.integers(4))                     # 0 / 1:x = x0 / x1 那面墙;2 / 3:y = y0 / y1
+        w = rng.uniform(*cfg.feature_w)
+        recess = rng.random() < 0.5
+        d = rng.uniform(*(cfg.recess_d if recess else cfg.bump_d))
+        lo, hi = (y0, y1) if side < 2 else (x0, x1)
+        if hi - lo < w + 0.4:
+            continue
+        t = rng.uniform(lo + 0.2, hi - w - 0.2)         # 不贴墙角
+        e = (x0, x1, y0, y1)[side]
+        out = -1 if side in (0, 2) else 1               # 墙外的方向
+        a, b = (e, e + out * d) if recess else (e - out * d, e)
+        a, b = min(a, b), max(a, b)
+        if side < 2:
+            _rect(floor, a, t, b, t + w, recess)
+        else:
+            _rect(floor, t, a, t + w, b, recess)
+
+
 def _furniture(rng, cfg, floor, rooms):
     """返回 (legs 布尔格:细腿 —— 雷达能扫到、相机看得到下面的地面, solid 布尔格:实心家具)。"""
     from scipy.ndimage import distance_transform_edt
@@ -179,7 +214,7 @@ def _furniture(rng, cfg, floor, rooms):
         c, s = math.cos(yaw), math.sin(yaw)
         for a, b in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
             leg(x + (a * c * tl - b * s * tw) / 2 * 0.9, y + (a * s * tl + b * c * tw) / 2 * 0.9)
-        for _k in range(int(rng.integers(2, 7))):           # 椅子围着桌子,随手拉开一点、转一点
+        for _k in range(int(rng.integers(*cfg.chairs_per_set))):     # 椅子围着桌子,随手拉开一点、转一点
             side = rng.choice([-1, 1])
             along = rng.uniform(-tl / 2 + 0.25, tl / 2 - 0.25)
             off = tw / 2 + rng.uniform(0.15, 0.5)
@@ -225,10 +260,13 @@ def generate(rng: np.random.Generator, cfg: PlanConfig = PlanConfig(), tries: in
     from simulation.fastsim.real_map import RealMap
     for _ in range(tries):
         if cfg.kind == 'room':
-            X, Y = rng.uniform(*cfg.room_box[0]) + 1.0, rng.uniform(*cfg.room_box[1]) + 1.0
+            m = 1.5                                         # 四周留出浅槽的地方
+            L, D = rng.uniform(*cfg.room_box[0]), rng.uniform(*cfg.room_box[1])
+            X, Y = L + 2 * m, D + 2 * m
             floor = np.zeros((int(X / CELL) + 1, int(Y / CELL) + 1), bool)
-            _rect(floor, 0.5, 0.5, X - 0.5, Y - 0.5)
-            segs, rooms = [], [(0.5, 0.5, X - 0.5, Y - 0.5, False)]
+            _rect(floor, m, m, m + L, m + D)
+            _wall_features(rng, cfg, floor, m, m, m + L, m + D)
+            segs, rooms = [], [(m, m, m + L, m + D, False)]
         else:
             X, Y = rng.uniform(*cfg.size[0]), rng.uniform(*cfg.size[1])
             floor = np.zeros((int(X / CELL) + 1, int(Y / CELL) + 1), bool)

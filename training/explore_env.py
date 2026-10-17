@@ -68,11 +68,16 @@ class Explore:
 
 
 def levels():
-    """课程:从一间空的长方形房间开始,再加家具,最后整栋楼。"""
+    """课程:空的长方形房间 -> 墙面有浅槽 / 凸起 / 切角的房间 -> 再摆少量家具 -> 整栋楼。
+    room_f 的家具按现实里一间屋的量:最多一张桌子配 1~4 把椅子、0~2 把靠墙椅子、0~2 个箱子
+    (第一版 1~2 组桌椅、每组 2~6 把,用户说现实里找不出这么多椅子,2026-10-18)。"""
     from simulation.fastsim.floorplan import PlanConfig
     none = dict(chair_sets=(0, 1), wall_chairs=(0, 1), boxes=(0, 1), pillars=(0, 1))
+    shape = dict(features=(2, 7), corner_cut=0.3)
     return {'room': PlanConfig(kind='room', **none),
-            'room_f': PlanConfig(kind='room', chair_sets=(1, 3), wall_chairs=(0, 4), boxes=(0, 4)),
+            'room_n': PlanConfig(kind='room', **none, **shape),
+            'room_f': PlanConfig(kind='room', **shape, chair_sets=(0, 2), chairs_per_set=(1, 5),
+                                 wall_chairs=(0, 3), boxes=(0, 3)),
             'building': PlanConfig()}
 
 
