@@ -88,17 +88,42 @@ class RealMap:
 
     def raycast(self, ox: float, oy: float, world_angles: np.ndarray, max_range: float = 10.0,
                 min_range: float = 0.0) -> np.ndarray:
-        """从 (ox, oy) 沿各世界系方向打射线 -> 距离(碰不到 / 出图 = inf)。min_range 内的障碍不算(雷达盲区)。"""
+        """从 (ox, oy) 沿各世界系方向打射线 -> 距离(碰不到 / 出图 = inf)。min_range 内的障碍不算(雷达盲区)。
+        采样点在 s0 + k·半格 上,取第一个落进障碍格的;离障碍远的地方按距离场一次跳过多个采样点
+        (跳过的点离任何障碍格中心都 > 0.71 格,不可能落进障碍格),结果和逐点走一样,快 ~10 倍。"""
         step = self.cell / 2
-        s = np.arange(max(min_range, step), max_range + step, step)
+        edt = self._edt()
         a = np.asarray(world_angles, np.float64)
-        x = ox + np.cos(a)[:, None] * s[None, :]
-        y = oy + np.sin(a)[:, None] * s[None, :]
-        hit, _ = self._lookup(self.occ, x, y)
-        first = hit.argmax(1)
-        r = s[first] - step / 2                              # 落进障碍格的第一个采样点,往回半步
-        r[~hit.any(1)] = np.inf
+        ca, sa = np.cos(a), np.sin(a)
+        s0 = max(min_range, step)
+        n_max = int(np.ceil((max_range + step - s0) / step)) - 1        # 最后一个采样点的编号(同 np.arange)
+        ds = (s0 + step) - s0                                # np.arange 实际用的步长(浮点),采样点逐位一致
+        k = np.zeros(len(a), np.int64)
+        r = np.full(len(a), np.inf)
+        live = np.arange(len(a))
+        H, W = self.occ.shape
+        while len(live):
+            t = s0 + k[live] * ds
+            i = np.round((ox + ca[live] * t) / self.cell).astype(np.int64) - self.i0
+            j = np.round((oy + sa[live] * t) / self.cell).astype(np.int64) - self.j0
+            inside = (i >= 0) & (i < H) & (j >= 0) & (j < W)
+            live, t, i, j = live[inside], t[inside], i[inside], j[inside]   # 出图:矩形图出去就回不来,算没打到
+            d = edt[i, j]
+            hit = d == 0
+            r[live[hit]] = t[hit] - step / 2                 # 落进障碍格的第一个采样点,往回半步
+            k[live] += np.maximum(1, np.floor((d - 1.5 * self.cell) / step)).astype(np.int64)
+            live = live[~hit & (k[live] <= n_max)]
         return r
+
+    def _edt(self):
+        """到最近障碍格中心的距离 m(格中心算);occ 改过就重算(drop_small / clear_swept / 外面直接改都算)。"""
+        key = hash(np.packbits(self.occ).tobytes()) ^ hash(self.occ.shape)
+        if getattr(self, '_edt_key', None) != key:
+            from scipy.ndimage import distance_transform_edt
+            self._edt_cache = distance_transform_edt(~self.occ) * self.cell if self.occ.any() \
+                else np.full(self.occ.shape, np.inf)
+            self._edt_key = key
+        return self._edt_cache
 
     def is_known(self, x, y) -> np.ndarray:
         """这些点在不在建图时见过的范围里(没给 known_ij 就都算见过)。"""

@@ -51,3 +51,17 @@ def test_start_is_clear_and_env_runs(plan):
     for _ in range(10):
         assert b.step(np.array([0.0, -1.0])) is None
     assert b.seg is not None
+
+
+def test_fast_raycast_matches_step_by_step(plan):
+    """RealMap.raycast 按距离场跳步,结果要和逐个半格采样一样。"""
+    rng, world, info = plan
+    step = world.cell / 2
+    for mx, mn in ((10.0, 0.0), (3.0, 0.15)):
+        x, y, _ = sample_start(rng, world, info)
+        a = np.linspace(-math.pi, math.pi, 720, endpoint=False)
+        s = np.arange(max(mn, step), mx + step, step)
+        hit, _ = world._lookup(world.occ, x + np.cos(a)[:, None] * s, y + np.sin(a)[:, None] * s)
+        ref = np.where(hit.any(1), s[hit.argmax(1)] - step / 2, np.inf)
+        got = world.raycast(x, y, a, mx, mn)
+        assert np.all(np.isclose(got, ref, atol=1e-9) | (np.isinf(got) & np.isinf(ref)))
