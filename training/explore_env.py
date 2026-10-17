@@ -81,7 +81,14 @@ def make(seed: int, enc, level: str = 'building'):
     from simulation.fastsim.floorplan import generate, sample_start
     from simulation.fastsim.road_env import Plant
     rng = np.random.default_rng(seed)
-    world, info = generate(rng, levels()[level])
-    start = sample_start(rng, world, info)
+    for _ in range(20):                 # 小房间摆满家具时可能找不到"能绕圈"的出发点,换一张图
+        world, info = generate(rng, levels()[level])
+        try:
+            start = sample_start(rng, world, info)
+            break
+        except RuntimeError:
+            continue
+    else:
+        raise RuntimeError(f'{level} 种子 {seed}:20 张图都找不到出发点')
     pl = replace(Plant.sample(rng, enc), cap=CAP)
     return Explore(world, pl, seed, start), info
