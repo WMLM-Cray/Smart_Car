@@ -37,26 +37,27 @@ def real_path(seg, ref=None, T=None):
     return P
 
 
-def load_world(seg, ref=None, T=None):
+def load_world(seg, ref=None, T=None, lidar_floor=True):
     """段的建图(给了 ref:参考图 + 参考图没覆盖到的地方用这段自己的图,见 seg_align.merged_world),
-    实车车身扫过的障碍格清掉(那时那里没东西:走动的人、出发时站在车边的人)。"""
+    实车车身扫过的障碍格清掉(那时那里没东西:走动的人、出发时站在车边的人)。
+    lidar_floor:雷达确认空的格也算地面(见 RealMap.from_seg;实车没拐的岔口相机没看过,不补的话那边没有地面层)。"""
     from common.params import CarParams
     from simulation.fastsim.real_map import RealMap
     p = CarParams()
     if ref is None:
-        world = RealMap.from_seg(os.path.join(seg, 'seg.npz'))
+        world = RealMap.from_seg(os.path.join(seg, 'seg.npz'), lidar_floor=lidar_floor)
     else:
         from evaluation.seg_align import merged_world
-        world = merged_world(ref, seg, T)
+        world = merged_world(ref, seg, T, lidar_floor)
     world.clear_swept(real_path(seg, ref, T)[:, 1:4], p.length, p.width, p.rear_overhang)
     world.drop_small(3)                     # 人被车身扫掉一半,剩下的碎格(1014 seg_04 出发点右前 0.4 m 一个孤格,每局当场截停)
     return world
 
 
 def run_one(args):
-    seg, ref, T, model, start, seed, duration = args
+    seg, ref, T, model, start, seed, duration, lidar_floor = args
     from common.bev_policy import BevPolicy
-    world = load_world(seg, ref, T)
+    world = load_world(seg, ref, T, lidar_floor)
     from simulation.fastsim.road_env import Plant
     from training.bev_env import BevEnv
     pol = BevPolicy(model)
@@ -82,12 +83,13 @@ def main(argv=None):
     ap.add_argument('--duration', type=float, default=None, help='每局最长 s(默认 = 实车这段的时长 + 10)')
     ap.add_argument('--png', default=None)
     ap.add_argument('--workers', type=int, default=8)
+    ap.add_argument('--no-lidar-floor', action='store_true', help='地面层只用相机建图时看过的(实车没拐的岔口没有地面)')
     ap.add_argument('--ref', default=None, help='参考图段目录(扫描匹配建的录包图),配 --T')
     ap.add_argument('--T', type=float, nargs=3, default=None, metavar=('X', 'Y', 'DEG'),
                     help='段系 -> 参考系的变换(evaluation.seg_align 求)')
     a = ap.parse_args(argv)
     T = None if a.T is None else (a.T[0], a.T[1], math.radians(a.T[2]))
-    world = load_world(a.seg, a.ref, T)
+    world = load_world(a.seg, a.ref, T, not a.no_lidar_floor)
     P = real_path(a.seg, a.ref, T)                                       # t x y yaw steer target speed
     start = tuple(P[0, 1:4])
     real_len = float(np.hypot(*np.diff(P[:, 1:3], axis=0).T).sum())
@@ -96,7 +98,7 @@ def main(argv=None):
     paths = {}
     from concurrent.futures import ProcessPoolExecutor
     with ProcessPoolExecutor(a.workers) as ex:
-        res = list(ex.map(run_one, [(a.seg, a.ref, T, m, start, 1000 + k, dur) for m in a.models for k in range(a.runs)]))
+        res = list(ex.map(run_one, [(a.seg, a.ref, T, m, start, 1000 + k, dur, not a.no_lidar_floor) for m in a.models for k in range(a.runs)]))
     for n, m in enumerate(a.models):
         rows = res[n * a.runs:(n + 1) * a.runs]
         paths[m] = [r[3] for r in rows]

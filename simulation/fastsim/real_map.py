@@ -36,16 +36,26 @@ class RealMap:
             self.known = binary_dilation(self.known, xx ** 2 + yy ** 2 <= r * r)
 
     @classmethod
-    def from_seg(cls, path: str, occ_on: int | None = None, min_blob: int = 3) -> 'RealMap':
+    def from_seg(cls, path: str, occ_on: int | None = None, min_blob: int = 3, lidar_floor: bool = False) -> 'RealMap':
         """从车上 / 回放出来的 seg.npz 建:雷达证据 >= occ_on(默认同车上画图的 OCC_ON)算墙,地面证据 > 0 算地面,
         雷达 / 地面网格里出现过的格都算见过。连通(8 邻)不到 min_blob 格的零散障碍去掉:走动的人、椅子腿、噪点
-        (实车 1015 seg_03 走廊正中一个 2 帧证据的孤格,实车从它旁边 25 cm 开过,仿真里每局都在它前面截停)。"""
+        (实车 1015 seg_03 走廊正中一个 2 帧证据的孤格,实车从它旁边 25 cm 开过,仿真里每局都在它前面截停)。
+        lidar_floor:雷达射线穿过(证据 < 0)的格也算地面 —— 相机只看过车开过的方向,实车没拐的岔口没有地面标注
+        (1014 seg_06 只有直行方向的地面,右拐口是空的,能拐的模型在复现里看不到那边的地面,2026-10-17)。
+        射线是稀的(车上每 4 根取 1 根),先闭运算补缝,再扣掉障碍格周围一格;比雷达(28 cm)矮的东西会被当成地面。"""
         from vehicle.bev_logbook import OCC_ON
         z = np.load(path)
         lk, ln = z['lidar_ij'], z['lidar_n']
         fk, fn = z['free_ij'], z['free_n']
         world = cls(lk[ln >= (OCC_ON if occ_on is None else occ_on)], float(z['cell']), fk[fn > 0], np.concatenate([lk, fk]))
         world.drop_small(min_blob)
+        if lidar_floor:
+            from scipy.ndimage import binary_closing, binary_dilation
+            clr = np.zeros_like(world.occ)
+            c = lk[ln < 0]
+            clr[c[:, 0] - world.i0, c[:, 1] - world.j0] = True
+            clr = binary_closing(clr, np.ones((5, 5)))
+            world.free |= clr & ~binary_dilation(world.occ, np.ones((3, 3)))
         return world
 
     def drop_small(self, min_blob: int):

@@ -100,7 +100,7 @@ def align(src, dst, prior=None, win=(3.0, math.radians(15))):
     return tuple(float(v) for v in T), float(np.mean(d < 0.10)), unique
 
 
-def merged_world(ref_dir, seg_dir, T):
+def merged_world(ref_dir, seg_dir, T, lidar_floor=True):
     """参考图见过的地方用参考图(扫描匹配建的,墙准);参考图没见过的地方用这一段自己的图(变换到参考系)。返回 RealMap。
     段的格按 4 个亚格点(±1/4 格)变换后再落格,转过任意角度的墙不会出现能让射线穿过去的斜缝。
     只适合对得准的段(seg_align 报的"参考区内点" >= ~80%);对不准的段(一段里自己的里程计漂移大,
@@ -108,8 +108,8 @@ def merged_world(ref_dir, seg_dir, T):
     试过"段里离参考图障碍 > 15 cm 的也留下(那天关着的门)":段自己厚墙的外层也被当成新东西留下,
     1014 seg_03 / seg_04 一出发就截停,更糟(2026-10-17)。"""
     from simulation.fastsim.real_map import RealMap
-    ref = RealMap.from_seg(os.path.join(ref_dir, 'seg.npz'))
-    seg = RealMap.from_seg(os.path.join(seg_dir, 'seg.npz'))
+    ref = RealMap.from_seg(os.path.join(ref_dir, 'seg.npz'), lidar_floor=lidar_floor)
+    seg = RealMap.from_seg(os.path.join(seg_dir, 'seg.npz'), lidar_floor=lidar_floor)
     sub = np.array([[-0.25, -0.25], [-0.25, 0.25], [0.25, -0.25], [0.25, 0.25]])
 
     def cells(world, grid, outside_ref=False):
