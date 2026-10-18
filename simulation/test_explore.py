@@ -149,3 +149,59 @@ def test_launch_is_immediate_like_the_car():
     for _ in range(8):                                       # 0.4 s
         env.step(np.array([0.0, 0.0]))
     assert env.b.env.speed.v > 0.3
+
+
+def test_cramped_start_faces_an_obstacle_but_one_full_lock_side_gets_out():
+    """局促起步(_c):车头前 0.7~1.5 m 就是障碍;左右满舵恰好有一侧拐得出去(每局有解,但得选对边)。"""
+    from common.road_policy import spec_of
+    from training.explore_env import CRAMPED_FACING, make, room_level
+    assert room_level('room_n_c')[1] and not room_level('room_n')[1] and room_level('LW3') is None
+    enc = spec_of('spica_v3_s3_v0.45-1_d0.2')
+    for seed in range(4):
+        out = []
+        for side in (1.0, -1.0):
+            env, _ = make(seed, enc, 'room_n_c')
+            x, y, yaw = env.b.pose
+            assert CRAMPED_FACING[0] <= env.world.raycast(x, y, np.array([yaw]), 3.0)[0] <= CRAMPED_FACING[1]
+            why, n = None, 0
+            while why is None and n < 80:                  # 4 s 满舵
+                _, why = env.step(np.array([side, 0.6]))
+                n += 1
+            out.append(why)
+        assert None in out
+
+
+def test_dead_band_contract_round_trips_and_car_refuses_it():
+    import pytest
+    from common.road_policy import BRAKE_CMD, STOP_CMD, action_to_speed, spec_of, speed_to_action, suffix_of
+    from common.road_runtime import RoadRuntime
+    enc = spec_of('spica_v3_s3_v0.45-1_d0.2')
+    assert enc.dead == 0.2 and suffix_of(enc) == '_s3_v0.45-1_d0.2'
+    assert spec_of('spica_v3_s3_v0.45-3').dead == 0.0                       # 老模型逐位不变
+    assert action_to_speed(0.19, enc) == STOP_CMD and action_to_speed(-0.19, enc) == STOP_CMD
+    assert action_to_speed(-0.2, enc) == BRAKE_CMD and action_to_speed(0.2, enc) == 0.45   # 前进最低就是平台,不慢爬
+    for v in (BRAKE_CMD, STOP_CMD, 0.45, 0.7, 1.0):
+        assert action_to_speed(speed_to_action(v, enc), enc) == pytest.approx(v)
+
+    class P:
+        pass
+    p = P()
+    p.enc = enc
+    with pytest.raises(ValueError):                                         # 车上还不会执行停车 / 刹车
+        RoadRuntime(p)
+
+
+def test_speed_head_conversion_keeps_executed_speed():
+    """老契约 v0.45-3 换到 v0.45-1_d0.2:限速 0.7 以内执行的目标车速逐位相同,老动作 -1 落在新前进段起点。"""
+    from common.road_policy import action_to_speed, spec_of
+    from training.explore_rl import speed_head_affine
+    old, new = spec_of('spica_v3_s3_v0.45-3'), spec_of('spica_v3_s3_v0.45-1_d0.2')
+    k, c = speed_head_affine(old, new)
+    for a in np.linspace(-1, 1, 41):
+        assert min(action_to_speed(k * a + c, new), 0.7) == pytest_approx(min(action_to_speed(a, old), 0.7))
+    assert c - k == pytest_approx(new.dead)
+
+
+def pytest_approx(x):
+    import pytest
+    return pytest.approx(x, abs=1e-9)

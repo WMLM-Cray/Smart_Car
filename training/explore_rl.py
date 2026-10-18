@@ -24,7 +24,7 @@ from pathlib import Path
 
 import numpy as np
 
-from training.explore_env import levels
+from training.explore_env import room_level
 from training.road_rl import gae
 
 N_PRIV = 4                      # Explore.privileged 的长度
@@ -85,6 +85,16 @@ def evaluate(args):
     return why, env.area - env.area0, env.dist
 
 
+def speed_head_affine(old, new) -> tuple[float, float]:
+    """老的线性速度契约 old 换到带死区的 new:新动作 = k·老动作 + c,在 old 能表达、new 的前进段装得下的车速上
+    解出来的目标车速逐位相同(老动作 -1 -> 新前进段起点 new.dead,也就是 v_lo;超过 new.v_hi 的部分裁掉)。
+    网络最后一层是线性的,速度那一行乘 k 加 c 就是精确换算,从老模型热启动不用重训速度头。"""
+    assert not old.dead and new.dead
+    span = (new.v_hi - new.v_lo) / (1.0 - new.dead)
+    k = (old.v_hi - old.v_lo) / 2.0 / span
+    return k, new.dead + (old.v_lo - new.v_lo + (old.v_hi - old.v_lo) / 2.0) / span
+
+
 def grad_norm(params) -> float:
     """backward 之后、step 之前所有梯度的总 L2 范数。"""
     return float(sum(float((p.grad.detach() ** 2).sum()) for p in params if p.grad is not None) ** 0.5)
@@ -106,12 +116,14 @@ def diagnose(it, eps, levels_, V, ret, acts, enc, st) -> dict:
     for p_ in per.values():
         p_['ret'] = round(float(np.mean(p_['ret'])), 2)
     v_cmd = np.array([action_to_speed(float(x), enc) for x in np.clip(acts[:, 1], -1, 1)])
+    fwd = v_cmd > 0
     return {'iter': it, **{k: mean(v) for k, v in st.items()},
             'ev': 1.0 - float(np.var(ret - V)) / var if var > 0 else float('nan'),
             'levels': per,
             'steer_sat': float(np.mean(np.abs(acts[:, 0]) >= 1.0)),
             'speed_at_cap': float(np.mean(v_cmd >= CAP)),
-            'speed_cmd': float(np.mean(np.minimum(v_cmd, CAP)))}
+            'speed_cmd': float(np.mean(np.minimum(v_cmd[fwd], CAP))) if fwd.any() else float('nan'),
+            'stop_frac': float(np.mean(v_cmd == 0.0)), 'brake_frac': float(np.mean(v_cmd < 0.0))}   # 带 _d 契约才有
 
 
 def train(a):
@@ -137,6 +149,14 @@ def train(a):
     actor, critic, ref = make_net(c_in), make_net(c_in), make_net(c_in)
     for net in (actor, critic, ref):
         load_into(net, a.init)
+    if a.contract:                      # 换速度契约(比如加停车 / 刹车死区):速度那一行精确换算,锚定也在新动作空间里比
+        new = spec_of('spica_v3' + a.contract)
+        k, c = speed_head_affine(enc, new)
+        with torch.no_grad():
+            for net in (actor, ref):
+                net.f2.weight[1] *= k
+                net.f2.bias[1] = net.f2.bias[1] * k + c
+        schema, enc = 'bev_v2' + a.contract, new
     with torch.no_grad():
         critic.f2.weight.zero_(); critic.f2.bias.zero_()
     if a.priv:                          # 价值网多吃 N_PRIV 个仿真内标量(Explore.privileged),新列从 0 开始
@@ -212,7 +232,7 @@ def train(a):
             why = [e[0] for e in ev]
             m = (f'{nm}: 面积 {np.mean([e[1] for e in ev]):.1f} m² 截停/撞 '
                  f'{np.mean([w_ in ("guard", "collision") for w_ in why]):.0%}')
-            if nm not in levels():      # 路段关卡:出界、到终点也报(只看截停时看不出往路外开)
+            if room_level(nm) is None:  # 路段关卡:出界、到终点也报(只看截停时看不出往路外开)
                 m += f' 出界 {why.count("off_track") / len(why):.0%} 到终点 {why.count("goal") / len(why):.0%}'
             msg.append(m)
         return 'eval ' + ' / '.join(msg)
@@ -337,6 +357,8 @@ def main(argv=None):
     ap.add_argument('--priv', action='store_true', help='价值网多吃仿真内信息(非对称 actor-critic,见 Explore.privileged)')
     ap.add_argument('--no-peb', action='store_true', help='到点也按真结束算(2026-10-18 之前的做法,对照用)')
     ap.add_argument('--seed', type=int, default=0)
+    ap.add_argument('--contract', default=None,
+                    help='换速度契约后缀,比如 _s3_v0.45-1_d0.2(能停车 / 刹车,见 common/road_policy);起点模型的速度头精确换算过去')
     ap.add_argument('--resume', action='store_true', help='从 --out 里的 ckpt.pt 接着训(命令其余部分照旧;--iters 可以加大)')
     train(ap.parse_args(argv))
 

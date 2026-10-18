@@ -129,20 +129,37 @@ def levels():
             'building': PlanConfig()}
 
 
+CRAMPED = '_c'          # 关卡名后缀:局促起步(车头 0.7~1.5 m 就是障碍,离障碍最近 0.4 m;floorplan.sample_start 的 facing)
+CRAMPED_FACING, CRAMPED_CLEAR = (0.7, 1.5), 0.4
+
+
+def room_level(name: str):
+    """房间类关卡名 -> (PlanConfig, 是否局促起步);路段关卡返回 None。"""
+    lv = levels()
+    if name in lv:
+        return lv[name], False
+    if name.endswith(CRAMPED) and name[:-len(CRAMPED)] in lv:
+        return lv[name[:-len(CRAMPED)]], True
+    return None
+
+
 def make(seed: int, enc, level: str = 'building'):
     """按种子出一局:随机场地(levels())+ 出发点 + 车辆参数。level 也可以是路段关卡名(simulation/fastsim/road.LEVELS,
-    比如 LW3 / LW4 / LWO3):用 road_check.sample_episode 抽一条老师开得过的路,奖励是沿路前进的距离(见 Explore.step)。"""
+    比如 LW3 / LW4 / LWO3):用 road_check.sample_episode 抽一条老师开得过的路,奖励是沿路前进的距离(见 Explore.step)。
+    房间关卡名加 _c(比如 room_n_c)= 同样的房间、局促起步(见 room_level)。"""
     from simulation.fastsim.floorplan import generate, sample_start
     from simulation.fastsim.road_env import Plant
-    if level not in levels():
+    room = room_level(level)
+    if room is None:
         from training.road_check import sample_episode
         road, pl, start, _, _ = sample_episode(seed, level, enc=enc)
         return Explore(None, replace(pl, cap=CAP), seed, start, road=road), None
     rng = np.random.default_rng(seed)
     for _ in range(20):                 # 小房间摆满家具时可能找不到"能绕圈"的出发点,换一张图
-        world, info = generate(rng, levels()[level])
+        world, info = generate(rng, room[0])
         try:
-            start = sample_start(rng, world, info)
+            start = (sample_start(rng, world, info, clear=CRAMPED_CLEAR, facing=CRAMPED_FACING) if room[1]
+                     else sample_start(rng, world, info))
             break
         except RuntimeError:
             continue

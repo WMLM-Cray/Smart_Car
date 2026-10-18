@@ -18,13 +18,13 @@ from common.params import CarParams, TrackParams
 from common.pwm import turn_to_steer
 from simulation.fastsim.raycast import cast_cones, cast_walls
 from simulation.fastsim.road import WALL_HEIGHT, Road, inside
-from common.road_policy import DEFAULT_ENC, Encoding, action_to_speed, observe
+from common.road_policy import BRAKE_CMD, DEFAULT_ENC, STOP_CMD, Encoding, action_to_speed, observe
 from simulation.fastsim.vehicle import Car
 
 CONTROL_DT = 0.05
 PHYSICS_DT = 0.01
-STOP = 0.0          # SpeedPlant 指令:中位,滑行到停(正数 = 前进目标车速)
-BRAKE = -1.0        # SpeedPlant 指令:刹车(车速低于 CarParams.brake_release_speed 自动改成滑行,不倒车)
+STOP = STOP_CMD     # SpeedPlant 指令:中位,滑行到停(正数 = 前进目标车速);和动作解码共用 common/road_policy
+BRAKE = BRAKE_CMD   # SpeedPlant 指令:刹车(车速低于 CarParams.brake_release_speed 自动改成滑行,不倒车)
 OBS_RANGE = 10.0
 TRACK = TrackParams()
 GOAL_BEFORE_END = 1.0       # 离路终点这么远就算到达

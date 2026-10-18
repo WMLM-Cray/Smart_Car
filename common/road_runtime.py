@@ -21,6 +21,8 @@ class RoadRuntime:
         # 速度契约跟着模型走:RoadPolicy 从 schema 反解(见 common/road_policy.py)。
         # 假策略(测试用)没有 enc,退回默认区间。
         self.enc = getattr(policy, 'enc', DEFAULT_ENC)
+        if self.enc.dead:       # 速度环 / 节点还不会执行 STOP_CMD / BRAKE_CMD,发出去就是 0 / -1 m/s 的目标车速
+            raise ValueError(f'模型的速度契约带停车 / 刹车死区(_d{self.enc.dead:g}),车上还不支持,不能加载')
         self.speed_cap = float(speed_cap)
         self.sensor_timeout = float(sensor_timeout)
         self.enable_timeout = float(enable_timeout)

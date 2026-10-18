@@ -303,9 +303,11 @@ def circle_clear() -> float:
     return math.hypot(R + p.width / 2, p.length - p.rear_overhang) + GUARD_STOP + CELL
 
 
-def sample_start(rng, world, info, clear=0.6, ahead=1.5):
+def sample_start(rng, world, info, clear=0.6, ahead=1.5, facing=None):
     """随机出发位姿 (x, y, yaw):离障碍 >= clear,车头前 ahead 米内没有障碍,
-    并且左满舵或右满舵的圆(circle_clear)里没有障碍。"""
+    并且左满舵或右满舵的圆(circle_clear)里没有障碍。
+    facing=(近, 远):局促起步 —— 车头正前方 近~远 米就是障碍(不再要求前方空),满舵绕圈的条件照旧,仍然有解。
+    车上是放哪就从哪出发,10-18 seg_06 贴着铁箱放行、视线被挡,训练里从来没有过。"""
     from scipy.ndimage import distance_transform_edt
 
     from common.params import CarParams
@@ -319,7 +321,11 @@ def sample_start(rng, world, info, clear=0.6, ahead=1.5):
         i, j = cand[rng.integers(len(cand))]
         x, y = (i + pad) * CELL, (j + pad) * CELL
         yaw = rng.uniform(-math.pi, math.pi)
-        if world.raycast(x, y, np.array([yaw - 0.3, yaw, yaw + 0.3]), ahead + 0.5).min() <= ahead:
+        if facing is not None:
+            d = world.raycast(x, y, np.array([yaw]), facing[1] + 0.5)[0]
+            if not facing[0] <= d <= facing[1]:
+                continue
+        elif world.raycast(x, y, np.array([yaw - 0.3, yaw, yaw + 0.3]), ahead + 0.5).min() <= ahead:
             continue
         for side in (1, -1):
             cx, cy = x - side * R * math.sin(yaw), y + side * R * math.cos(yaw)
