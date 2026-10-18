@@ -9,7 +9,7 @@ ENC = Encoding(3.0, V_LO, 3.0)
 def test_reward_is_new_floor_area_and_crash_costs():
     from training.explore_env import CRASH, make
     env, _ = make(1, ENC)
-    assert env.b.env.t >= 2.0 and env.area0 > 0              # 原地攒过 BEV,出发前看到的记在 area0
+    assert env.b.env.t == 0.0                                # 同车上:放行时 BEV 是空的,不先原地攒
     total, why, n = 0.0, None, 0
     while why is None and n < 400:
         r, why = env.step(np.array([0.0, 0.3]))
@@ -137,3 +137,15 @@ def test_resume_from_checkpoint_matches_uninterrupted_run(tmp_path):
     main(base + ['--iters', '4', '--out', str(tmp_path / 'split'), '--resume'])
     a, b = np.load(tmp_path / 'once' / 'candidate_003.npz'), np.load(tmp_path / 'split' / 'candidate_003.npz')
     assert a.files == b.files and all(np.array_equal(a[k], b[k]) for k in a.files)
+
+
+def test_launch_is_immediate_like_the_car():
+    """车上放行后 0.3 s 内车速已到 0.4~0.5(2026-10-18 六段);仿真起步等待只抽 0~0.2 s,放行 0.4 s 内车已经在走。"""
+    from simulation.fastsim.road_env import Plant
+    from training.explore_env import make
+    rng = np.random.default_rng(0)
+    assert all(0.0 <= Plant.sample(rng).launch_delay <= 0.2 for _ in range(200))
+    env, _ = make(1, ENC, 'room')
+    for _ in range(8):                                       # 0.4 s
+        env.step(np.array([0.0, 0.0]))
+    assert env.b.env.speed.v > 0.3

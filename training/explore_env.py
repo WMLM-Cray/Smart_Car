@@ -1,7 +1,9 @@
 """开放场景探索(强化学习用):车在随机楼层(simulation/fastsim/floorplan)里自由开,没有路、没有终点。
 
 奖励 = 这一拍地面分割新标出来的地面面积(m²,和车上 Logbook 的浅绿层同一个东西);截停 / 撞上扣 CRASH,这局结束。
-只算相机地面(~3 m)不算雷达:雷达 10 m,原地转一圈就把整间屋标完了。出发前原地攒 BEV 的 WARM 秒里标的不算。
+只算相机地面(~3 m)不算雷达:雷达 10 m,原地转一圈就把整间屋标完了。
+放行时 BEV 是空的、车马上就走(同车上:重新使能清空 BEV,common/bev_runtime._reset_history;起步等待见 Plant.sample)。
+2026-10-18 之前是出发前原地攒 2 s BEV 再走,车上没有这 2 s。
 部署条件同车上:截停、无 YOLO、地面分割按车上的投影 + 补缝(MapFloorSeg)、速度上限 CAP。
 """
 from __future__ import annotations
@@ -11,8 +13,7 @@ from dataclasses import replace
 import numpy as np
 
 CAP = 0.7               # 车上网页设的速度上限
-WARM = 2.0              # 出发前原地攒 BEV 的时间 s(同 evaluation/real_map_replay)
-DURATION = 60.0         # 每局最长 s(不含 WARM)
+DURATION = 60.0         # 每局最长 s
 CRASH = 5.0             # 截停 / 撞上扣的分(= 5 m² 新地面)
 PROGRESS = 1.0          # 路段关卡:沿路每前进 1 m 的奖励(0.7 m/s 开 40 s ≈ 28,和房间一局的面积分同一量级)
 OFF_ROAD = 20.0         # 路段关卡出界扣的分:按面积给分时出界只扣 5,第二轮 iter 149 测试集出界 27 -> 81 次(2026-10-18)
@@ -34,14 +35,13 @@ class Explore:
         """world:RealMap 场地(楼层 / 房间);或者 road:路段关卡(training 的 LW3 等,防止忘掉沿路开,
         Wołczyk 2024 —— 只在楼层里练,第二轮 89 轮后原来的无锥桶测试集 81% -> 76%),start 用路的约定 (i, 横移, 朝向)。"""
         from training.bev_env import BevEnv
-        pl = replace(pl, launch_delay=WARM + 0.5)             # 速度环在 launch_delay 内不动车
         if road is None:
             self.b = b = BevEnv(None, pl, seed, start, noise=True, free=True, seg_period=seg[0], seg_lag=seg[1],
                                 guard=True, world=world)
         else:
             self.b = b = BevEnv(road, pl, seed, start, noise=True, free=True, seg_period=seg[0], seg_lag=seg[1],
                                 yolo=False, guard=True, seg_lut=True, seg_fill=True)
-        b.env.budget_s = WARM + duration
+        b.env.budget_s = duration
         self.world = world
         self.grid = world if road is None else _RoadGrid(road)
         self.marked = np.zeros_like(self.grid.free)
@@ -52,10 +52,7 @@ class Explore:
             self._mark(xy, pose)
 
         bev.update_camera = update_and_mark
-        while b.env.t < WARM - 1e-9:                          # 原地攒 BEV(动作不影响:车还没放行)
-            b.env.step(np.zeros(2))
-            b._camera()
-        self.area0 = self.area                                # 出发前看到的不算
+        self.area0 = self.area                                # 放行时还没标过(0);留着给"新标面积"做差
         self.road = road
         self.s = road.s[b.env.idx] if road is not None else 0.0   # 路段关卡:沿中心线走到哪了 m
         self.dist = 0.0                                       # 放行后开过的路程 m(RoadEnv 没有 dist,自己记)

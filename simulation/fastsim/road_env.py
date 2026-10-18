@@ -44,7 +44,8 @@ class Plant:
     accel_up: float = 0.6           # 平台以上的加速 m/s²
     decel: float = 0.73             # 滑行减速 m/s²
     dead_time: float = 0.28         # 速度环纯滞后 s
-    launch_delay: float = 1.5       # 起步在死区里空等 s
+    launch_delay: float = 1.5       # 起步在死区里空等 s(sample 抽 0~0.2:2026-10-18 实车 6 段放行后 0.3 s 内车速都已到 0.4~0.5;
+                                    # 原来抽 0.5~3.0,模型出发前能在原地攒好几秒 BEV,车上放行时 BEV 是清空的)
     lidar_yaw: float = 0.0          # 雷达安装偏角 rad
     cap: float = 0.7                # 速度上限(网页设的),策略看得到
     enc: Encoding = DEFAULT_ENC     # 这一局的速度契约(观测尺度 + 动作解码区间),由训练配置决定
@@ -57,7 +58,7 @@ class Plant:
                      servo_offset=rng.uniform(-1.0, 1.0), lag=int(rng.integers(0, 2)),
                      v_plateau=rng.uniform(0.45, 0.70), v_top=rng.uniform(0.85, 1.1) * enc.v_hi,
                      accel_up=rng.uniform(0.4, 1.0), decel=rng.uniform(0.68, 0.78),
-                     dead_time=rng.uniform(0.2, 0.35), launch_delay=rng.uniform(0.5, 3.0),
+                     dead_time=rng.uniform(0.2, 0.35), launch_delay=rng.uniform(0.0, 0.2),
                      lidar_yaw=math.radians(rng.uniform(-1.0, 1.0)),
                      cap=rng.uniform(enc.v_lo, cap_max or enc.v_hi), enc=enc)
 
