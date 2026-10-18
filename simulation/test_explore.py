@@ -66,7 +66,7 @@ def test_road_level_rewards_progress_and_off_road_costs_more():
 
 def test_road_level_driving_off_the_road_is_penalised():
     from training.explore_env import OFF_ROAD, make
-    env, _ = make(3, ENC, 'LWO3')
+    env, _ = make(4, ENC, 'LWO3')
     rs, why, n = [], None, 0
     while why is None and n < 600:                      # 打死一边开出路(这个种子是出界,不是截停)
         r, why = env.step(np.array([1.0, 0.3]))

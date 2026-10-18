@@ -23,6 +23,8 @@ from simulation.fastsim.vehicle import Car
 
 CONTROL_DT = 0.05
 PHYSICS_DT = 0.01
+STOP = 0.0          # SpeedPlant 指令:中位,滑行到停(正数 = 前进目标车速)
+BRAKE = -1.0        # SpeedPlant 指令:刹车(车速低于 CarParams.brake_release_speed 自动改成滑行,不倒车)
 OBS_RANGE = 10.0
 TRACK = TrackParams()
 GOAL_BEFORE_END = 1.0       # 离路终点这么远就算到达
@@ -43,6 +45,8 @@ class Plant:
     v_top: float = 1.0              # PWM 上限能跑到的速度
     accel_up: float = 0.6           # 平台以上的加速 m/s²
     decel: float = 0.73             # 滑行减速 m/s²
+    brake_decel: float = 1.4        # 刹车减速 m/s²(实测 1.3~2.6,见 CarParams.brake_release_speed 的注释)
+    relaunch_delay: float = 0.1     # 停稳后再给油,回中位直跳破静点要等的时间 s(不含 dead_time)
     dead_time: float = 0.28         # 速度环纯滞后 s
     launch_delay: float = 1.5       # 起步在死区里空等 s(sample 抽 0~0.2:2026-10-18 实车 6 段放行后 0.3 s 内车速都已到 0.4~0.5;
                                     # 原来抽 0.5~3.0,模型出发前能在原地攒好几秒 BEV,车上放行时 BEV 是清空的)
@@ -60,15 +64,26 @@ class Plant:
                      accel_up=rng.uniform(0.4, 1.0), decel=rng.uniform(0.68, 0.78),
                      dead_time=rng.uniform(0.2, 0.35), launch_delay=rng.uniform(0.0, 0.2),
                      lidar_yaw=math.radians(rng.uniform(-1.0, 1.0)),
-                     cap=rng.uniform(enc.v_lo, cap_max or enc.v_hi), enc=enc)
+                     cap=rng.uniform(enc.v_lo, cap_max or enc.v_hi), enc=enc,
+                     # 2026-10-19 加停车 / 刹车,新参数抽在最后,前面的参数和以前同种子一样
+                     # 再起步:实测从中位直跳 0.2~0.45 s 动,其中 ~0.2 s 是指令延迟(dead_time 已经算了)
+                     brake_decel=rng.uniform(1.3, 2.6), relaunch_delay=rng.uniform(0.0, 0.25))
 
 
 class SpeedPlant:
-    """闭环后车速的近似模型，并未执行真实 SpeedLoop。仅用于正速度指令，不支持停车命令。"""
+    """闭环后车速的近似模型,并未执行真实 SpeedLoop。指令:正数 = 前进目标车速、STOP = 中位滑行、BRAKE = 刹车。
+    电调死区(docs/实测/电调/电调说明.md:中位区间 1540 ± 45,前进和刹车对称):
+      前进最低就是平台速度,不能慢爬;停稳后再给油要先回中位、直跳破静点,等 relaunch_delay 才动,一动就到平台;
+      还在滚着时给油照常加速。刹车只在 brake_release_speed 以上有效,低了是滑行,不会倒车。
+    刹车的起效滞后实测 0.12~0.2 s,比前进的 dead_time 0.2~0.35 短,统一用 dead_time(偏保守,用户 2026-10-19 定)。"""
 
     def __init__(self, pl: Plant):
         self.pl, self.v, self.t = pl, 0.0, 0.0
-        self.queue = [0.0] * max(1, int(round(pl.dead_time / PHYSICS_DT)))
+        # 队列先填平台速度:开局第一个指令到之前就当"在起步",和加停车之前的行为一致
+        self.queue = [pl.v_plateau] * max(1, int(round(pl.dead_time / PHYSICS_DT)))
+        self.stopped = False    # 用停车 / 刹车停稳过(开局的起步走 launch_delay,不算)
+        self.hold = None        # 再起步要等到的时刻
+        self.release = CarParams().brake_release_speed
 
     def step(self, cmd: float, dt: float = PHYSICS_DT) -> float:
         pl = self.pl
@@ -77,6 +92,18 @@ class SpeedPlant:
         self.t += dt
         if self.t < pl.launch_delay:
             return self.v
+        if cmd <= 0.0:                                  # 中位 / 刹车
+            self.hold = None
+            dec = pl.brake_decel if (cmd < 0.0 and self.v > self.release) else pl.decel
+            self.v = max(0.0, self.v - dec * dt)
+            self.stopped = self.stopped or self.v == 0.0
+            return self.v
+        if self.stopped:                                # 停稳后再给油:回中位直跳,等电调
+            if self.hold is None:
+                self.hold = self.t + pl.relaunch_delay
+            if self.t < self.hold:
+                return self.v
+            self.stopped, self.hold = False, None
         target = min(max(cmd, pl.v_plateau), pl.v_top)
         if self.v < pl.v_plateau - 0.01:                # 过了破静点一跳到平台
             self.v += (pl.v_plateau - self.v) * min(1.0, dt / 0.1)

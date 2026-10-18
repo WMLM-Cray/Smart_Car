@@ -7,7 +7,7 @@ from common.params import CarParams
 from common.pwm import action_to_steer
 from simulation.fastsim.road import CONE, LEVELS, WALL, build, generate, self_overlaps
 from training.road_check import check
-from simulation.fastsim.road_env import Plant, RoadEnv, SpeedPlant, footprint_clearance
+from simulation.fastsim.road_env import BRAKE, STOP, Plant, RoadEnv, SpeedPlant, footprint_clearance
 from common.road_policy import DIM, FRAMES, V_HI, V_LO, action_to_speed, speed_to_action
 from training.road_teacher import R_MIN, Teacher, plan
 
@@ -85,6 +85,77 @@ def test_speed_plant_floors_at_plateau_and_only_coasts_down():
     drops = -np.diff(v)
     assert top == pytest.approx(1.0, abs=0.01)
     assert drops.max() <= 0.73 * 0.01 + 1e-9    # 不刹车,只滑
+
+
+
+def _run_to(sp, v0, dt=0.01):
+    """前进指令把车速推到 v0(平台以上按 accel_up 爬),返回所用拍数。"""
+    n = 0
+    while sp.v < v0 - 1e-6:
+        sp.step(v0)
+        n += 1
+    return n
+
+
+def test_stop_coasts_to_zero_and_never_reverses():
+    pl = Plant(v_plateau=0.6, v_top=1.0, launch_delay=0.0, accel_up=5.0, decel=0.73, dead_time=0.2)
+    sp = SpeedPlant(pl)
+    _run_to(sp, 0.7)
+    v = [sp.step(STOP) for _ in range(300)]
+    assert min(v) == 0.0 and all(x >= 0.0 for x in v)
+    assert -np.diff(v).max() <= 0.73 * 0.01 + 1e-9         # 中位只是滑行
+
+
+def test_brake_matches_1012_measurements_above_the_release_speed():
+    """docs/实测/2026-10-12-brake:1470 从 1.51 m/s 刹到 0.15 用 1.22~1.24 s、走 1.03~1.07 m(稳定段 1.28~1.35 m/s²);
+    从 2.0 m/s 用 1.40~1.44 s、走 1.45~1.51 m(1.49~1.50)。刹车滞后统一用前进的 dead_time(取 0.2,实测 0.12~0.2)。"""
+    for v0, dec, t_meas, d_meas in ((1.51, 1.31, 1.23, 1.05), (2.0, 1.495, 1.42, 1.48)):
+        pl = Plant(v_plateau=0.6, v_top=2.5, launch_delay=0.0, accel_up=50.0, dead_time=0.2, brake_decel=dec)
+        sp = SpeedPlant(pl)
+        sp.release = 0.0                                     # 实测脚本一直刹到 0.15,这里不提前松
+        _run_to(sp, v0)
+        sp.queue = [v0] * len(sp.queue)                       # 发刹车前一直在给前进
+        t = d = 0.0
+        while sp.v > 0.15:
+            d += sp.v * 0.01
+            sp.step(BRAKE)
+            t += 0.01
+        assert t == pytest.approx(t_meas, rel=0.1)
+        # 距离只许偏长(偏保守):实测的"距离"基本等于一按就减速,仿真的 0.2 s 滞后里车还按原速走(2 m/s 时 +0.4 m,约 +18%)
+        assert d_meas * 0.98 <= d <= d_meas * 1.2
+
+
+def test_brake_below_release_speed_only_coasts():
+    pl = Plant(v_plateau=0.6, launch_delay=0.0, accel_up=5.0, decel=0.73, brake_decel=2.0, dead_time=0.2)
+    sp = SpeedPlant(pl)
+    _run_to(sp, 0.9)
+    v = [sp.step(BRAKE) for _ in range(300)]
+    rel = CarParams().brake_release_speed
+    drops = -np.diff(v)
+    above = np.array(v[1:]) > rel + 0.03
+    assert drops[above].max() == pytest.approx(2.0 * 0.01, rel=1e-6)    # 0.5 以上真刹
+    below = (np.array(v[:-1]) < rel) & (np.array(v[1:]) > 0)
+    assert drops[below].max() <= 0.73 * 0.01 + 1e-9                     # 以下只滑,不倒车
+    assert min(v) == 0.0
+
+
+def test_relaunch_after_stop_waits_then_jumps_to_plateau():
+    """死区:停稳后再给油不会慢慢爬,等 dead_time + relaunch_delay 原地不动,然后一跳到平台。还在滚的时候给油照常加速。"""
+    pl = Plant(v_plateau=0.6, v_top=1.0, launch_delay=0.0, accel_up=0.6, decel=0.73, dead_time=0.2, relaunch_delay=0.2)
+    sp = SpeedPlant(pl)
+    _run_to(sp, 0.6)
+    while sp.v > 0:
+        sp.step(STOP)
+    v = [sp.step(0.45) for _ in range(100)]
+    assert v[:39] == [0.0] * 39                            # 0.2 s 指令延迟里还在发 STOP + 0.2 s 再起步等待
+    assert v[45] > 0 and v[95] == pytest.approx(0.6, abs=0.01)   # 一动就往平台跳(0.1 s 时间常数);要 0.45 也是平台,不爬
+    sp2 = SpeedPlant(pl)
+    _run_to(sp2, 0.6)
+    for _ in range(25):                                      # 只松 0.25 s,车还在滚
+        sp2.step(STOP)
+    rolling = sp2.v
+    v2 = [sp2.step(0.6) for _ in range(40)]
+    assert rolling > 0.3 and min(v2) > 0.3                  # 不停下来等电调
 
 
 def test_clearance_matches_simple_geometry():
