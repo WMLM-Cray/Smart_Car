@@ -59,3 +59,15 @@ def test_road_level_rewards_driving_along_the_road():
         total += r
         n += 1
     assert env.area > env.area0 and env.privileged().shape == (4,)
+
+
+def test_rollout_and_evaluate_run_on_road_and_room_levels():
+    from common.bev_policy import C2
+    from training.bev_net import make_net, weights_of
+    from training.explore_rl import evaluate, rollout
+    w = {k: v.astype(np.float32) for k, v in weights_of(make_net(C2)).items()}
+    for lv in ('LW3', 'room'):                          # 路段关卡的 RoadEnv 没有 dist(第三轮第一次评估就崩了)
+        why, area, dist = evaluate((5, w, ENC, 3.0, lv))
+        assert why in ('timeout', 'guard', 'collision', 'off_track', 'goal') and dist >= 0
+        out = rollout((5, 1, w, np.log(np.full(2, 0.1)), ENC, 3.0, lv))
+        assert len(out[0]) == len(out[4]) > 0

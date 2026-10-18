@@ -63,7 +63,7 @@ def rollout(args):
         imgs.append(np.packbits(img.astype(bool).ravel()))
         scs.append(sc); acts.append(a.astype(np.float32)); logps.append(logp); rews.append(r)
     return (np.asarray(imgs), np.asarray(scs, np.float32), np.asarray(acts, np.float32),
-            np.asarray(logps, np.float32), np.asarray(rews, np.float32), why, env.area - env.area0, env.b.env.dist,
+            np.asarray(logps, np.float32), np.asarray(rews, np.float32), why, env.area - env.area0, env.dist,
             np.asarray(privs, np.float32))
 
 
@@ -76,7 +76,7 @@ def evaluate(args):
     why = None
     while why is None:
         _, why = env.step(np.clip(mean_raw(params, *env.observation()), -1, 1))
-    return why, env.area - env.area0, env.b.env.dist
+    return why, env.area - env.area0, env.dist
 
 
 def train(a):

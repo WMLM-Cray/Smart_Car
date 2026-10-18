@@ -54,6 +54,7 @@ class Explore:
             b.env.step(np.zeros(2))
             b._camera()
         self.area0 = self.area                                # 出发前看到的不算
+        self.dist = 0.0                                       # 放行后开过的路程 m(RoadEnv 没有 dist,自己记)
 
     def _mark(self, xy, pose):
         if not len(xy):
@@ -95,8 +96,10 @@ class Explore:
 
     def step(self, action):
         """一拍(50 ms)。返回 (奖励, 结束原因或 None)。"""
-        before = self.area
+        before, (x0, y0, _) = self.area, self.b.pose
         why = self.b.step(action)
+        x1, y1, _ = self.b.pose
+        self.dist += float(np.hypot(x1 - x0, y1 - y0))
         r = self.area - before
         if why in ('guard', 'collision', 'off_track'):
             r -= CRASH
