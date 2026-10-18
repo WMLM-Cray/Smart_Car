@@ -156,7 +156,10 @@ def train(a):
             advs, rets, o = [], [], 0
             for e in eps:
                 n = len(e[4])
-                ad, rt = gae(e[4], np.r_[V[o:o + n], 0.0], a.gamma, a.lam, terminal=e[5] != 'timeout')
+                # 到点(timeout)不是真结束:用最后一拍的价值接着算(Pardo 2018 partial-episode bootstrapping;
+                # 原来接 0,等于告诉价值网"开满 40 s 后面没分了",房间里三到六成的局是到点结束的)
+                tail = V[o + n - 1] if (e[5] == 'timeout' and not a.no_peb) else 0.0
+                ad, rt = gae(e[4], np.r_[V[o:o + n], tail], a.gamma, a.lam, terminal=e[5] != 'timeout')
                 advs.append(ad); rets.append(rt); o += n
             ADV = torch.from_numpy(np.concatenate(advs).astype(np.float32))
             RET = torch.from_numpy(np.concatenate(rets).astype(np.float32))
@@ -222,6 +225,7 @@ def main(argv=None):
     ap.add_argument('--critic-warmup', type=int, default=2, help='前几轮只训价值网')
     ap.add_argument('--eval-every', type=int, default=5)
     ap.add_argument('--eval-count', type=int, default=32)
+    ap.add_argument('--no-peb', action='store_true', help='到点也按真结束算(2026-10-18 之前的做法,对照用)')
     ap.add_argument('--seed', type=int, default=0)
     train(ap.parse_args(argv))
 
