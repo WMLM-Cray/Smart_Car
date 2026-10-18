@@ -45,7 +45,8 @@ def mean_raw(params: dict, img, sc) -> np.ndarray:
 
 
 def rollout(args):
-    """一局随机策略。返回打包的图、标量、动作、logp、奖励、结束原因、新标面积、开过的距离。"""
+    """一局随机策略。返回打包的图、标量、动作、logp、奖励、结束原因、新标面积、开过的距离、特权信息,
+    以及最后一拍动作之后的观测(打包图、标量、特权信息;只有到点结束才给,否则 None),到点续算用它的价值。"""
     seed, noise_seed, params, log_std, enc, duration, level = args
     from training.explore_env import make
     env, _ = make(seed, enc, level)
@@ -63,9 +64,13 @@ def rollout(args):
         r, why = env.step(np.clip(a, -1, 1))
         imgs.append(np.packbits(img.astype(bool).ravel()))
         scs.append(sc); acts.append(a.astype(np.float32)); logps.append(logp); rews.append(r)
+    last = None
+    if why == 'timeout':
+        img, sc = env.observation()
+        last = (np.packbits(img.astype(bool).ravel()), np.asarray(sc, np.float32), np.asarray(env.privileged(), np.float32))
     return (np.asarray(imgs), np.asarray(scs, np.float32), np.asarray(acts, np.float32),
             np.asarray(logps, np.float32), np.asarray(rews, np.float32), why, env.area - env.area0, env.dist,
-            np.asarray(privs, np.float32))
+            np.asarray(privs, np.float32), last)
 
 
 def evaluate(args):
@@ -173,12 +178,20 @@ def train(a):
             SC = torch.cat([S, torch.from_numpy(np.concatenate([e[8] for e in eps])).to(dev)], 1) if a.priv else S   # 价值网的标量
             V = infer(critic, P, SC)[:, 0].cpu().numpy()
             MU_REF = infer(ref, P, S)           # 参考网络不变,一轮算一次,不用每个 minibatch 再跑
+            # 到点(timeout)不是真结束:用最后一拍动作**之后**那个观测的价值接着算(Pardo 2018 partial-episode
+            # bootstrapping)。2026-10-18 之前误用了最后一拍动作之前的观测 V(s_{T-1}),C 组"PEB 无效"的对照不作数
+            cut = [i for i, e in enumerate(eps) if e[9] is not None]
+            V_T = {}
+            if cut and not a.no_peb:
+                PT = np.stack([eps[i][9][0] for i in cut])
+                ST = torch.from_numpy(np.stack([eps[i][9][1] for i in cut])).to(dev)
+                if a.priv:
+                    ST = torch.cat([ST, torch.from_numpy(np.stack([eps[i][9][2] for i in cut])).to(dev)], 1)
+                V_T = dict(zip(cut, infer(critic, PT, ST)[:, 0].cpu().numpy()))
             advs, rets, o = [], [], 0
-            for e in eps:
+            for i, e in enumerate(eps):
                 n = len(e[4])
-                # 到点(timeout)不是真结束:用最后一拍的价值接着算(Pardo 2018 partial-episode bootstrapping;
-                # 原来接 0,等于告诉价值网"开满 40 s 后面没分了",房间里三到六成的局是到点结束的)
-                tail = V[o + n - 1] if (e[5] == 'timeout' and not a.no_peb) else 0.0
+                tail = V_T.get(i, 0.0)
                 ad, rt = gae(e[4], np.r_[V[o:o + n], tail], a.gamma, a.lam, terminal=e[5] != 'timeout')
                 advs.append(ad); rets.append(rt); o += n
             ADV = torch.from_numpy(np.concatenate(advs).astype(np.float32)).to(dev)

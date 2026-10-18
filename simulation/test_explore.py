@@ -85,3 +85,17 @@ def test_rollout_and_evaluate_run_on_road_and_room_levels():
         assert why in ('timeout', 'guard', 'collision', 'off_track', 'goal') and dist >= 0
         out = rollout((5, 1, w, np.log(np.full(2, 0.1)), ENC, 3.0, lv))
         assert len(out[0]) == len(out[4]) > 0
+
+
+def test_rollout_returns_observation_after_last_action_on_timeout():
+    """到点续算要用最后一拍动作之后的观测 s_T,不是最后存下的动作前观测 s_{T-1}(2026-10-18 之前取错了)。"""
+    from common.bev_policy import C2
+    from training.bev_net import make_net, weights_of
+    from training.explore_rl import rollout
+    w = {k: v.astype(np.float32) for k, v in weights_of(make_net(C2)).items()}
+    out = rollout((5, 1, w, np.log(np.full(2, 0.1)), ENC, 3.0, 'room'))
+    imgs, scs, why, last = out[0], out[1], out[5], out[9]
+    assert why == 'timeout'                                     # 这个种子 3 s 内不撞
+    p_T, sc_T, priv_T = last
+    assert p_T.shape == imgs[-1].shape and sc_T.shape == scs[-1].shape and priv_T.shape == out[8][-1].shape
+    assert not (np.array_equal(p_T, imgs[-1]) and np.array_equal(sc_T, scs[-1]))   # 动作之后车动过,观测变了
