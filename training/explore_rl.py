@@ -26,6 +26,7 @@ import numpy as np
 
 from training.road_rl import gae
 
+N_PRIV = 4                      # Explore.privileged 的长度
 TRAIN_SEED0 = 30_000_000        # 训练楼层种子;和别的训练 / 测试种子段都不重叠
 EVAL_SEED0 = 70_000_000         # 评估楼层(固定)
 
@@ -50,10 +51,11 @@ def rollout(args):
     env.b.env.budget_s = env.b.env.t + duration
     rng = np.random.default_rng(noise_seed)
     std = np.exp(log_std)
-    imgs, scs, acts, logps, rews = [], [], [], [], []
+    imgs, scs, acts, logps, rews, privs = [], [], [], [], [], []
     why = None
     while why is None:
         img, sc = env.observation()
+        privs.append(env.privileged())
         mu = mean_raw(params, img, sc)
         a = mu + rng.normal(0, 1, 2) * std
         logp = float(-0.5 * np.sum(((a - mu) / std) ** 2) - np.sum(log_std) - np.log(2 * np.pi))
@@ -61,7 +63,8 @@ def rollout(args):
         imgs.append(np.packbits(img.astype(bool).ravel()))
         scs.append(sc); acts.append(a.astype(np.float32)); logps.append(logp); rews.append(r)
     return (np.asarray(imgs), np.asarray(scs, np.float32), np.asarray(acts, np.float32),
-            np.asarray(logps, np.float32), np.asarray(rews, np.float32), why, env.area - env.area0, env.b.env.dist)
+            np.asarray(logps, np.float32), np.asarray(rews, np.float32), why, env.area - env.area0, env.b.env.dist,
+            np.asarray(privs, np.float32))
 
 
 def evaluate(args):
@@ -97,6 +100,13 @@ def train(a):
         load_into(net, a.init)
     with torch.no_grad():
         critic.f2.weight.zero_(); critic.f2.bias.zero_()
+    if a.priv:                          # 价值网多吃 N_PRIV 个仿真内标量(Explore.privileged),新列从 0 开始
+        old = critic.f0
+        critic.f0 = torch.nn.Linear(old.in_features + N_PRIV, old.out_features)
+        with torch.no_grad():
+            critic.f0.weight.zero_()
+            critic.f0.weight[:, :old.in_features].copy_(old.weight)
+            critic.f0.bias.copy_(old.bias)
     for p_ in ref.parameters():
         p_.requires_grad_(False)
     log_std = torch.full((2,), float(np.log(a.std0)), requires_grad=True)
@@ -125,7 +135,7 @@ def train(a):
                 out_.append(critic(unpack(P, j), S[j])[:, 0].numpy())
         return np.concatenate(out_)
 
-    mix = [(n, float(p_)) for n, p_ in (x.split(':') for x in a.level.split(','))]
+    mix = [(x.split(':')[0], float(x.split(':')[1]) if ':' in x else 1.0) for x in a.level.split(',')]
     names, probs = [n for n, _ in mix], np.array([p_ for _, p_ in mix]) / sum(p_ for _, p_ in mix)
 
     def run_eval(ex, it):
@@ -152,7 +162,8 @@ def train(a):
             S = torch.from_numpy(np.concatenate([e[1] for e in eps]))
             A = torch.from_numpy(np.concatenate([e[2] for e in eps]))
             LP = torch.from_numpy(np.concatenate([e[3] for e in eps]))
-            V = value(P, S)
+            SC = torch.cat([S, torch.from_numpy(np.concatenate([e[8] for e in eps]))], 1) if a.priv else S   # 价值网的标量
+            V = value(P, SC)
             advs, rets, o = [], [], 0
             for e in eps:
                 n = len(e[4])
@@ -171,7 +182,7 @@ def train(a):
                 for s in range(0, N, a.minibatch):
                     j = perm[s:s + a.minibatch]
                     X, Sj = unpack(P, j), S[j]
-                    vloss = ((critic(X, Sj)[:, 0] - RET[j]) ** 2).mean()
+                    vloss = ((critic(X, SC[j])[:, 0] - RET[j]) ** 2).mean()
                     opt_c.zero_grad(); vloss.backward(); opt_c.step()
                     if it < a.critic_warmup:
                         continue
@@ -225,6 +236,7 @@ def main(argv=None):
     ap.add_argument('--critic-warmup', type=int, default=2, help='前几轮只训价值网')
     ap.add_argument('--eval-every', type=int, default=5)
     ap.add_argument('--eval-count', type=int, default=32)
+    ap.add_argument('--priv', action='store_true', help='价值网多吃仿真内信息(非对称 actor-critic,见 Explore.privileged)')
     ap.add_argument('--no-peb', action='store_true', help='到点也按真结束算(2026-10-18 之前的做法,对照用)')
     ap.add_argument('--seed', type=int, default=0)
     train(ap.parse_args(argv))

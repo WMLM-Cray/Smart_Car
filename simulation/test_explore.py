@@ -35,3 +35,15 @@ def test_mean_raw_matches_policy_forward():
     img = (rng.random((C2, H, W)) < 0.1).astype(np.float32)
     sc = np.array([0.1, 0.2, 0.0], np.float32)
     assert np.allclose(np.clip(mean_raw(p, img, sc), -1, 1), forward(p, img, sc))
+
+
+def test_privileged_features_shape_and_range():
+    from training.explore_env import make
+    from training.explore_rl import N_PRIV
+    env, _ = make(2, ENC, 'room_n')
+    f0 = env.privileged()
+    for _ in range(40):
+        env.step(np.array([0.0, 0.3]))
+    f1 = env.privileged()
+    assert f0.shape == (N_PRIV,) and np.all((f1 >= 0) & (f1 <= 1.5))
+    assert f1[3] < f0[3]                                   # 剩余时间在减

@@ -57,6 +57,23 @@ class Explore:
     def observation(self):
         return self.b.observation()
 
+    def privileged(self) -> np.ndarray:
+        """只给价值网的仿真内信息(非对称 actor-critic,Pinto 2018;车上不用):周围 2 m / 5 m 内还没标过的地面
+        (奖励就是它,BEV 看不全)、离最近障碍多远、这局还剩多少时间(到点截断时价值和剩余时间有关,Pardo 2018)。"""
+        w, car, e = self.world, self.b.env.car, self.b.env
+        i, j = int(round(car.x / w.cell)) - w.i0, int(round(car.y / w.cell)) - w.j0
+        out = []
+        for r_m in (2.0, 5.0):
+            r = int(r_m / w.cell)
+            i0, i1, j0, j1 = max(0, i - r), i + r + 1, max(0, j - r), j + r + 1
+            left = (w.free[i0:i1, j0:j1] & ~self.marked[i0:i1, j0:j1]).sum() * w.cell ** 2
+            out.append(left / (np.pi * r_m ** 2))
+        edt = w._edt()
+        clear = edt[i, j] if 0 <= i < edt.shape[0] and 0 <= j < edt.shape[1] else 0.0
+        out.append(min(float(clear), 3.0) / 3.0)
+        out.append(max(0.0, e.budget_s - e.t) / 60.0)
+        return np.asarray(out, np.float32)
+
     def step(self, action):
         """一拍(50 ms)。返回 (奖励, 结束原因或 None)。"""
         before = self.area
