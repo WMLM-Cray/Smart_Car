@@ -125,7 +125,11 @@ def train(a):
     torch.manual_seed(a.seed)
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    (out / 'config.json').write_text(json.dumps({k: str(v) for k, v in vars(a).items()}, indent=1), encoding='utf-8')
+    ckpt = out / 'ckpt.pt'
+    if ckpt.exists() != a.resume:
+        raise SystemExit(f'{ckpt} ' + ('已存在:接着训加 --resume,重新训换个 --out' if ckpt.exists() else '不存在,没法 --resume'))
+    (out / 'config.json' if not a.resume else out / f'config_resume_{time.strftime("%m%d_%H%M%S")}.json').write_text(
+        json.dumps({k: str(v) for k, v in vars(a).items()}, indent=1), encoding='utf-8')
     with np.load(a.init) as z:
         schema = str(z['schema'])
     c_in = channels_of(schema)
@@ -152,6 +156,27 @@ def train(a):
     opt_c = torch.optim.Adam(critic.parameters(), lr=a.lr_critic)
     bits = c_in * H * W
     rng = np.random.default_rng(a.seed)
+    start = 0
+    if a.resume:                        # 完整训练状态:同一条命令加 --resume,和不中断一口气跑完逐位一致
+        z = torch.load(ckpt, map_location=dev, weights_only=False)
+        for k, net in (('actor', actor), ('critic', critic), ('ref', ref)):
+            net.load_state_dict(z[k])
+        with torch.no_grad():
+            log_std.copy_(z['log_std'])
+        opt_a.load_state_dict(z['opt_a']); opt_c.load_state_dict(z['opt_c'])
+        rng.bit_generator.state = z['rng']
+        torch.set_rng_state(z['torch_rng'])
+        start = z['iter'] + 1
+
+    def save(it):
+        """每轮结束存完整训练状态(先写临时文件再改名,中途断电也不会留下半个文件)。candidate_NNN.npz 只有推理权重,不能续训。"""
+        tmp = out / 'ckpt.pt.tmp'
+        torch.save({'iter': it, 'actor': actor.state_dict(), 'critic': critic.state_dict(), 'ref': ref.state_dict(),
+                    'log_std': log_std.detach().clone(), 'opt_a': opt_a.state_dict(), 'opt_c': opt_c.state_dict(),
+                    'rng': rng.bit_generator.state, 'torch_rng': torch.get_rng_state(), 'schema': schema,
+                    'args': vars(a)}, tmp)
+        os.replace(tmp, ckpt)
+
     log = open(out / 'train.log', 'a', encoding='utf-8', buffering=1)
     diag = open(out / 'diag.jsonl', 'a', encoding='utf-8', buffering=1)    # 每轮一行,见 diagnose
 
@@ -193,8 +218,11 @@ def train(a):
         return 'eval ' + ' / '.join(msg)
 
     with ProcessPoolExecutor(a.workers) as ex:
-        say(f'初始 {a.init} ' + run_eval(ex, -1))
-        for it in range(a.iters):
+        if a.resume:
+            say(f'从 {ckpt} 第 {start} 轮接着训')
+        else:
+            say(f'初始 {a.init} ' + run_eval(ex, -1))
+        for it in range(start, a.iters):
             t0 = time.time()
             w = params_of(actor)
             jobs = [(TRAIN_SEED0 + int(rng.integers(10**7)), int(rng.integers(2**31)), w,
@@ -240,7 +268,7 @@ def train(a):
                     Sj = S[j]
                     vloss = ((critic(X, SC[j])[:, 0] - RET[j]) ** 2).mean()
                     opt_c.zero_grad(); vloss.backward()
-                    st['gn_c'].append(grad_norm(critic.parameters())); st['vloss'].append(float(vloss))
+                    st['gn_c'].append(grad_norm(critic.parameters())); st['vloss'].append(vloss.item())
                     opt_c.step()
                     if it < a.critic_warmup:
                         continue
@@ -258,7 +286,7 @@ def train(a):
                         lr_ = logp - LP[j]
                         st['kl'].append(float(((lr_.exp() - 1) - lr_).mean()))      # k3 估计,非负
                         st['clip'].append(float(((lr_.exp() - 1).abs() > a.clip).float().mean()))
-                    st['pg'].append(float(pg)); st['anchor_loss'].append(float(an))
+                    st['pg'].append(pg.item()); st['anchor_loss'].append(an.item())
                     with torch.no_grad():
                         log_std.clamp_(np.log(0.02), np.log(0.5))
             t_upd = time.time() - t0 - t_roll
@@ -275,6 +303,7 @@ def train(a):
             if (it + 1) % a.eval_every == 0 or it == a.iters - 1:
                 msg += ' | ' + run_eval(ex, it)
             say(msg)
+            save(it)
     say('done')
 
 
@@ -308,6 +337,7 @@ def main(argv=None):
     ap.add_argument('--priv', action='store_true', help='价值网多吃仿真内信息(非对称 actor-critic,见 Explore.privileged)')
     ap.add_argument('--no-peb', action='store_true', help='到点也按真结束算(2026-10-18 之前的做法,对照用)')
     ap.add_argument('--seed', type=int, default=0)
+    ap.add_argument('--resume', action='store_true', help='从 --out 里的 ckpt.pt 接着训(命令其余部分照旧;--iters 可以加大)')
     train(ap.parse_args(argv))
 
 

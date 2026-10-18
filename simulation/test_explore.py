@@ -117,3 +117,23 @@ def test_diagnose_reports_update_size_value_fit_levels_and_actions():
                            'LW3': {'episodes': 1, 'steps': 5, 'ret': 5.0, 'why': {'guard': 1}}}
     assert d['steer_sat'] == 0.25 and d['speed_at_cap'] == 0.25
     assert abs(d['speed_cmd'] - (2 * CAP + 6 * 0.5) / 8) < 1e-6
+
+
+def test_resume_from_checkpoint_matches_uninterrupted_run(tmp_path):
+    """训 2 轮停下、--resume 训到第 4 轮,和一口气训 4 轮逐位一致(完整训练状态:三个网络、两个优化器、探索方差、随机数、轮数)。"""
+    import pytest
+    from common.bev_policy import C2
+    from training.bev_net import export, make_net
+    from training.explore_rl import main
+    init = tmp_path / 'init.npz'
+    export(make_net(C2), init, ENC, schema='bev_v2')         # 同车上模型的 schema(bev_v2_s3_v0.45-3)
+    base = ['--init', str(init), '--episodes', '3', '--duration', '2', '--level', 'room:0.5,LW3:0.5',
+            '--workers', '2', '--torch-threads', '1', '--eval-every', '100', '--eval-count', '1',
+            '--critic-warmup', '1', '--minibatch', '64']
+    main(base + ['--iters', '4', '--out', str(tmp_path / 'once')])
+    main(base + ['--iters', '2', '--out', str(tmp_path / 'split')])
+    with pytest.raises(SystemExit):                     # 已有存档不许从头覆盖
+        main(base + ['--iters', '4', '--out', str(tmp_path / 'split')])
+    main(base + ['--iters', '4', '--out', str(tmp_path / 'split'), '--resume'])
+    a, b = np.load(tmp_path / 'once' / 'candidate_003.npz'), np.load(tmp_path / 'split' / 'candidate_003.npz')
+    assert a.files == b.files and all(np.array_equal(a[k], b[k]) for k in a.files)
