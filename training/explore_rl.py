@@ -111,7 +111,7 @@ def train(a):
         p_.requires_grad_(False)
     dev = torch.device(a.device)        # 更新在 GPU 上跑(采样仍在 CPU 进程池;8 核虚拟机上更新占一轮的 2/3)
     for net in (actor, critic, ref):
-        net.to(dev)
+        net.to(dev, memory_format=torch.channels_last)     # 卷积在 CPU 上快 30~40%(8 核虚拟机实测一批 320 -> 190 ms)
     log_std = torch.full((2,), float(np.log(a.std0)), device=dev, requires_grad=True)
     opt_a = torch.optim.Adam(list(actor.parameters()) + [log_std], lr=a.lr)
     opt_c = torch.optim.Adam(critic.parameters(), lr=a.lr_critic)
@@ -128,15 +128,15 @@ def train(a):
         return {k: v.astype(np.float32) for k, v in weights_of(net).items()}
 
     def unpack(P, j):
-        return torch.from_numpy(np.unpackbits(P[j], axis=1)[:, :bits].reshape(len(j), c_in, H, W).astype(np.float32)).to(dev)
+        return torch.from_numpy(np.unpackbits(P[j], axis=1)[:, :bits].reshape(len(j), c_in, H, W).astype(np.float32)).to(dev).contiguous(memory_format=torch.channels_last)
 
-    def value(P, S):
+    def infer(net, P, S):
         out_ = []
         with torch.no_grad():
             for s in range(0, len(P), 1024):
                 j = np.arange(s, min(len(P), s + 1024))
-                out_.append(critic(unpack(P, j), S[j])[:, 0].cpu().numpy())
-        return np.concatenate(out_)
+                out_.append(net(unpack(P, j), S[j]))
+        return torch.cat(out_)
 
     mix = [(x.split(':')[0], float(x.split(':')[1]) if ':' in x else 1.0) for x in a.level.split(',')]
     names, probs = [n for n, _ in mix], np.array([p_ for _, p_ in mix]) / sum(p_ for _, p_ in mix)
@@ -166,7 +166,8 @@ def train(a):
             A = torch.from_numpy(np.concatenate([e[2] for e in eps])).to(dev)
             LP = torch.from_numpy(np.concatenate([e[3] for e in eps])).to(dev)
             SC = torch.cat([S, torch.from_numpy(np.concatenate([e[8] for e in eps])).to(dev)], 1) if a.priv else S   # 价值网的标量
-            V = value(P, SC)
+            V = infer(critic, P, SC)[:, 0].cpu().numpy()
+            MU_REF = infer(ref, P, S)           # 参考网络不变,一轮算一次,不用每个 minibatch 再跑
             advs, rets, o = [], [], 0
             for e in eps:
                 n = len(e[4])
@@ -196,9 +197,7 @@ def train(a):
                     logp = (-0.5 * ((A[j] - mu) / ls.exp()) ** 2 - ls - 0.5 * np.log(2 * np.pi)).sum(1)
                     ratio = (logp - LP[j]).exp()
                     pg = -torch.min(ratio * ADV[j], ratio.clamp(1 - a.clip, 1 + a.clip) * ADV[j]).mean()
-                    with torch.no_grad():
-                        mu_ref = ref(X, Sj)
-                    aloss = pg + anchor * ((mu - mu_ref) ** 2).mean()
+                    aloss = pg + anchor * ((mu - MU_REF[j]) ** 2).mean()
                     opt_a.zero_grad(); aloss.backward(); opt_a.step()
                     with torch.no_grad():
                         log_std.clamp_(np.log(0.02), np.log(0.5))
