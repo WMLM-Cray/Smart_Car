@@ -124,7 +124,8 @@ def run_one(args):
     i0 = road.elems[1]['_i0'] - int(round((FRONT - width - 0.05) / 0.05))
     off = -width / 2 + RIGHT
     perturb(road, variant, np.random.default_rng(seed + 100), clear=road.centre[i0] + off * road.normal[i0])
-    pl = replace(Plant.sample(np.random.default_rng(seed), Encoding(3.0, V_LO, 3.0)), cap=0.7)
+    pol = BevPolicy(model)
+    pl = replace(Plant.sample(np.random.default_rng(seed), Encoding(3.0, V_LO, 3.0)), cap=0.7, enc=pol.enc)   # 动作按模型自己的速度契约解码(带 _d 的模型能停车 / 刹车);老模型的契约和这里一样,结果逐位不变
     b = BevEnv(road, pl, seed, (i0, off, math.radians(yaw)), noise=True, free=True,
                seg_period=0.33, seg_lag=0.35, yolo=False, guard=True, seg_lut=True, seg_fill=True)
     if variant in SEG:
@@ -132,7 +133,6 @@ def run_one(args):
     e = road.elems[1]
     d0 = np.array([math.cos(road.heading[e['_i0']]), math.sin(road.heading[e['_i0']])])
     front = float((road.centre[e['_i0']] + d0 * (e['r_in'] + width)) @ d0)       # 前墙在 d0 方向上的位置
-    pol = BevPolicy(model)
     yaw0, why, onset = b.pose[2], None, None
     while why is None and b.env.t < 30.0:
         why = b.step(pol(*b.observation()))

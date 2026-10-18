@@ -26,7 +26,7 @@ import json
 import math
 import pickle
 from concurrent.futures import ProcessPoolExecutor
-from dataclasses import astuple
+from dataclasses import astuple, replace
 
 import numpy as np
 
@@ -84,7 +84,8 @@ def _run(args):
         from common.bev_policy import BevPolicy
         from training.bev_env import BevEnv
         pol = BevPolicy(model)
-        b = BevEnv(ep['road'], ep['pl'], ep['seed'], ep['start'], noise=True, free=pol.free,
+        pl = replace(ep['pl'], enc=pol.enc)     # 动作按模型自己的速度契约解码(带 _d 的模型能停车 / 刹车);老模型的契约和这里一样,结果逐位不变
+        b = BevEnv(ep['road'], pl, ep['seed'], ep['start'], noise=True, free=pol.free,
                    seg_period=seg_period, seg_lag=seg_lag, yolo=yolo, guard=guard, seg_lut=seg_lut, seg_fill=seg_fill)
         why = None
         while why is None:

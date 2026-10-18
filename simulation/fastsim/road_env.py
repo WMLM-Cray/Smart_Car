@@ -79,8 +79,10 @@ class SpeedPlant:
 
     def __init__(self, pl: Plant):
         self.pl, self.v, self.t = pl, 0.0, 0.0
-        # 队列先填平台速度:开局第一个指令到之前就当"在起步",和加停车之前的行为一致
-        self.queue = [pl.v_plateau] * max(1, int(round(pl.dead_time / PHYSICS_DT)))
+        # 开局第一个指令到之前:老契约(只会前进)当"在起步",和加停车之前的行为一致;
+        # 能停车的契约(_d)按车上的样子是中位 —— 模型第一拍要停就不会先冲出去一段
+        first = STOP if pl.enc.dead else pl.v_plateau
+        self.queue = [first] * max(1, int(round(pl.dead_time / PHYSICS_DT)))
         self.stopped = False    # 用停车 / 刹车停稳过(开局的起步走 launch_delay,不算)
         self.hold = None        # 再起步要等到的时刻
         self.release = CarParams().brake_release_speed

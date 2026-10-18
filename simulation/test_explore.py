@@ -205,3 +205,24 @@ def test_speed_head_conversion_keeps_executed_speed():
 def pytest_approx(x):
     import pytest
     return pytest.approx(x, abs=1e-9)
+
+
+def test_evaluators_decode_actions_with_the_models_own_contract(tmp_path):
+    """评估工具要按模型自己的速度契约解码:速度输出恒为 0 的模型,带 _d 时是"停"(原地不动、到点),
+    老契约下是 ~1.7 m/s 前进(会开走)。之前 l_test / boundary_test 写死老契约、bev_testset 用测试集里存的契约。"""
+    from common.bev_policy import C2
+    from common.road_policy import V_LO, Encoding, spec_of
+    from evaluation import boundary_test, l_test
+    from training.bev_net import export, make_net
+    import torch
+    net = make_net(C2)
+    with torch.no_grad():
+        net.f2.weight.zero_(); net.f2.bias.zero_()
+    stop, go = tmp_path / 'stop.npz', tmp_path / 'go.npz'
+    export(net, stop, spec_of('spica_v3_s3_v0.45-1_d0.2'), schema='bev_v2')
+    export(net, go, Encoding(3.0, V_LO, 3.0), schema='bev_v2')
+    why, path = l_test.run_one((str(stop), 3.5, 0.0, 0, False))
+    assert why == 'timeout' and np.hypot(*(path[-1][:2] - path[0][:2])) < 0.05
+    why, path = l_test.run_one((str(go), 3.5, 0.0, 0, False))
+    assert np.hypot(*(path[-1][:2] - path[0][:2])) > 1.0
+    assert boundary_test.run_one((str(stop), 'clean', 3.5, 0.0, 0, False))[0] == 'timeout'

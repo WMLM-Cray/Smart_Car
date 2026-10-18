@@ -77,6 +77,8 @@ def run_one(args):
     from training.bev_env import BevEnv
     road = ell(width, open_left)
     pl = replace(Plant.sample(np.random.default_rng(seed), Encoding(3.0, V_LO, 3.0)), cap=0.7)
+    if model != 'teacher':
+        pl = replace(pl, enc=BevPolicy(model).enc)    # 动作按模型自己的速度契约解码(带 _d 的模型能停车 / 刹车);老模型的契约和这里一样,结果逐位不变
     dist = FRONT - width - 0.05                          # 后轴到弯道起点(弯内角);前墙在弯起点外 r_in + 路宽
     i0 = road.elems[1]['_i0'] - int(round(dist / 0.05))
     off = -width / 2 + RIGHT                             # 横向:左正
