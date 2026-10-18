@@ -17,15 +17,32 @@ CRASH = 5.0             # 截停 / 撞上扣的分(= 5 m² 新地面)
 SEG_PERIOD, SEG_LAG = 0.33, 0.35
 
 
+class _RoadGrid:
+    """路段关卡没有 RealMap:按路的范围开一张 5 cm 标记网格,地面分割只出路面上的点,全算地面。"""
+    def __init__(self, road, cell=0.05, pad=4.0):
+        pts = np.vstack([road.centre, road.walls.reshape(-1, 2)]) if len(road.walls) else road.centre
+        lo, hi = pts.min(0) - pad, pts.max(0) + pad
+        self.cell = cell
+        self.i0, self.j0 = int(np.floor(lo[0] / cell)), int(np.floor(lo[1] / cell))
+        self.free = np.ones((int((hi[0] - lo[0]) / cell) + 2, int((hi[1] - lo[1]) / cell) + 2), bool)
+
+
 class Explore:
-    def __init__(self, world, pl, seed: int, start, duration: float = DURATION, seg=(SEG_PERIOD, SEG_LAG)):
+    def __init__(self, world, pl, seed: int, start, duration: float = DURATION, seg=(SEG_PERIOD, SEG_LAG), road=None):
+        """world:RealMap 场地(楼层 / 房间);或者 road:路段关卡(training 的 LW3 等,防止忘掉沿路开,
+        Wołczyk 2024 —— 只在楼层里练,第二轮 89 轮后原来的无锥桶测试集 81% -> 76%),start 用路的约定 (i, 横移, 朝向)。"""
         from training.bev_env import BevEnv
         pl = replace(pl, launch_delay=WARM + 0.5)             # 速度环在 launch_delay 内不动车
-        self.b = b = BevEnv(None, pl, seed, start, noise=True, free=True, seg_period=seg[0], seg_lag=seg[1],
-                            guard=True, world=world)
+        if road is None:
+            self.b = b = BevEnv(None, pl, seed, start, noise=True, free=True, seg_period=seg[0], seg_lag=seg[1],
+                                guard=True, world=world)
+        else:
+            self.b = b = BevEnv(road, pl, seed, start, noise=True, free=True, seg_period=seg[0], seg_lag=seg[1],
+                                yolo=False, guard=True, seg_lut=True, seg_fill=True)
         b.env.budget_s = WARM + duration
         self.world = world
-        self.marked = np.zeros_like(world.free)
+        self.grid = world if road is None else _RoadGrid(road)
+        self.marked = np.zeros_like(self.grid.free)
         bev, update = b.bev, b.bev.update_camera
 
         def update_and_mark(kinds, xy, pose, t):
@@ -43,7 +60,7 @@ class Explore:
             return
         x, y, yaw = pose
         c, s = np.cos(yaw), np.sin(yaw)
-        w = self.world
+        w = self.grid
         i = np.round((x + c * xy[:, 0] - s * xy[:, 1]) / w.cell).astype(np.int64) - w.i0
         j = np.round((y + s * xy[:, 0] + c * xy[:, 1]) / w.cell).astype(np.int64) - w.j0
         ok = (i >= 0) & (i < self.marked.shape[0]) & (j >= 0) & (j < self.marked.shape[1])
@@ -52,7 +69,7 @@ class Explore:
     @property
     def area(self) -> float:
         """标出来的地面面积 m²(只算地图上真是地面的格)。"""
-        return float((self.marked & self.world.free).sum()) * self.world.cell ** 2
+        return float((self.marked & self.grid.free).sum()) * self.grid.cell ** 2
 
     def observation(self):
         return self.b.observation()
@@ -60,6 +77,8 @@ class Explore:
     def privileged(self) -> np.ndarray:
         """只给价值网的仿真内信息(非对称 actor-critic,Pinto 2018;车上不用):周围 2 m / 5 m 内还没标过的地面
         (奖励就是它,BEV 看不全)、离最近障碍多远、这局还剩多少时间(到点截断时价值和剩余时间有关,Pardo 2018)。"""
+        if self.world is None:                                # 路段关卡没有地图,价值网的额外输入给 0
+            return np.zeros(4, np.float32)
         w, car, e = self.world, self.b.env.car, self.b.env
         i, j = int(round(car.x / w.cell)) - w.i0, int(round(car.y / w.cell)) - w.j0
         out = []
@@ -79,7 +98,7 @@ class Explore:
         before = self.area
         why = self.b.step(action)
         r = self.area - before
-        if why in ('guard', 'collision'):
+        if why in ('guard', 'collision', 'off_track'):
             r -= CRASH
         return r, why
 
@@ -99,9 +118,14 @@ def levels():
 
 
 def make(seed: int, enc, level: str = 'building'):
-    """按种子出一局:随机场地(levels())+ 出发点 + 车辆参数。"""
+    """按种子出一局:随机场地(levels())+ 出发点 + 车辆参数。level 也可以是路段关卡名(simulation/fastsim/road.LEVELS,
+    比如 LW3 / LW4 / LWO3):用 road_check.sample_episode 抽一条老师开得过的路,奖励同样是新标出的地面(沿路开 ≈ 前进距离)。"""
     from simulation.fastsim.floorplan import generate, sample_start
     from simulation.fastsim.road_env import Plant
+    if level not in levels():
+        from training.road_check import sample_episode
+        road, pl, start, _, _ = sample_episode(seed, level, enc=enc)
+        return Explore(None, replace(pl, cap=CAP), seed, start, road=road), None
     rng = np.random.default_rng(seed)
     for _ in range(20):                 # 小房间摆满家具时可能找不到"能绕圈"的出发点,换一张图
         world, info = generate(rng, levels()[level])
