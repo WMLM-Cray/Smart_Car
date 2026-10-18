@@ -109,7 +109,10 @@ def train(a):
             critic.f0.bias.copy_(old.bias)
     for p_ in ref.parameters():
         p_.requires_grad_(False)
-    log_std = torch.full((2,), float(np.log(a.std0)), requires_grad=True)
+    dev = torch.device(a.device)        # 更新在 GPU 上跑(采样仍在 CPU 进程池;8 核虚拟机上更新占一轮的 2/3)
+    for net in (actor, critic, ref):
+        net.to(dev)
+    log_std = torch.full((2,), float(np.log(a.std0)), device=dev, requires_grad=True)
     opt_a = torch.optim.Adam(list(actor.parameters()) + [log_std], lr=a.lr)
     opt_c = torch.optim.Adam(critic.parameters(), lr=a.lr_critic)
     bits = c_in * H * W
@@ -125,14 +128,14 @@ def train(a):
         return {k: v.astype(np.float32) for k, v in weights_of(net).items()}
 
     def unpack(P, j):
-        return torch.from_numpy(np.unpackbits(P[j], axis=1)[:, :bits].reshape(len(j), c_in, H, W).astype(np.float32))
+        return torch.from_numpy(np.unpackbits(P[j], axis=1)[:, :bits].reshape(len(j), c_in, H, W).astype(np.float32)).to(dev)
 
     def value(P, S):
         out_ = []
         with torch.no_grad():
             for s in range(0, len(P), 1024):
                 j = np.arange(s, min(len(P), s + 1024))
-                out_.append(critic(unpack(P, j), S[j])[:, 0].numpy())
+                out_.append(critic(unpack(P, j), S[j])[:, 0].cpu().numpy())
         return np.concatenate(out_)
 
     mix = [(x.split(':')[0], float(x.split(':')[1]) if ':' in x else 1.0) for x in a.level.split(',')]
@@ -155,14 +158,14 @@ def train(a):
             t0 = time.time()
             w = params_of(actor)
             jobs = [(TRAIN_SEED0 + int(rng.integers(10**7)), int(rng.integers(2**31)), w,
-                     log_std.detach().numpy().copy(), enc, a.duration, names[rng.choice(len(names), p=probs)]) for _ in range(a.episodes)]
+                     log_std.detach().cpu().numpy().copy(), enc, a.duration, names[rng.choice(len(names), p=probs)]) for _ in range(a.episodes)]
             eps = list(ex.map(rollout, jobs))
             t_roll = time.time() - t0
             P = np.concatenate([e[0] for e in eps])
-            S = torch.from_numpy(np.concatenate([e[1] for e in eps]))
-            A = torch.from_numpy(np.concatenate([e[2] for e in eps]))
-            LP = torch.from_numpy(np.concatenate([e[3] for e in eps]))
-            SC = torch.cat([S, torch.from_numpy(np.concatenate([e[8] for e in eps]))], 1) if a.priv else S   # 价值网的标量
+            S = torch.from_numpy(np.concatenate([e[1] for e in eps])).to(dev)
+            A = torch.from_numpy(np.concatenate([e[2] for e in eps])).to(dev)
+            LP = torch.from_numpy(np.concatenate([e[3] for e in eps])).to(dev)
+            SC = torch.cat([S, torch.from_numpy(np.concatenate([e[8] for e in eps])).to(dev)], 1) if a.priv else S   # 价值网的标量
             V = value(P, SC)
             advs, rets, o = [], [], 0
             for e in eps:
@@ -172,8 +175,8 @@ def train(a):
                 tail = V[o + n - 1] if (e[5] == 'timeout' and not a.no_peb) else 0.0
                 ad, rt = gae(e[4], np.r_[V[o:o + n], tail], a.gamma, a.lam, terminal=e[5] != 'timeout')
                 advs.append(ad); rets.append(rt); o += n
-            ADV = torch.from_numpy(np.concatenate(advs).astype(np.float32))
-            RET = torch.from_numpy(np.concatenate(rets).astype(np.float32))
+            ADV = torch.from_numpy(np.concatenate(advs).astype(np.float32)).to(dev)
+            RET = torch.from_numpy(np.concatenate(rets).astype(np.float32)).to(dev)
             ADV = (ADV - ADV.mean()) / (ADV.std() + 1e-8)
             anchor = max(a.anchor_min, a.anchor * (a.anchor_decay ** it))
             N = len(P)
@@ -181,7 +184,9 @@ def train(a):
                 perm = np.random.default_rng(int(rng.integers(2**31))).permutation(N)
                 for s in range(0, N, a.minibatch):
                     j = perm[s:s + a.minibatch]
-                    X, Sj = unpack(P, j), S[j]
+                    X = unpack(P, j)
+                    j = torch.as_tensor(j, device=dev)
+                    Sj = S[j]
                     vloss = ((critic(X, SC[j])[:, 0] - RET[j]) ** 2).mean()
                     opt_c.zero_grad(); vloss.backward(); opt_c.step()
                     if it < a.critic_warmup:
@@ -203,7 +208,7 @@ def train(a):
                 reasons[e[5]] = reasons.get(e[5], 0) + 1
             msg = (f'iter {it} steps={N} {reasons} ret={np.mean([e[4].sum() for e in eps]):.1f} '
                    f'面积={np.mean([e[6] for e in eps]):.1f} 距离={np.mean([e[7] for e in eps]):.1f} '
-                   f'std={np.exp(log_std.detach().numpy()).round(3).tolist()} anchor={anchor:.3f} '
+                   f'std={np.exp(log_std.detach().cpu().numpy()).round(3).tolist()} anchor={anchor:.3f} '
                    f'[{t_roll:.0f}s/{t_upd:.0f}s]')
             if (it + 1) % a.eval_every == 0 or it == a.iters - 1:
                 msg += ' | ' + run_eval(ex, it)
@@ -222,6 +227,7 @@ def main(argv=None):
                     help='场地混合 名字:比例(training/explore_env.levels:room 空房间、room_n 墙面有起伏、room_f 再加少量家具、building 整栋楼)')
     ap.add_argument('--workers', type=int, default=8)
     ap.add_argument('--torch-threads', type=int, default=8)
+    ap.add_argument('--device', default='cpu', help='更新用的设备:cpu / cuda')
     ap.add_argument('--lr', type=float, default=1e-4)
     ap.add_argument('--lr-critic', type=float, default=3e-4)
     ap.add_argument('--std0', type=float, default=0.15)

@@ -35,11 +35,11 @@ def make_net(c_in: int = C):
 def weights_of(net) -> dict:
     out = {}
     for k, conv in enumerate(net.convs):
-        out[f'c{k}w'] = conv.weight.detach().numpy().copy()
-        out[f'c{k}b'] = conv.bias.detach().numpy().copy()
+        out[f'c{k}w'] = conv.weight.detach().cpu().numpy().copy()
+        out[f'c{k}b'] = conv.bias.detach().cpu().numpy().copy()
     for k, fc in enumerate((net.f0, net.f1, net.f2)):
-        out[f'f{k}w'] = fc.weight.detach().numpy().copy()
-        out[f'f{k}b'] = fc.bias.detach().numpy().copy()
+        out[f'f{k}w'] = fc.weight.detach().cpu().numpy().copy()
+        out[f'f{k}b'] = fc.bias.detach().cpu().numpy().copy()
     return out
 
 
