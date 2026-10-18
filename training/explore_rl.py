@@ -24,6 +24,7 @@ from pathlib import Path
 
 import numpy as np
 
+from training.explore_env import levels
 from training.road_rl import gae
 
 N_PRIV = 4                      # Explore.privileged 的长度
@@ -148,8 +149,12 @@ def train(a):
         msg = []
         for nm in names:
             ev = list(ex.map(evaluate, [(EVAL_SEED0 + i, w, enc, a.duration, nm) for i in range(a.eval_count)]))
-            msg.append(f'{nm}: 面积 {np.mean([e[1] for e in ev]):.1f} m² 截停/撞 '
-                       f'{np.mean([e[0] in ("guard", "collision") for e in ev]):.0%}')
+            why = [e[0] for e in ev]
+            m = (f'{nm}: 面积 {np.mean([e[1] for e in ev]):.1f} m² 截停/撞 '
+                 f'{np.mean([w_ in ("guard", "collision") for w_ in why]):.0%}')
+            if nm not in levels():      # 路段关卡:出界、到终点也报(只看截停时看不出往路外开)
+                m += f' 出界 {why.count("off_track") / len(why):.0%} 到终点 {why.count("goal") / len(why):.0%}'
+            msg.append(m)
         return 'eval ' + ' / '.join(msg)
 
     with ProcessPoolExecutor(a.workers) as ex:
@@ -237,7 +242,8 @@ def main(argv=None):
     ap.add_argument('--minibatch', type=int, default=512)
     ap.add_argument('--anchor', type=float, default=1.0)
     ap.add_argument('--anchor-decay', type=float, default=0.97)
-    ap.add_argument('--anchor-min', type=float, default=0.05)
+    ap.add_argument('--anchor-min', type=float, default=0.3,
+                    help='锚定衰减的下限(0.05 时第二轮锚定到底后 45 轮测试集 74%% -> 57%%,2026-10-18 改 0.3)')
     ap.add_argument('--critic-warmup', type=int, default=2, help='前几轮只训价值网')
     ap.add_argument('--eval-every', type=int, default=5)
     ap.add_argument('--eval-count', type=int, default=32)

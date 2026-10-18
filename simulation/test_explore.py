@@ -49,16 +49,30 @@ def test_privileged_features_shape_and_range():
     assert f1[3] < f0[3]                                   # 剩余时间在减
 
 
-def test_road_level_rewards_driving_along_the_road():
-    from training.explore_env import make
+def test_road_level_rewards_progress_and_off_road_costs_more():
+    from training.explore_env import CRASH, OFF_ROAD, PROGRESS, make
     env, info = make(3, ENC, 'LW3')
     assert info is None and env.world is None
+    s0 = env.s
     total, why, n = 0.0, None, 0
     while why is None and n < 300:
         r, why = env.step(np.array([0.0, 0.3]))
         total += r
         n += 1
-    assert env.area > env.area0 and env.privileged().shape == (4,)
+    pen = OFF_ROAD if why == 'off_track' else CRASH if why in ('guard', 'collision') else 0.0
+    assert abs(total - (PROGRESS * (env.s - s0) - pen)) < 1e-9     # 奖励是沿路前进,不是新标面积
+    assert env.s > s0 and env.privileged().shape == (4,)
+
+
+def test_road_level_driving_off_the_road_is_penalised():
+    from training.explore_env import OFF_ROAD, make
+    env, _ = make(3, ENC, 'LWO3')
+    rs, why, n = [], None, 0
+    while why is None and n < 600:                      # 打死一边开出路(这个种子是出界,不是截停)
+        r, why = env.step(np.array([1.0, 0.3]))
+        rs.append(r)
+        n += 1
+    assert why == 'off_track' and rs[-1] < -OFF_ROAD + 1.0
 
 
 def test_rollout_and_evaluate_run_on_road_and_room_levels():

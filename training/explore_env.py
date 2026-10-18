@@ -14,6 +14,8 @@ CAP = 0.7               # 车上网页设的速度上限
 WARM = 2.0              # 出发前原地攒 BEV 的时间 s(同 evaluation/real_map_replay)
 DURATION = 60.0         # 每局最长 s(不含 WARM)
 CRASH = 5.0             # 截停 / 撞上扣的分(= 5 m² 新地面)
+PROGRESS = 1.0          # 路段关卡:沿路每前进 1 m 的奖励(0.7 m/s 开 40 s ≈ 28,和房间一局的面积分同一量级)
+OFF_ROAD = 20.0         # 路段关卡出界扣的分:按面积给分时出界只扣 5,第二轮 iter 149 测试集出界 27 -> 81 次(2026-10-18)
 SEG_PERIOD, SEG_LAG = 0.33, 0.35
 
 
@@ -54,6 +56,8 @@ class Explore:
             b.env.step(np.zeros(2))
             b._camera()
         self.area0 = self.area                                # 出发前看到的不算
+        self.road = road
+        self.s = road.s[b.env.idx] if road is not None else 0.0   # 路段关卡:沿中心线走到哪了 m
         self.dist = 0.0                                       # 放行后开过的路程 m(RoadEnv 没有 dist,自己记)
 
     def _mark(self, xy, pose):
@@ -95,13 +99,21 @@ class Explore:
         return np.asarray(out, np.float32)
 
     def step(self, action):
-        """一拍(50 ms)。返回 (奖励, 结束原因或 None)。"""
+        """一拍(50 ms)。返回 (奖励, 结束原因或 None)。
+        房间:新标的地面面积;路段:沿路前进的距离 × PROGRESS(路边敞开的地面也是地面,按面积给分等于奖励开出路,
+        第二轮遗忘的几乎全是出界)。截停 / 撞上扣 CRASH,路段出界扣 OFF_ROAD。"""
         before, (x0, y0, _) = self.area, self.b.pose
         why = self.b.step(action)
         x1, y1, _ = self.b.pose
         self.dist += float(np.hypot(x1 - x0, y1 - y0))
-        r = self.area - before
-        if why in ('guard', 'collision', 'off_track'):
+        if self.road is None:
+            r = self.area - before
+        else:
+            s = self.road.s[self.b.env.idx]
+            r, self.s = PROGRESS * (s - self.s), s
+        if why == 'off_track' and self.road is not None:
+            r -= OFF_ROAD
+        elif why in ('guard', 'collision', 'off_track'):
             r -= CRASH
         return r, why
 
@@ -122,7 +134,7 @@ def levels():
 
 def make(seed: int, enc, level: str = 'building'):
     """按种子出一局:随机场地(levels())+ 出发点 + 车辆参数。level 也可以是路段关卡名(simulation/fastsim/road.LEVELS,
-    比如 LW3 / LW4 / LWO3):用 road_check.sample_episode 抽一条老师开得过的路,奖励同样是新标出的地面(沿路开 ≈ 前进距离)。"""
+    比如 LW3 / LW4 / LWO3):用 road_check.sample_episode 抽一条老师开得过的路,奖励是沿路前进的距离(见 Explore.step)。"""
     from simulation.fastsim.floorplan import generate, sample_start
     from simulation.fastsim.road_env import Plant
     if level not in levels():
