@@ -99,3 +99,21 @@ def test_rollout_returns_observation_after_last_action_on_timeout():
     p_T, sc_T, priv_T = last
     assert p_T.shape == imgs[-1].shape and sc_T.shape == scs[-1].shape and priv_T.shape == out[8][-1].shape
     assert not (np.array_equal(p_T, imgs[-1]) and np.array_equal(sc_T, scs[-1]))   # 动作之后车动过,观测变了
+
+
+def test_diagnose_reports_update_size_value_fit_levels_and_actions():
+    from training.explore_env import CAP
+    from training.explore_rl import diagnose
+    from common.road_policy import speed_to_action
+    eps = [(None, None, None, None, np.ones(3, np.float32), 'timeout'),
+           (None, None, None, None, np.ones(5, np.float32), 'guard')]
+    ret = np.arange(8, dtype=np.float32)
+    acts = np.array([[1.2, 1.0]] * 2 + [[0.0, speed_to_action(0.5, ENC)]] * 6, np.float32)
+    st = {'kl': [0.01, 0.03], 'clip': [0.1], 'gn_a': [], 'gn_c': [2.0], 'vloss': [1.0], 'pg': [], 'anchor_loss': []}
+    d = diagnose(7, eps, ['room', 'LW3'], ret.copy(), ret, acts, ENC, st)
+    assert d['iter'] == 7 and abs(d['kl'] - 0.02) < 1e-9 and np.isnan(d['gn_a'])   # 预热轮没有策略项
+    assert d['ev'] == 1.0                                                          # 价值 = 回报
+    assert d['levels'] == {'room': {'episodes': 1, 'steps': 3, 'ret': 3.0, 'why': {'timeout': 1}},
+                           'LW3': {'episodes': 1, 'steps': 5, 'ret': 5.0, 'why': {'guard': 1}}}
+    assert d['steer_sat'] == 0.25 and d['speed_at_cap'] == 0.25
+    assert abs(d['speed_cmd'] - (2 * CAP + 6 * 0.5) / 8) < 1e-6

@@ -85,6 +85,35 @@ def evaluate(args):
     return why, env.area - env.area0, env.dist
 
 
+def grad_norm(params) -> float:
+    """backward 之后、step 之前所有梯度的总 L2 范数。"""
+    return float(sum(float((p.grad.detach() ** 2).sum()) for p in params if p.grad is not None) ** 0.5)
+
+
+def diagnose(it, eps, levels_, V, ret, acts, enc, st) -> dict:
+    """一轮的诊断(写 diag.jsonl):PPO 更新幅度(KL、clip fraction、梯度范数、各项损失;critic 预热轮没有策略项,记 nan)、
+    价值网拟合(更新前价值对回报的解释方差)、各关卡的局数 / 步数 / 回报 / 结束原因、实际执行的动作分布
+    (转向被裁到 ±1 的比例、速度动作落到限速 CAP 的比例和平均目标车速)。"""
+    from common.road_policy import action_to_speed
+    from training.explore_env import CAP
+    mean = lambda x: float(np.mean(x)) if len(x) else float('nan')
+    var = float(np.var(ret))
+    per = {}
+    for e, lv in zip(eps, levels_):
+        p_ = per.setdefault(lv, {'episodes': 0, 'steps': 0, 'ret': [], 'why': {}})
+        p_['episodes'] += 1; p_['steps'] += len(e[4]); p_['ret'].append(float(e[4].sum()))
+        p_['why'][e[5]] = p_['why'].get(e[5], 0) + 1
+    for p_ in per.values():
+        p_['ret'] = round(float(np.mean(p_['ret'])), 2)
+    v_cmd = np.array([action_to_speed(float(x), enc) for x in np.clip(acts[:, 1], -1, 1)])
+    return {'iter': it, **{k: mean(v) for k, v in st.items()},
+            'ev': 1.0 - float(np.var(ret - V)) / var if var > 0 else float('nan'),
+            'levels': per,
+            'steer_sat': float(np.mean(np.abs(acts[:, 0]) >= 1.0)),
+            'speed_at_cap': float(np.mean(v_cmd >= CAP)),
+            'speed_cmd': float(np.mean(np.minimum(v_cmd, CAP)))}
+
+
 def train(a):
     import torch
 
@@ -124,6 +153,7 @@ def train(a):
     bits = c_in * H * W
     rng = np.random.default_rng(a.seed)
     log = open(out / 'train.log', 'a', encoding='utf-8', buffering=1)
+    diag = open(out / 'diag.jsonl', 'a', encoding='utf-8', buffering=1)    # 每轮一行,见 diagnose
 
     def say(msg):
         line = f'{time.strftime("%H:%M:%S")} {msg}'
@@ -194,11 +224,13 @@ def train(a):
                 tail = V_T.get(i, 0.0)
                 ad, rt = gae(e[4], np.r_[V[o:o + n], tail], a.gamma, a.lam, terminal=e[5] != 'timeout')
                 advs.append(ad); rets.append(rt); o += n
+            ret_np = np.concatenate(rets)
             ADV = torch.from_numpy(np.concatenate(advs).astype(np.float32)).to(dev)
-            RET = torch.from_numpy(np.concatenate(rets).astype(np.float32)).to(dev)
+            RET = torch.from_numpy(ret_np.astype(np.float32)).to(dev)
             ADV = (ADV - ADV.mean()) / (ADV.std() + 1e-8)
             anchor = max(a.anchor_min, a.anchor * (a.anchor_decay ** it))
             N = len(P)
+            st = {k: [] for k in ('kl', 'clip', 'gn_a', 'gn_c', 'vloss', 'pg', 'anchor_loss')}
             for _ in range(a.epochs):
                 perm = np.random.default_rng(int(rng.integers(2**31))).permutation(N)
                 for s in range(0, N, a.minibatch):
@@ -207,7 +239,9 @@ def train(a):
                     j = torch.as_tensor(j, device=dev)
                     Sj = S[j]
                     vloss = ((critic(X, SC[j])[:, 0] - RET[j]) ** 2).mean()
-                    opt_c.zero_grad(); vloss.backward(); opt_c.step()
+                    opt_c.zero_grad(); vloss.backward()
+                    st['gn_c'].append(grad_norm(critic.parameters())); st['vloss'].append(float(vloss))
+                    opt_c.step()
                     if it < a.critic_warmup:
                         continue
                     mu = actor(X, Sj)
@@ -215,17 +249,28 @@ def train(a):
                     logp = (-0.5 * ((A[j] - mu) / ls.exp()) ** 2 - ls - 0.5 * np.log(2 * np.pi)).sum(1)
                     ratio = (logp - LP[j]).exp()
                     pg = -torch.min(ratio * ADV[j], ratio.clamp(1 - a.clip, 1 + a.clip) * ADV[j]).mean()
-                    aloss = pg + anchor * ((mu - MU_REF[j]) ** 2).mean()
-                    opt_a.zero_grad(); aloss.backward(); opt_a.step()
+                    an = ((mu - MU_REF[j]) ** 2).mean()
+                    aloss = pg + anchor * an
+                    opt_a.zero_grad(); aloss.backward()
+                    st['gn_a'].append(grad_norm(list(actor.parameters()) + [log_std]))
+                    opt_a.step()
+                    with torch.no_grad():
+                        lr_ = logp - LP[j]
+                        st['kl'].append(float(((lr_.exp() - 1) - lr_).mean()))      # k3 估计,非负
+                        st['clip'].append(float(((lr_.exp() - 1).abs() > a.clip).float().mean()))
+                    st['pg'].append(float(pg)); st['anchor_loss'].append(float(an))
                     with torch.no_grad():
                         log_std.clamp_(np.log(0.02), np.log(0.5))
             t_upd = time.time() - t0 - t_roll
             reasons = {}
             for e in eps:
                 reasons[e[5]] = reasons.get(e[5], 0) + 1
+            d = diagnose(it, eps, [j_[6] for j_ in jobs], V, ret_np, A.cpu().numpy(), enc, st)
+            diag.write(json.dumps(d, ensure_ascii=False) + '\n')
             msg = (f'iter {it} steps={N} {reasons} ret={np.mean([e[4].sum() for e in eps]):.1f} '
                    f'面积={np.mean([e[6] for e in eps]):.1f} 距离={np.mean([e[7] for e in eps]):.1f} '
                    f'std={np.exp(log_std.detach().cpu().numpy()).round(3).tolist()} anchor={anchor:.3f} '
+                   f'kl={d["kl"]:.4f} clip={d["clip"]:.2f} ev={d["ev"]:.2f} '
                    f'[{t_roll:.0f}s/{t_upd:.0f}s]')
             if (it + 1) % a.eval_every == 0 or it == a.iters - 1:
                 msg += ' | ' + run_eval(ex, it)
