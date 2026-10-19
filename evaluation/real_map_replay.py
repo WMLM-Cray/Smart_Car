@@ -23,7 +23,6 @@ import numpy as np
 
 CAP = 0.7               # 车上网页设的速度上限
 SEG_PERIOD, SEG_LAG = 0.33, 0.35     # 车上 M2F-T 288 地面分割的周期 / 延迟(training/bev_env 文档)
-                        # (不攒的话 1014 seg_04 三个模型第一拍都往右前一个近处障碍打方向、当场截停,实车那拍只打了 -0.05)
 COLORS = [(40, 40, 220), (0, 140, 255), (180, 60, 160), (60, 160, 60), (120, 120, 0)]     # 模型路径(BGR):红、橙、紫、绿、青;实车是蓝
 
 
@@ -63,7 +62,7 @@ def run_one(args):
     pl = replace(Plant.sample(np.random.default_rng(seed), pol.enc), cap=CAP)
     b = BevEnv(None, pl, seed, start, noise=True, free=pol.free, seg_period=SEG_PERIOD, seg_lag=SEG_LAG,
                guard=True, world=world)
-    b.env.budget_s = duration                # 放行时 BEV 是空的:车上重新使能会清空(common/bev_runtime._reset_history),
+    b.env.budget_s = duration                # 放行时清空旧证据,只有使能后新到的传感器帧能进入 BEV
     why, path = None, []                     # 2026-10-18 之前这里先原地攒 2 s,前提"车上放行前早就在攒"是错的
     while why is None:
         why = b.step(pol(*b.observation()))
