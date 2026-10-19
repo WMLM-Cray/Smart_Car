@@ -125,6 +125,7 @@ def main():
     ap.add_argument('--lr', type=float, default=1e-3)
     ap.add_argument('--replay', type=int, default=300_000)
     ap.add_argument('--ema', type=float, default=0.999)
+    ap.add_argument('--device', default='cpu', help='网络更新用的设备:cpu / mps(Apple GPU)/ cuda;采样始终在 CPU 进程里')
     ap.add_argument('--workers', type=int, default=7)
     ap.add_argument('--torch-threads', type=int, default=4)
     ap.add_argument('--seed', type=int, default=0)
@@ -172,6 +173,7 @@ def main():
     rng = np.random.default_rng(a.seed)
     c_in = channels_of(a.schema)
     free = c_in > channels_of(SCHEMA)
+    dev = torch.device(a.device)
     net, ema = make_net(c_in), make_net(c_in)
     if a.init is not None:
         from common.bev_policy import BevPolicy
@@ -180,6 +182,7 @@ def main():
         from training.bev_net import load_into
         load_into(net, a.init)
     ema.load_state_dict(net.state_dict())
+    net, ema = net.to(dev), ema.to(dev)
     opt = torch.optim.Adam(net.parameters(), lr=a.lr)
     a.out.mkdir(parents=True, exist_ok=False)
     cfg = {k: str(v) for k, v in vars(a).items()}
@@ -202,7 +205,7 @@ def main():
         raise SystemExit('--consist 要配 --aug(两张图一样,一致性损失恒为 0)')
     replay = Replay(a.replay, c_in, pair)
     brng = np.random.default_rng(a.seed + 1)
-    wy = torch.tensor([1.0, 0.5])
+    wy = torch.tensor([1.0, 0.5], device=dev)
     seed = TRAIN_SEED0
     with ProcessPoolExecutor(a.workers) as ex:
         for r in range(a.rounds):
@@ -226,10 +229,11 @@ def main():
             losses = []
             for _ in range(a.updates):
                 img, sc, y, img2 = replay.batch(brng, a.batch)
-                pred = net(torch.from_numpy(img), torch.from_numpy(sc))
-                loss = (((pred - torch.from_numpy(y)) ** 2) * wy).mean()
+                img, sc = torch.from_numpy(img).to(dev), torch.from_numpy(sc).to(dev)
+                pred = net(img, sc)
+                loss = (((pred - torch.from_numpy(y).to(dev)) ** 2) * wy).mean()
                 if pair:        # 同一帧换一种量化相位,输出该一样:不许按"墙落在哪一格"出转角
-                    pred2 = net(torch.from_numpy(img2), torch.from_numpy(sc))
+                    pred2 = net(torch.from_numpy(img2).to(dev), sc)
                     loss = loss + a.consist * (((pred - pred2) ** 2) * wy).mean()
                 opt.zero_grad()
                 loss.backward()
@@ -237,7 +241,7 @@ def main():
                 with torch.no_grad():
                     for pe, pn in zip(ema.parameters(), net.parameters()):
                         pe.mul_(a.ema).add_(pn, alpha=1 - a.ema)
-                losses.append(loss.item())
+                losses.append(loss.detach())             # 不逐步 .item():GPU 上每步同步一次会拖慢
             t_update = time.time() - t0
 
             t0 = time.time()
@@ -251,7 +255,7 @@ def main():
             by = {n: summarize([e for e in ev if e['level'] == n])['success'] for n in ev_levels}
             t_eval = time.time() - t0
             export(ema, a.out / f'candidate_{r:03d}.npz', enc, a.schema)
-            say(f'round {r} beta={beta:.2f} samples={replay.size} loss={np.mean(losses[-200:]):.4f} '
+            say(f'round {r} beta={beta:.2f} samples={replay.size} loss={torch.stack(losses[-200:]).mean().item():.4f} '
                 f'collect={collect["success"]:.3f} eval={summ["success"]:.3f} {by} {summ["reasons"]} '
                 f'[{t_collect:.0f}s/{t_update:.0f}s/{t_eval:.0f}s]')
     say('done')
