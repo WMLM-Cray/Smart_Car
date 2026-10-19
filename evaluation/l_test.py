@@ -5,8 +5,8 @@
     python -m evaluation.l_test compare runs/l_a.json runs/l_b.json
 
 v4.5 主指标(docs/v4.5方案.md §6):`run` 按种子抽加难的 L 弯 —— 左弯 / 右弯、离前墙 5~9 m、路宽 2.5~6 m
-(5 m 以上弯内侧敞开)、初始朝向 ±10°,报通过率和开始转向时离前墙的距离(车头朝弯转过 TURNED 那一刻,
-车最前端到前墙);`compare` 对同一批局配对比较。
+(5 m 以上弯内侧敞开)、初始朝向 ±10°,报通过率和**转向起始点**:策略开始一直朝弯打方向(见 STEER_ON)时
+车最前端离前墙多远、放行后多少秒(用户 10-19 定;车头转过 TURNED 的位置另报作参考);`compare` 对同一批局配对比较。
 
 实车那段(车的起点坐标系,x 前 y 左):右边是墙(y ≈ -1.9),正前方 7 m 是墙,出口在左边(一大片屋子,家具零散);
 车贴右墙往前开了 6.3 m,停在离前墙 0.7 m 处。这里:进口直道 + 尖 90° 左弯(外侧方角)+ 出口直道,
@@ -34,7 +34,10 @@ RIGHT = 1.9                 # 车离右墙 m
 WIDTHS = (2.5, 3.5, 4.5)    # 路宽:实车左边是开阔的屋子,扫一个范围
 YAWS = (-10.0, 0.0, 10.0)   # 初始朝向偏差 °(左正;实车起步时大致平行右墙)
 EXIT = 5.0                  # 出口直道长 m
-TURNED = math.radians(15.0) # 朝弯的方向转过这么多 = 开始转向
+TURNED = math.radians(15.0) # 车头相对进口路的方向朝弯转过这么多 = 车头开始转(参考;初始朝向只有 ±10°,不会误触发)
+STEER_ON = 0.1              # 转向起始点(主指标):从车头转过 TURNED 那一拍往回找,一直"朝弯打方向超过 STEER_ON、
+                            # 且车头已经偏向弯那一侧"的这一段的起点。10-19 试过两种不行的:"第一次连续超过阈值"
+                            # 被起步纠正初始朝向触发;"转过 45° 前最后一段连续超过 0.3"被老师平缓打方向时的小起伏打断
 TEST_SEED0 = 96_000_000     # run 的测试种子段;挑 candidate 用 SELECT_SEED0(和训练 30M/60M、bev_testset 93M、A-D 95M 不重叠)
 SELECT_SEED0 = 97_000_000
 
@@ -123,7 +126,8 @@ def case(seed: int) -> dict:
 
 
 def run_case(args):
-    """一局。返回结局、开始转向时车最前端离前墙多远(没转就 None)、结束时离前墙多远、最后一拍的转向和车速。"""
+    """一局。返回结局、转向起始点(离前墙多远 steer_gap / 放行后几秒 steer_t,没打就 None)、车头转过 TURNED 时
+    离前墙多远(onset)、结束时离前墙多远、最后一拍的转向和车速。"""
     model, c, cap = args
     from common.bev_policy import BevPolicy
     from common.params import CarParams
@@ -147,7 +151,7 @@ def run_case(args):
         from training.road_teacher import R_MIN, plan
         P = plan(road, i0, off, cp.width, pl, r_min=R_MIN, a_lat=1.47)
         if isinstance(P, str):
-            return dict(c, why='no_plan', onset=None, gap_end=None, steer_end=None, v_end=None)
+            return dict(c, why='no_plan', onset=None, steer_gap=None, steer_t=None, gap_end=None, steer_end=None, v_end=None)
         t = SeenTeacher(b, P, 1.47)
         pol = lambda img, sc: t()
     h0 = road.heading[i0]
@@ -155,24 +159,35 @@ def run_case(args):
     wall = float(road.pockets[0][1] @ d0)                  # 前墙(方角)在进口方向上的位置
     nose = cp.length - cp.rear_overhang                    # 后轴 -> 车最前端
     car = b.env.car
-    yaw0 = car.yaw
 
     def gap():
         return wall - (float(np.array([car.x, car.y]) @ d0) + nose * math.cos(car.yaw - h0))
 
+    def turned():
+        return sign * ((car.yaw - h0 + math.pi) % (2 * math.pi) - math.pi)
+
     why, onset, a = None, None, np.zeros(2)
+    steer, run = None, None                                # run:当前这一段朝弯打方向的起点(离前墙, 时刻)
     while why is None and b.env.t < 30.0:
         a = pol(*b.observation())
+        if onset is None:
+            if sign * float(a[0]) > STEER_ON and turned() >= 0.0:
+                run = run or (gap(), b.env.t)
+            else:
+                run = None
         why = b.step(a)
-        if onset is None and sign * ((car.yaw - yaw0 + math.pi) % (2 * math.pi) - math.pi) > TURNED:
-            onset = gap()
+        if onset is None and turned() > TURNED:
+            onset, steer = gap(), run
     return dict(c, why=why or 'timeout', onset=None if onset is None else round(onset, 3),
+                steer_gap=None if steer is None else round(steer[0], 3),
+                steer_t=None if steer is None else round(steer[1], 2),
                 gap_end=round(gap(), 3), steer_end=round(float(a[0]), 3), v_end=round(float(car.v), 3))
 
 
 def paired(a: list, b: list, n_boot: int = 2000, seed: int = 0) -> dict:
     """同一批局(按种子对齐)的两组结果:通过率差 b - a(配对 bootstrap 95% 区间、McNemar 不一致对),
-    开始转向距离差 b - a(两边都转了的局,配对 bootstrap 95% 区间;正数 = b 转得更早)。"""
+    转向起始点 steer_gap 和车头转过 TURNED 的位置 onset 的差 b - a(两边都有的局,配对 bootstrap 95% 区间;
+    正数 = b 离墙更远就开始转)。"""
     ka, kb = {r['seed']: r for r in a}, {r['seed']: r for r in b}
     common = [s for s in kb if s in ka]
     ok_a = np.array([ka[s]['why'] == 'goal' for s in common], float)
@@ -182,14 +197,15 @@ def paired(a: list, b: list, n_boot: int = 2000, seed: int = 0) -> dict:
     out = dict(n=len(common), pass_a=float(ok_a.mean()), pass_b=float(ok_b.mean()), d_pass=float((ok_b - ok_a).mean()),
                d_pass_ci=[float(np.percentile(d_ok, 2.5)), float(np.percentile(d_ok, 97.5))],
                only_a=int(((ok_a == 1) & (ok_b == 0)).sum()), only_b=int(((ok_a == 0) & (ok_b == 1)).sum()))
-    both = [s for s in common if ka[s]['onset'] is not None and kb[s]['onset'] is not None]
-    out['n_onset'] = len(both)
-    if both:
-        d = np.array([kb[s]['onset'] - ka[s]['onset'] for s in both])
-        bd = d[rng.integers(0, len(d), (n_boot, len(d)))].mean(1)
-        out.update(onset_a=float(np.mean([ka[s]['onset'] for s in both])),
-                   onset_b=float(np.mean([kb[s]['onset'] for s in both])), d_onset=float(d.mean()),
-                   d_onset_ci=[float(np.percentile(bd, 2.5)), float(np.percentile(bd, 97.5))])
+    for k in ('steer_gap', 'onset'):
+        both = [s for s in common if ka[s].get(k) is not None and kb[s].get(k) is not None]
+        out[f'n_{k}'] = len(both)
+        if both:
+            d = np.array([kb[s][k] - ka[s][k] for s in both])
+            bd = d[rng.integers(0, len(d), (n_boot, len(d)))].mean(1)
+            out.update({f'{k}_a': float(np.mean([ka[s][k] for s in both])),
+                        f'{k}_b': float(np.mean([kb[s][k] for s in both])), f'd_{k}': float(d.mean()),
+                        f'd_{k}_ci': [float(np.percentile(bd, 2.5)), float(np.percentile(bd, 97.5))]})
     return out
 
 
@@ -214,10 +230,12 @@ def _sampled(argv):
         with ProcessPoolExecutor(a.workers) as ex:
             rows = list(ex.map(run_case, [(a.model, k, a.cap) for k in cases], chunksize=4))
         ok = [r['why'] == 'goal' for r in rows]
+        st = [r for r in rows if r['steer_gap'] is not None]
         on = [r['onset'] for r in rows if r['onset'] is not None]
         reasons = dict(Counter(r['why'] for r in rows))
         print(f'{os.path.basename(a.model)} 限速 {a.cap}: 过 {np.mean(ok):.1%} ({sum(ok)}/{len(ok)}) {reasons}  '
-              f'开始转向离前墙 平均 {np.mean(on) if on else float("nan"):.2f} m(n={len(on)})')
+              f'转向起始点 离前墙 {np.mean([r["steer_gap"] for r in st]):.2f} m / 放行后 '
+              f'{np.mean([r["steer_t"] for r in st]):.2f} s(n={len(st)})  车头转过 15° 离前墙 {np.mean(on):.2f} m')
         with open(a.out, 'w', encoding='utf-8') as f:
             json.dump(dict(model=a.model, cap=a.cap, seed0=seed0, rows=rows), f, ensure_ascii=False)
     else:

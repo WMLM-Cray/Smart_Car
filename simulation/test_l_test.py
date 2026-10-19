@@ -13,6 +13,7 @@ def test_teacher_turns_early_on_a_mirrored_right_turn():
     c = next(c for c in (case(96_000_000 + i) for i in range(20)) if c['right_turn'])
     r = run_case(('teacher', c, 0.7))
     assert r['why'] == 'goal' and r['onset'] > 2.0          # 老师在离前墙 2 m 以外就开始往右转
+    assert r['steer_gap'] >= r['onset'] and r['steer_t'] > 0  # 先打方向,车头后转
 
 
 def test_paired_compares_the_same_episodes():
