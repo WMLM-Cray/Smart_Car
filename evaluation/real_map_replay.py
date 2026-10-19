@@ -3,7 +3,8 @@
 
     python -m evaluation.real_map_replay runs/drv_1015b/logbook_1015_181810/seg_03 models/a.npz models/b.npz
 
-每局换一个种子(车辆参数按 Plant.sample 抽,速度上限固定 0.7);同车上,放行时 BEV 是空的、车马上就走。结束原因:
+每局换一个种子(车辆参数按 Plant.sample 抽,速度上限固定 0.7);清空旧证据后等待首帧新鲜地面结果,
+到达前不调用策略、不推进车,但传感器和超时计时照常推进(同车上 FREE 新鲜度门控)。结束原因:
 guard(车上截停,实车到这一步基本卡死)、collision、unknown(开出建图时见过的范围,后面没有图,算"没出事")、timeout。
 --png 画图:车上同款点阵图 + 实车路径(蓝)+ 各模型每局路径(红 / 橙 / 紫)。
 """
@@ -20,6 +21,9 @@ from collections import Counter
 from dataclasses import replace
 
 import numpy as np
+
+from common.bev_runtime import FREE_TIMEOUT
+from simulation.fastsim.road_env import CONTROL_DT, PHYSICS_DT
 
 CAP = 0.7               # 车上网页设的速度上限
 SEG_PERIOD, SEG_LAG = 0.33, 0.35     # 车上 M2F-T 288 地面分割的周期 / 延迟(training/bev_env 文档)
@@ -52,6 +56,32 @@ def load_world(seg, ref=None, T=None, lidar_floor=True):
     return world
 
 
+def _wait_for_ground(b, path):
+    """只模拟起步前的 STOP:旧速度契约没有停车动作,不能调用 b.step(零动作)。
+
+    复用部署的 FREE_TIMEOUT 和拍摄时间口径;空点云也算新鲜的一帧。
+    这里只等首帧就绪,不提前跑策略,也不消耗动力学的起步/指令延迟队列。
+    """
+    env = b.env
+    while b.free and not (b.seg_frame is not None
+                          and 0.0 <= env.t - b.seg_frame[2] <= FREE_TIMEOUT):
+        b.bev.reset()                       # 部署运行时在 stale→STOP 时也会清图;相机待送达队列保留
+        why = None
+        for _ in range(int(round(CONTROL_DT / PHYSICS_DT))):
+            env.t += PHYSICS_DT
+            why = env._check()              # 同正常 step 的物理时钟和总时长预算,但不推进车
+            if why is not None:
+                break
+        if why is None and env.sense and env.t >= env.next_scan:
+            env._scan()
+            env.next_scan += 1.0 / env.cp.lidar_hz
+        b._camera()
+        path.append(b.pose[:2])
+        if why is not None:
+            return why
+    return None
+
+
 def run_one(args):
     seg, ref, T, model, start, seed, duration, lidar_floor = args
     from common.bev_policy import BevPolicy
@@ -63,7 +93,8 @@ def run_one(args):
     b = BevEnv(None, pl, seed, start, noise=True, free=pol.free, seg_period=SEG_PERIOD, seg_lag=SEG_LAG,
                guard=True, world=world)
     b.env.budget_s = duration                # 放行时清空旧证据,只有使能后新到的传感器帧能进入 BEV
-    why, path = None, []                     # 2026-10-18 之前这里先原地攒 2 s,前提"车上放行前早就在攒"是错的
+    path = []
+    why = _wait_for_ground(b, path)          # 等传感器就绪,不是固定预攒两秒;等待计入总时长
     while why is None:
         why = b.step(pol(*b.observation()))
         path.append(b.pose[:2])
