@@ -1,29 +1,23 @@
-"""evaluation/l_test 的 L 型拐角:外侧是方角(不是半径 = 路宽的大圆弧)。"""
-import numpy as np
-
-from evaluation.l_test import FRONT, RIGHT, ell
+"""evaluation/l_test 的 run / compare(v4.5 主指标)。"""
+from evaluation.l_test import case, paired, run_case
 
 
-def test_outer_corner_is_square():
-    for open_left in (False, True):
-        road = ell(5.0, open_left)
-        e = road.elems[1]
-        i0 = e['_i0']
-        p0 = road.right[i0]
-        d0 = np.array([np.cos(road.heading[i0]), np.sin(road.heading[i0])])
-        corner = p0 + d0 * (e['r_in'] + e['width'])            # 方角顶点:右墙延长到前墙
-        w = road.walls.reshape(-1, 2)
-        assert np.hypot(*(w - corner).T).min() < 0.06
-        assert len(road.pockets) == 1
+def test_cases_are_deterministic_and_cover_both_turns():
+    cs = [case(96_000_000 + i) for i in range(60)]
+    assert cs == [case(96_000_000 + i) for i in range(60)]
+    assert {c['right_turn'] for c in cs} == {True, False}
+    assert all(5.0 <= c['front'] <= 9.0 and abs(c['yaw']) <= 10.0 and c['open_left'] == (c['width'] >= 5.0) for c in cs)
 
 
-def test_geometry_matches_seg06():
-    road = ell(5.0)
-    e = road.elems[1]
-    dist = FRONT - 5.0 - 0.05
-    i = e['_i0'] - int(round(dist / 0.05))
-    car = road.centre[i] + road.normal[i] * (-2.5 + RIGHT)
-    d0 = np.array([np.cos(road.heading[i]), np.sin(road.heading[i])])
-    w = road.walls.reshape(-1, 2) - car
-    ahead = w[np.abs(w @ road.normal[i]) < 0.1]                  # 正前方那条线上的墙点
-    assert abs((ahead @ d0)[ahead @ d0 > 0].min() - FRONT) < 0.1
+def test_teacher_turns_early_on_a_mirrored_right_turn():
+    c = next(c for c in (case(96_000_000 + i) for i in range(20)) if c['right_turn'])
+    r = run_case(('teacher', c, 0.7))
+    assert r['why'] == 'goal' and r['onset'] > 2.0          # 老师在离前墙 2 m 以外就开始往右转
+
+
+def test_paired_compares_the_same_episodes():
+    a = [dict(seed=1, why='goal', onset=2.0), dict(seed=2, why='guard', onset=1.0), dict(seed=3, why='goal', onset=None)]
+    b = [dict(seed=3, why='goal', onset=3.0), dict(seed=2, why='goal', onset=1.5), dict(seed=1, why='goal', onset=2.5)]
+    p = paired(a, b)
+    assert p['n'] == 3 and p['only_b'] == 1 and p['only_a'] == 0 and p['n_onset'] == 2
+    assert abs(p['d_onset'] - 0.5) < 1e-9
