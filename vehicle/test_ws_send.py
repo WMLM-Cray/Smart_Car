@@ -1,18 +1,20 @@
 """遥测发送不许被一个收不动的客户端拖住。python3 -m pytest vehicle/test_ws_send.py
 
 server.py 顶层 import rclpy,这里用 AST 只摘 ws_send / log_event 出来跑。
-MSG_DONTWAIT 是 Linux 的,Windows 上跳过(车上跑)。
+MSG_DONTWAIT 是 Linux 的,非 Linux 上跳过(车上跑):Windows 没有这个常量;macOS 有,但 socketpair
+(AF_UNIX)缓冲满了照样阻塞,测试会卡死。
 """
 import ast
 import socket
 import struct
+import sys
 import threading
 import time
 from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.skipif(not hasattr(socket, 'MSG_DONTWAIT'), reason='需要 Linux')
+pytestmark = pytest.mark.skipif(not sys.platform.startswith('linux'), reason='需要 Linux')
 
 
 @pytest.fixture
