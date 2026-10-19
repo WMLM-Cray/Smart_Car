@@ -41,9 +41,9 @@ def main(argv=None):
     pl = replace(Plant.sample(np.random.default_rng(a.seed), Encoding(3.0, V_LO, 3.0)), cap=0.7)
     dist = FRONT - a.width - 0.05
     i0 = road.elems[1]['_i0'] - int(round(dist / 0.05))
-    b = BevEnv(road, pl, a.seed, (i0, -a.width / 2 + RIGHT, math.radians(a.yaw)), noise=True, free=True,
-               seg_period=0.33, seg_lag=0.35, yolo=False, guard=True)
     pol = BevPolicy(a.model)
+    b = BevEnv(road, pl, a.seed, (i0, -a.width / 2 + RIGHT, math.radians(a.yaw)), noise=True, free=True,
+               near=pol.near, seg_period=0.33, seg_lag=0.35, yolo=False, guard=True)
     env, p = b.env, b.env.cp
 
     book = Logbook(tempfile.mkdtemp())
@@ -69,8 +69,9 @@ def main(argv=None):
     path, why, k = [], None, 0
     name = os.path.basename(a.model).replace('.npz', '')
     while True:
-        img, sc = b.observation()
-        act = pol(img, sc)
+        obs = b.observation()
+        img = obs[0]
+        act = pol(*obs)
         steer = action_to_steer(float(np.clip(act[0], -1, 1)), p)
         path.append(b.pose[:2])
         if k % 2 == 0 or why is not None:

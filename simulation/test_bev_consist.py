@@ -69,3 +69,52 @@ def test_floor_seg_lut_mode_is_sparse_far_and_sometimes_short():
     frames = [lut.detect(pose) for _ in range(30)]
     assert max(far(f) for f in frames) < far(dense) / 3          # 远处稀
     assert min(far(f) for f in frames) == 0                      # 有的帧只到 2 m
+
+def test_v25_replay_bitpacking_and_pair_alignment_through_wraparound():
+    from training.bev_train import Replay
+    from common.bev_policy import C2, NEAR_SIZE
+    replay = Replay(3, C2, pair=True, near=True)
+    rng = np.random.default_rng(48)
+    imgs = rng.integers(0, 2, (5, C2, 80, 80), dtype=np.uint8)
+    near = rng.integers(0, 2, (5, C2, NEAR_SIZE, NEAR_SIZE), dtype=np.uint8)
+    imgs2, near2 = 1 - imgs, 1 - near
+    sc = np.column_stack([np.arange(5), np.zeros((5, 2))]).astype(np.float32)
+    y = np.column_stack([np.arange(5), -np.arange(5)]).astype(np.float32)
+    pack = lambda a: np.packbits(a.reshape(len(a), -1), axis=1)
+    replay.add(pack(imgs), sc, y, pack(imgs2), pack(near), pack(near2))
+    assert replay.size == 3 and replay.ptr == 2
+    assert replay.img.shape == (3, 4800) and replay.near_img.shape == (3, 3072)
+    image, scalar, label, image2, near_image, near_image2 = replay.batch(rng, 16)
+    assert set(scalar[:, 0]) <= {2, 3, 4}
+    for k, row in enumerate(scalar):
+        j = int(row[0])
+        np.testing.assert_array_equal(image[k], imgs[j])
+        np.testing.assert_array_equal(image2[k], imgs2[j])
+        np.testing.assert_array_equal(near_image[k], near[j])
+        np.testing.assert_array_equal(near_image2[k], near2[j])
+        np.testing.assert_array_equal(label[k], y[j])
+
+
+def test_v25_collection_pairs_main_and_near_crops_share_augmentation():
+    from common.bev_policy import C2, NEAR_SIZE
+    sample = run_episode(3, 'LW3', aug=(0.05, 0.017), pair=True, near=True, **KW)
+    img, sc, y, row, img2, near, near2 = sample
+    assert len(sc) == len(y) == row['steps']
+    for m, n in ((img, near), (img2, near2)):
+        main = np.unpackbits(m, axis=1).reshape(-1, C2, 80, 80)
+        close = np.unpackbits(n, axis=1).reshape(-1, C2, NEAR_SIZE, NEAR_SIZE)
+        pooled = close.reshape(-1, C2, 32, 2, 32, 2).max(axis=(3, 5))
+        np.testing.assert_array_equal(pooled, main[:, :, 34:66, 24:56])
+    assert (near != near2).any()
+
+
+def test_legacy_replay_interface_and_storage_remain_unchanged():
+    from training.bev_train import Replay
+    for channels, frame_bytes in ((5, 4000), (6, 4800)):
+        replay = Replay(2, channels)
+        assert replay.img.shape == (2, frame_bytes)
+        assert replay.near_img is replay.near_img2 is None
+        replay.add(np.zeros((1, frame_bytes), np.uint8), np.zeros((1, 3), np.float32),
+                   np.zeros((1, 2), np.float32))
+        img, sc, y, pair = replay.batch(np.random.default_rng(1), 1)
+        assert img.shape == (1, channels, 80, 80) and pair is None

@@ -84,7 +84,7 @@ def _run(args):
         from common.bev_policy import BevPolicy
         from training.bev_env import BevEnv
         pol = BevPolicy(model)
-        b = BevEnv(ep['road'], ep['pl'], ep['seed'], ep['start'], noise=True, free=pol.free,
+        b = BevEnv(ep['road'], ep['pl'], ep['seed'], ep['start'], noise=True, free=pol.free, near=pol.near,
                    seg_period=seg_period, seg_lag=seg_lag, yolo=yolo, guard=guard, seg_lut=seg_lut, seg_fill=seg_fill)
         why = None
         while why is None:

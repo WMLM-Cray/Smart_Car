@@ -80,8 +80,9 @@ def run_one(args):
     dist = FRONT - width - 0.05                          # 后轴到弯道起点(弯内角);前墙在弯起点外 r_in + 路宽
     i0 = road.elems[1]['_i0'] - int(round(dist / 0.05))
     off = -width / 2 + RIGHT                             # 横向:左正
-    b = BevEnv(road, pl, seed, (i0, off, math.radians(yaw)), noise=True, free=True, seg_period=0.33,
-               seg_lag=0.35, yolo=False, guard=True)
+    net = None if model == 'teacher' else BevPolicy(model)
+    b = BevEnv(road, pl, seed, (i0, off, math.radians(yaw)), noise=True, free=True,
+               near=bool(net and net.near), seg_period=0.33, seg_lag=0.35, yolo=False, guard=True)
     if model == 'teacher':
         from common.params import CarParams
         from training.bev_env import SeenTeacher
@@ -90,9 +91,8 @@ def run_one(args):
         if isinstance(P, str):
             return 'no_plan', []
         t = SeenTeacher(b, P, 1.47)
-        pol = lambda img, sc: t()
+        pol = lambda *obs: t()
     else:
-        net = BevPolicy(model)
         pol = net
     why, path = None, []
     while why is None and b.env.t < 30.0:

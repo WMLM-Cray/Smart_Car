@@ -4,7 +4,7 @@ import math
 import numpy as np
 import pytest
 
-from common.bev_policy import CONVS, HIDDEN, N_SCALAR, BevPolicy, H, W, bev_image
+from common.bev_policy import (CONVS, NEAR_CONVS, HIDDEN, N_SCALAR, SCHEMA_V25, BevPolicy, H, W, bev_image)
 from common.bev_runtime import BevRuntime
 from common.road_runtime import STOP
 
@@ -20,7 +20,12 @@ def _model(tmp_path, seed=0, schema=SCHEMA):
         ci = channels_of(schema) if k == 0 else ci
         p[f'c{k}w'] = rng.normal(0, 0.1, (co, ci, ks, ks)).astype(np.float32)
         p[f'c{k}b'] = np.zeros(co, np.float32)
-    dims = [CONVS[-1][1] * (H // 16) * (W // 16) + N_SCALAR, HIDDEN, HIDDEN, 2]
+    near = schema.startswith(SCHEMA_V25)
+    if near:
+        for k, (ci, co, ks) in enumerate(NEAR_CONVS):
+            p[f'n{k}w'] = rng.normal(0, 0.1, (co, ci, ks, ks)).astype(np.float32)
+            p[f'n{k}b'] = np.zeros(co, np.float32)
+    dims = [CONVS[-1][1] * (H // 16) * (W // 16) + (512 if near else 0) + N_SCALAR, HIDDEN, HIDDEN, 2]
     for k in range(3):
         p[f'f{k}w'] = rng.normal(0, 0.05, (dims[k + 1], dims[k])).astype(np.float32)
         p[f'f{k}b'] = np.zeros(dims[k + 1], np.float32)
@@ -241,3 +246,31 @@ def test_car_node_records_frames_for_replay(tmp_path):
     k = int(z['cam'][-1])
     assert k >= 0 and (z['cam'][:k] == -1).all()
     assert (tmp_path / 'log' / 'seg_01' / 'frames' / f'cam_{k:04d}.jpg').read_bytes() == b'jpg-1'
+
+def test_v25_runtime_and_simulation_extract_identical_inputs(tmp_path):
+    from copy import deepcopy
+    from common.bev import PoseIntegrator
+    from common.bev_policy import SCHEMA_V25
+    from simulation.fastsim.road_env import Plant
+    from simulation.fastsim.road import LEVELS, generate
+    from training.bev_env import BevEnv
+    schema = SCHEMA_V25 + '_s3_v0.45-3'
+    pol = BevPolicy(_model(tmp_path, schema=schema))
+    rng = np.random.default_rng(25)
+    road = generate(rng, next(level for level in LEVELS if level.name == 'L3'))
+    pl = Plant.sample(rng, pol.enc)
+    sim = BevEnv(road, pl, 25, noise=False, free=True, near=True)
+    rt = BevRuntime(pol, speed_cap=pl.cap)
+    rt.bev = deepcopy(sim.bev)
+    rt.odom = PoseIntegrator(*sim.pose)
+    rt.scan_pose = sim.scan_pose
+    rt.scan = sim.env.ranges.copy()
+    rt.angles = sim.env.angles.copy()
+    rt.speed = sim.env.car.v
+    rt.speed_cap = pl.cap
+    rt.yaw_rate = sim.env.car.yaw_rate
+    expected = sim.observation()
+    rt._act(sim.env.t)
+    np.testing.assert_array_equal(rt.last_img, expected[0])
+    np.testing.assert_array_equal(rt.last_near_img, expected[2])
+    np.testing.assert_array_equal(pol(*expected), pol(rt.last_img, expected[1], rt.last_near_img))

@@ -196,7 +196,7 @@ class RoadCarController:
 
 
 def load_policy(path):
-    """bev_v1_* / bev_v2_* 走 BevPolicy(BEV 输入),其余(road_v2 / road_v2.5 / spica_v3_*)走 RoadPolicy。"""
+    """bev_v1_* / bev_v2_* / bev_v2.5_* 走 BevPolicy(BEV 输入),其余(road_v2 / road_v2.5 / spica_v3_*)走 RoadPolicy。"""
     with np.load(path) as z:
         schema = str(z['schema'])
     return BevPolicy(path) if schema.startswith('bev_') else RoadPolicy(path)
@@ -205,7 +205,7 @@ def load_policy(path):
 def parser():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument('model', help='road_v2 / road_v2.5 / spica_v3_* / bev_v1_* / bev_v2_* .npz')
+    p.add_argument('model', help='road_v2 / road_v2.5 / spica_v3_* / bev_v1_* / bev_v2_* / bev_v2.5_* .npz')
     p.add_argument('--speed-cap', type=float, required=True,
                    help=f'速度上限 m/s,要在模型自己的训练范围内(见 schema);首次上车用 {V_LO}~0.5')
     return p

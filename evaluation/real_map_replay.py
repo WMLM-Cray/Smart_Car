@@ -62,7 +62,7 @@ def run_one(args):
     from training.bev_env import BevEnv
     pol = BevPolicy(model)
     pl = replace(Plant.sample(np.random.default_rng(seed), pol.enc), cap=CAP, launch_delay=WARM + 0.5)
-    b = BevEnv(None, pl, seed, start, noise=True, free=pol.free, seg_period=SEG_PERIOD, seg_lag=SEG_LAG,
+    b = BevEnv(None, pl, seed, start, noise=True, free=pol.free, near=pol.near, seg_period=SEG_PERIOD, seg_lag=SEG_LAG,
                guard=True, world=world)
     b.env.budget_s = WARM + duration
     while b.env.t < WARM - 1e-9:             # 原地攒 BEV:车还没放行,不截停(速度环在 launch_delay 内不动车)
