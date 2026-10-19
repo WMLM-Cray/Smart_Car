@@ -12,6 +12,27 @@ N = 1667
 ANG = -math.pi + np.arange(N) * (2 * math.pi / N)
 
 
+@pytest.mark.parametrize('kind', [CellType.FREE, CellType.TAPE, CellType.ZONE, CellType.TRAFFIC_LIGHT])
+def test_lidar_cannot_renew_camera_layers_with_or_without_prune(kind):
+    from common.bev import CAMERA_LAYER
+    bev = Bev(BevConfig(max_age=20.0))
+    pose, xy = (0.0, 0.0, 0.0), np.array([[2.02, 0.02]])
+    bev.update_camera([kind], xy, pose, 0.0)
+    for t in range(1, 42):
+        bev._add(xy, 0, t)
+    layers = bev.crop_layers(pose, 41.0)
+    assert layers[0].any() and not layers[CAMERA_LAYER[kind]].any()
+    assert kind not in bev.crop(pose, 41.0)
+    bev.prune(41.0)
+    assert bev.types().tolist() == [CellType.OBSTACLE]
+    bev.update_camera([kind], xy, pose, 42.0)
+    bev.prune(62.0)
+    assert not bev.crop_layers(pose, 62.0)[0].any()
+    assert bev.crop_layers(pose, 62.0)[CAMERA_LAYER[kind]].any()
+    bev.prune(62.1)
+    assert not len(bev)
+
+
 def scan_of(points, pose):
     """理想雷达:每个点落在最近的那条射线上,其余方向无回波。"""
     x, y, yaw = pose

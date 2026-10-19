@@ -125,7 +125,7 @@ class Bev:
     def reset(self):
         self.keys = np.zeros(0, np.int64)
         self.count = np.zeros((0, len(LAYERS)), np.int32)
-        self.last = np.zeros(0, np.float64)
+        self.last = np.full((0, len(LAYERS)), -np.inf, np.float64)
         self.lm_xy = np.zeros((0, 2))           # 锥桶地标:位置(所有检测的平均)
         self.lm_n = np.zeros(0, np.int32)       # 被检到的次数
         self.lm_last = np.zeros(0, np.float64)  # 最后一次被检到的时间
@@ -144,13 +144,15 @@ class Bev:
         hit = pos < len(self.keys)
         hit[hit] = self.keys[pos[hit]] == new[hit]
         self.count[pos[hit], layer] += cnt[hit].astype(np.int32)
-        self.last[pos[hit]] = np.maximum(self.last[pos[hit]], float(t))
+        self.last[pos[hit], layer] = np.maximum(self.last[pos[hit], layer], float(t))
         miss = ~hit
         add = np.zeros((int(miss.sum()), len(LAYERS)), np.int32)
         add[:, layer] = cnt[miss]
         self.keys = np.insert(self.keys, pos[miss], new[miss])
         self.count = np.insert(self.count, pos[miss], add, axis=0)
-        self.last = np.insert(self.last, pos[miss], float(t))
+        last = np.full(add.shape, -np.inf)
+        last[:, layer] = float(t)
+        self.last = np.insert(self.last, pos[miss], last, axis=0)
 
     def update_lidar(self, ranges, angles, pose, t: float):
         """一帧雷达。pose 是**这一帧扫描时**的后轴位姿。"""
@@ -214,7 +216,8 @@ class Bev:
         return self.lm_xy[ok]
 
     def prune(self, t: float):
-        keep = t - self.last <= self.cfg.max_age
+        self.count[t - self.last > self.cfg.max_age] = 0
+        keep = self.count.any(axis=1)
         self.keys, self.count, self.last = self.keys[keep], self.count[keep], self.last[keep]
         keep = t - self.lm_last <= self.cfg.max_age
         self.lm_xy, self.lm_n, self.lm_last = self.lm_xy[keep], self.lm_n[keep], self.lm_last[keep]
@@ -267,7 +270,7 @@ class Bev:
         ix, iy = _unkey(self.keys[lo:hi])
         near = np.abs((iy + 0.5) * cfg.res - y) <= reach
         if t is not None:
-            near &= t - self.last[lo:hi] <= cfg.max_age
+            near &= ((t - self.last[lo:hi] <= cfg.max_age) & (self.count[lo:hi] > 0)).any(axis=1)
         sel = lo + np.flatnonzero(near)
         pts = np.stack([(ix[near] + 0.5) * cfg.res, (iy[near] + 0.5) * cfg.res], axis=1)
         c, s = math.cos(yaw), math.sin(yaw)
@@ -285,7 +288,13 @@ class Bev:
         img = np.zeros(self.cfg.shape, np.int8)
         if len(self.keys):
             idx, row, col = self._window(pose, t)
-            img[row, col] = self.types()[idx]
+            count = self.count[idx]
+            if t is not None:
+                count = np.where(t - self.last[idx] <= self.cfg.max_age, count, 0)
+            for kind in reversed(PRIORITY):
+                layer = LIDAR_LAYER if kind == CellType.OBSTACLE else CAMERA_LAYER[kind]
+                hit = count[:, layer] > 0
+                img[row[hit], col[hit]] = int(kind)
         row, col = self._cone_cells(pose, t)
         img[row, col] = int(CellType.CONE)            # 锥桶优先级最高
         return img
@@ -297,6 +306,8 @@ class Bev:
             idx, row, col = self._window(pose, t)
             for k in range(len(LAYERS)):
                 hit = self.count[idx, k] > 0
+                if t is not None:
+                    hit &= t - self.last[idx, k] <= self.cfg.max_age
                 out[k, row[hit], col[hit]] = 1.0
         row, col = self._cone_cells(pose, t)
         out[CAMERA_LAYER[CellType.CONE], row, col] = 1.0

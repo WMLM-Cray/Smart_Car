@@ -174,6 +174,30 @@ def test_v2_stops_without_ground_seg(tmp_path):
     assert v1.decide(0.05) is not STOP
 
 
+@pytest.mark.parametrize('stamp', [1.0, 9.5, 10.1, float('nan')])
+def test_old_duplicate_future_or_invalid_floor_cannot_refresh_runtime(tmp_path, stamp):
+    rt = BevRuntime(BevPolicy(_model(tmp_path, schema='bev_v2_s3_v0.45-3')), speed_cap=0.7)
+    xy = np.array([[2.0, 0.0]])
+    assert rt.on_free(xy, stamp=9.5, now=9.6)
+    before = rt.bev.count.copy()
+    assert not rt.on_free(xy, stamp=stamp, now=10.0)
+    assert rt.free_t == 9.5 and np.array_equal(before, rt.bev.count)
+    assert 'free' in rt.stale_sensors(10.6)
+    assert not rt.on_free(xy, stamp=9.5, now=10.6)
+    assert 'free' in rt.stale_sensors(10.6)
+    assert rt.on_free(np.empty((0, 2)), stamp=10.5, now=10.6)
+    assert 'free' not in rt.stale_sensors(10.6)
+
+
+def test_delayed_floor_expires_from_capture_time(tmp_path):
+    rt = BevRuntime(BevPolicy(_model(tmp_path, schema='bev_v2_s3_v0.45-3')), speed_cap=0.7)
+    assert not rt.on_free(np.array([[2.0, 0.0]]), stamp=1.0, now=10.0)
+    assert rt.free_t is None and not len(rt.bev)
+    assert rt.on_free(np.array([[2.0, 0.0]]), stamp=10.0, now=10.8)
+    assert 'free' in rt.stale_sensors(11.1)
+    assert not rt.bev.crop_layers((0, 0, 0), 30.1)[5].any()
+
+
 def test_car_node_logs_global_map_in_segments(tmp_path):
     """bev 开车记全局地图:放行一次一段;松手不到 SEG_GAP 接着记,超过就存盘收尾;没放行时不记。"""
     from vehicle.bev_logbook import Logbook
