@@ -1,6 +1,6 @@
 # bev_v2.5 原生 5 cm 近场分支
 
-对应 issue #48，基于要求的 `feat/real-map-replay`（实现基线 cb9f377）。
+对应 issue #48，基于要求的 `feat/real-map-replay`（初始实现基线 cb9f377，PR 提交时同步至 3cd901f）。同步保留上游地面帧新鲜度、各层独立过期与实景回放启动逻辑。
 
 ## 输入和网络
 
@@ -30,26 +30,26 @@
 python -m pytest -q
 ```
 
-结果：**357 passed**。覆盖原生 5 cm 格与所有通道、裁图边界、扫描位姿、NumPy/Torch 数值一致、NPZ 导出/加载、旧模型行为、warm start、回放和运行时/训练输入一致。
+同步上游并解决冲突后的最终结果：**380 passed**（189.21 s）；上游回放启动测试单独复测 **6 passed**。覆盖原生 5 cm 格与所有通道、裁图边界、扫描位姿、NumPy/Torch 数值一致、NPZ 导出/加载、旧模型行为、warm start、回放和运行时/训练输入一致。
 
 两轮训练冒烟（输出目录须不存在）：
 
 ```sh
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 \
 python -m training.bev_train --schema bev_v2.5 \
-  --out runs/issue48-v25-smoke-final --rounds 2 \
+  --out runs/issue48-v25-smoke-pr-final --rounds 2 \
   --episodes-per-round 1 --updates 1 --batch 2 --replay 32 \
   --workers 1 --eval-count 2 --eval-levels L3 --mix L3:1 \
   --torch-threads 1 --cap-max 1.0 --aug 0.05 1 --consist 1
 
 python -m evaluation.l_test \
-  runs/issue48-v25-smoke-final/candidate_001.npz \
+  runs/issue48-v25-smoke-pr-final/candidate_001.npz \
   --seeds 1 --workers 1 --widths 2.5
 ```
 
-两轮均完成采集、成对增强、一致性损失、反向更新、EMA 评估和 NPZ 导出，loss 分别为 0.1255、0.0526。FastSim L3 采集种子 30000000、30000001，各 1/1 到达终点（含老师混合控制）；每轮评估种子 60000000–60000001、限速采样上限 1.0 m/s，均 0/2，均 collision。两次更新仅验证流程，不代表训练效果。
+两轮均完成采集、成对增强、一致性损失、反向更新、EMA 评估和 NPZ 导出，同步上游后重新运行，loss 分别为 0.1254、0.0501。FastSim L3 采集种子 30000000、30000001，各 1/1 到达终点（含老师混合控制）；每轮评估种子 60000000–60000001、限速采样上限 1.0 m/s，均 0/2，均 collision。两次更新仅验证流程，不代表训练效果。
 
-导出模型通过 L 测试 CLI：FastSim、限速 0.7 m/s、宽 2.5 m、种子 7000、朝向 -10/0/10°，共 3 局，0/3，均 guard。另完成 sweep 一档路宽/三个偏移、固定测试集一局（collision）、T 字口一局（guard），以及合成走廊地图的 real_map_replay 短程执行（timeout）。这些检查验证双分支接口能闭环执行，不构成策略质量评估；实景回放使用合成地图替代文件载入，未使用实车日志。
+导出模型通过 L 测试 CLI：FastSim、限速 0.7 m/s、宽 2.5 m、种子 7000、朝向 -10/0/10°，共 3 局，0/3，均 guard。另完成 sweep 一档路宽/三个偏移、固定测试集一局（collision）、T 字口一局（guard），以及同步上游后合成走廊地图的 real_map_replay 短程执行（种子 48、限速 0.7 m/s、预算 2 s，等待新鲜地面帧后正常调用双分支模型，40 帧、约 1.03 m，timeout）。这些检查验证双分支接口能闭环执行，不构成策略质量评估；实景回放使用合成地图替代文件载入，未使用实车日志。
 
 Windows worktree 在 WSL 执行训练时，已有的 git 元数据采集命令无法解析 Windows 绝对路径，config.json 的 git_head 为空；训练和导出正常。本次基线由上方提交号记录，未为此修改 Git 元数据。
 

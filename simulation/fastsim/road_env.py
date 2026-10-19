@@ -57,7 +57,7 @@ class Plant:
                      servo_offset=rng.uniform(-1.0, 1.0), lag=int(rng.integers(0, 2)),
                      v_plateau=rng.uniform(0.45, 0.70), v_top=rng.uniform(0.85, 1.1) * enc.v_hi,
                      accel_up=rng.uniform(0.4, 1.0), decel=rng.uniform(0.68, 0.78),
-                     dead_time=rng.uniform(0.2, 0.35), launch_delay=rng.uniform(0.5, 3.0),
+                     dead_time=rng.uniform(0.2, 0.35), launch_delay=rng.uniform(0.0, 0.2),
                      lidar_yaw=math.radians(rng.uniform(-1.0, 1.0)),
                      cap=rng.uniform(enc.v_lo, cap_max or enc.v_hi), enc=enc)
 

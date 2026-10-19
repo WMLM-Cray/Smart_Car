@@ -3,7 +3,8 @@
 
     python -m evaluation.real_map_replay runs/drv_1015b/logbook_1015_181810/seg_03 models/a.npz models/b.npz
 
-每局换一个种子(车辆参数按 Plant.sample 抽,速度上限固定 0.7、起步等待固定 0.5 s);结束原因:
+每局换一个种子(车辆参数按 Plant.sample 抽,速度上限固定 0.7);清空旧证据后等待首帧新鲜地面结果,
+到达前不调用策略、不推进车,但传感器和超时计时照常推进(同车上 FREE 新鲜度门控)。结束原因:
 guard(车上截停,实车到这一步基本卡死)、collision、unknown(开出建图时见过的范围,后面没有图,算"没出事")、timeout。
 --png 画图:车上同款点阵图 + 实车路径(蓝)+ 各模型每局路径(红 / 橙 / 紫)。
 """
@@ -21,10 +22,11 @@ from dataclasses import replace
 
 import numpy as np
 
+from common.bev_runtime import FREE_TIMEOUT
+from simulation.fastsim.road_env import CONTROL_DT, PHYSICS_DT
+
 CAP = 0.7               # 车上网页设的速度上限
 SEG_PERIOD, SEG_LAG = 0.33, 0.35     # 车上 M2F-T 288 地面分割的周期 / 延迟(training/bev_env 文档)
-WARM = 2.0              # 出发前原地攒 BEV 的时间 s:车上放行前 BEV 早就在攒了,第一拍不是只有一帧雷达、没有地面层
-                        # (不攒的话 1014 seg_04 三个模型第一拍都往右前一个近处障碍打方向、当场截停,实车那拍只打了 -0.05)
 COLORS = [(40, 40, 220), (0, 140, 255), (180, 60, 160), (60, 160, 60), (120, 120, 0)]     # 模型路径(BGR):红、橙、紫、绿、青;实车是蓝
 
 
@@ -54,6 +56,32 @@ def load_world(seg, ref=None, T=None, lidar_floor=True):
     return world
 
 
+def _wait_for_ground(b, path):
+    """只模拟起步前的 STOP:旧速度契约没有停车动作,不能调用 b.step(零动作)。
+
+    复用部署的 FREE_TIMEOUT 和拍摄时间口径;空点云也算新鲜的一帧。
+    这里只等首帧就绪,不提前跑策略,也不消耗动力学的起步/指令延迟队列。
+    """
+    env = b.env
+    while b.free and not (b.seg_frame is not None
+                          and 0.0 <= env.t - b.seg_frame[2] <= FREE_TIMEOUT):
+        b.bev.reset()                       # 部署运行时在 stale→STOP 时也会清图;相机待送达队列保留
+        why = None
+        for _ in range(int(round(CONTROL_DT / PHYSICS_DT))):
+            env.t += PHYSICS_DT
+            why = env._check()              # 同正常 step 的物理时钟和总时长预算,但不推进车
+            if why is not None:
+                break
+        if why is None and env.sense and env.t >= env.next_scan:
+            env._scan()
+            env.next_scan += 1.0 / env.cp.lidar_hz
+        b._camera()
+        path.append(b.pose[:2])
+        if why is not None:
+            return why
+    return None
+
+
 def run_one(args):
     seg, ref, T, model, start, seed, duration, lidar_floor = args
     from common.bev_policy import BevPolicy
@@ -61,18 +89,16 @@ def run_one(args):
     from simulation.fastsim.road_env import Plant
     from training.bev_env import BevEnv
     pol = BevPolicy(model)
-    pl = replace(Plant.sample(np.random.default_rng(seed), pol.enc), cap=CAP, launch_delay=WARM + 0.5)
-    b = BevEnv(None, pl, seed, start, noise=True, free=pol.free, near=pol.near, seg_period=SEG_PERIOD, seg_lag=SEG_LAG,
+    pl = replace(Plant.sample(np.random.default_rng(seed), pol.enc), cap=CAP)
+    b = BevEnv(None, pl, seed, start, noise=True, free=pol.free, near=getattr(pol, 'near', False), seg_period=SEG_PERIOD, seg_lag=SEG_LAG,
                guard=True, world=world)
-    b.env.budget_s = WARM + duration
-    while b.env.t < WARM - 1e-9:             # 原地攒 BEV:车还没放行,不截停(速度环在 launch_delay 内不动车)
-        b.env.step(pol(*b.observation()))
-        b._camera()
-    why, path = None, []
+    b.env.budget_s = duration                # 放行时清空旧证据,只有使能后新到的传感器帧能进入 BEV
+    path = []
+    why = _wait_for_ground(b, path)          # 等传感器就绪,不是固定预攒两秒;等待计入总时长
     while why is None:
         why = b.step(pol(*b.observation()))
         path.append(b.pose[:2])
-    return why, b.env.dist, b.env.t - WARM, np.array(path)
+    return why, b.env.dist, b.env.t, np.array(path)
 
 
 def main(argv=None):

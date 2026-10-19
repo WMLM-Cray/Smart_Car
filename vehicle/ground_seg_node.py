@@ -64,9 +64,10 @@ class LatestFrame:
                 self.frame, self.stamp, self.seq = f, t, self.seq + 1
                 self.cond.notify_all()
 
-    def get(self, after):
+    def get(self, after, timeout=1.0):
         with self.cond:
-            self.cond.wait_for(lambda: self.seq > after, timeout=1.0)
+            if not self.cond.wait_for(lambda: self.seq > after, timeout=timeout):
+                return after, None, 0.0
             return self.seq, self.frame, self.stamp
 
 

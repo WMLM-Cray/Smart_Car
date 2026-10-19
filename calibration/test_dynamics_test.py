@@ -8,7 +8,7 @@ from calibration.dynamics_test import (PROGS, PWM_MID, TICK, TURN_MID, Safety, S
 
 
 def _sensors(**kw):
-    s = Sensors(enc_t=100.0, gap_fn=lambda steer: 9.0, imu=(0, 0, 0, 0, 0, 9.8))
+    s = Sensors(enc_t=100.0, imu_t=100.0, gap_fn=lambda steer: 9.0, imu=(0, 0, 0, 0, 0, 9.8))
     for k, v in kw.items():
         setattr(s, k, v)
     return s
@@ -35,6 +35,12 @@ def test_safety_reasons():
     s = Safety()
     s.estop = True
     assert s.check(100.0, _sensors(), TURN_MID, 100.0) == '急停'
+
+
+def test_imu_must_be_fresh_even_when_encoder_and_heartbeat_are_current():
+    for stamp in (0.0, 1.0, 99.6, 101.0, float('nan')):
+        assert Safety().check(100.0, _sensors(imu_t=stamp, v=1.0), TURN_MID, 100.0) == 'IMU 掉线'
+    assert Safety().check(100.0, _sensors(imu_t=99.9), TURN_MID, 100.0) is None
 
 
 def _drive(prog, params, plant):
