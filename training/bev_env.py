@@ -22,7 +22,7 @@ import numpy as np
 from scipy.spatial import cKDTree
 
 from common.bev import Bev, BevConfig, CellType
-from common.bev_policy import bev_image, scalars
+from common.bev_policy import bev_image, bev_images, scalars
 from simulation.fastsim.camera import FakeFloorSeg, FakeYolo
 from simulation.fastsim.road import DS, EDGE
 from simulation.fastsim.road_env import RoadEnv
@@ -36,11 +36,11 @@ SEG_PERIOD = 0.1        # [假设] 地面分割周期 s(NPU 上 SegFormer-B0 待
 
 
 class BevEnv:
-    """包一层 RoadEnv:每拍维护 BEV,observation() 给 (图, 标量)。"""
+    """包一层 RoadEnv:每拍维护 BEV,observation() 给 (图, 标量),near=True 时追加第三项近场图。"""
 
     def __init__(self, road, pl, seed, start=(0, 0.0, 0.0), noise=True, robust=False,
                  yolo_period=YOLO_PERIOD, free=False, seg_period=SEG_PERIOD, seg_lag=0.0, aug=(0.0, 0.0),
-                 yolo=True, guard=False, seg_lut=False, seg_fill=False, world=None):
+                 yolo=True, guard=False, seg_lut=False, seg_fill=False, world=None, near=False):
         # world(RealMap):在车上建的实景地图里开,road 不用,start = (x, y, yaw);没有 YOLO,地面分割按车上的投影 + 补缝
         if world is None:
             self.env = RoadEnv(road, pl, seed, start, noise=noise, robust=robust)
@@ -59,6 +59,9 @@ class BevEnv:
         # 路上的锥桶照样在,雷达照样扫得到、撞了照样算撞
         self.yolo = yolo
         self.free = free
+        self.near = near
+        if self.near and not self.free:
+            raise ValueError('bev_v2.5 近场输入需要同时启用 6 通道主图')
         # seg_lut:假地面分割按车上的像素投影出点(远处条纹、没确认时只到 2 m),见 FloorSegConfig.lut
         from dataclasses import replace as _replace
         from simulation.fastsim.camera import FloorSegConfig
@@ -121,12 +124,28 @@ class BevEnv:
 
     def observation(self):
         env = self.env
+        if self.near:
+            img, near_img = self.images()
+            enc_speed = env.car.v + (env.rng.normal(0, 0.02) if env.noise else 0.0)
+            gyro = env.car.yaw_rate + (env.rng.normal(0, env.cp.gyro_sigma) if env.noise else 0.0)
+            return img, scalars(enc_speed, env.pl.cap, gyro, env.pl.enc), near_img
         enc_speed = env.car.v + (env.rng.normal(0, 0.02) if env.noise else 0.0)
         gyro = env.car.yaw_rate + (env.rng.normal(0, env.cp.gyro_sigma) if env.noise else 0.0)
         return self.image(), scalars(enc_speed, env.pl.cap, gyro, env.pl.enc)
 
+    def images(self):
+        """同一裁图位姿下的主图和 5 cm 近场图;供 bev_v2.5 和成对增强采集使用。"""
+        if not self.near:
+            raise ValueError('当前 BevEnv 未启用近场分支')
+        env, pose = self.env, self.pose
+        if self.aug_rng is not None:
+            d, a = self.aug
+            pose = (pose[0] + self.aug_rng.uniform(-d, d), pose[1] + self.aug_rng.uniform(-d, d),
+                    pose[2] + self.aug_rng.uniform(-a, a))
+        return bev_images(self.bev, pose, env.t, env.ranges, env.angles, self.scan_pose)
+
     def image(self):
-        """这一拍的 BEV 图;开了 aug 就按一个新的随机亚格偏移裁(再调一次 = 同一时刻、另一种量化相位)。"""
+        """这一拍的主 BEV 图;开了 aug 就按一个新的随机亚格偏移裁。"""
         env, pose = self.env, self.pose
         if self.aug_rng is not None:
             d, a = self.aug

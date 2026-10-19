@@ -22,7 +22,7 @@ OFFSETS = np.arange(-0.15, 0.1501, 0.005)
 
 
 def check(pol):
-    from common.bev_policy import bev_image
+    from common.bev_policy import bev_image, bev_images
     from common.params import CarParams
     from common.pwm import action_to_steer
     from simulation.fastsim.road import WALL, build
@@ -37,21 +37,27 @@ def check(pol):
         road = build([dict(kind='straight', length=14.0, width=w, mat=(WALL, WALL))])
         pl = Plant.sample(np.random.default_rng(k))
         # A
-        b = BevEnv(road, pl, k, (0, 0.0, 0.0), noise=False, free=pol.free, seg_period=0.33, seg_lag=0.35)
+        b = BevEnv(road, pl, k, (0, 0.0, 0.0), noise=False, free=pol.free, near=pol.near, seg_period=0.33, seg_lag=0.35)
         for _ in range(40):
             b.step(pol(*b.observation()))
         x, y, yaw = b.pose
         i, d0 = road.project((x, y))
         n = road.normal[i]
-        _, sc = b.observation()
-        s = np.array([deg(pol(bev_image(b.bev, (x + (o - d0) * n[0], y + (o - d0) * n[1], yaw), b.env.t,
-                                        b.env.ranges, b.env.angles, b.scan_pose, free=pol.free), sc)[0])
-                      for o in OFFSETS])
+        obs = b.observation()
+        sc = obs[1]
+        def shifted(o):
+            shifted_pose = (x + (o - d0) * n[0], y + (o - d0) * n[1], yaw)
+            args = (b.bev, shifted_pose, b.env.t, b.env.ranges, b.env.angles, b.scan_pose)
+            if pol.near:
+                img, near = bev_images(*args)
+                return pol(img, sc, near)[0]
+            return pol(bev_image(*args, free=pol.free), sc)[0]
+        s = np.array([deg(shifted(o)) for o in OFFSETS])
         d = np.diff(s)
         jump.append(np.abs(d).max())
         back.append(float((d > 0.5).mean()))        # 越往左越该往右打(转角变小),变大 0.5° 以上算反向
         # B
-        b = BevEnv(road, pl, 100 + k, (0, 0.0, 0.0), noise=True, free=pol.free, seg_period=0.33, seg_lag=0.35)
+        b = BevEnv(road, pl, 100 + k, (0, 0.0, 0.0), noise=True, free=pol.free, near=pol.near, seg_period=0.33, seg_lag=0.35)
         st, la, why = [], [], None
         while why is None and b.env.t < 12.0:
             a = pol(*b.observation())

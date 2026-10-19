@@ -1,10 +1,10 @@
-"""bev_v1 的 DAgger 训练:老师 = SeenTeacher(只用已扫到信息),学生 = BEV 卷积网络。
+"""bev_v1/v2 与 bev_v2.5 的 DAgger 训练:老师 = SeenTeacher(只用已扫到信息),学生 = BEV 卷积网络。
 
     python -m training.bev_train --out runs/bev_v1_a --rounds 40 --workers 7
 
 流程和 road_train 一样:每轮按 beta 混合老师/学生采一批局(β 1 -> 0,前几轮基本是老师开 =
 行为克隆式预训练),老师逐拍给标签进回放池,训 updates 步,固定种子评估,导出 candidate_XXX.npz。
-回放池里图按位压缩(5×80×80 个 0/1 -> 4000 字节),30 万帧约 1.2 GB。
+回放图按位压缩。bev_v2.5 每帧主图 4.8 KB + 近场图 3 KB,30 万帧约 2.36 GB。
 """
 from __future__ import annotations
 
@@ -22,7 +22,8 @@ from pathlib import Path
 
 import numpy as np
 
-from common.bev_policy import H, N_SCALAR, SCHEMA, W, channels_of, forward
+from common.bev_policy import (C2, H, NEAR_SIZE, N_SCALAR, SCHEMA, SCHEMA_V2, SCHEMA_V25, W,
+                               channels_of, forward, forward_v25)
 from common.road_policy import V_LO, Encoding, spec_of
 from simulation.fastsim.road import LEVELS
 from training.bev_env import BevEnv, SeenTeacher
@@ -33,7 +34,7 @@ TRAIN_SEED0, SELECT_SEED0 = 30_000_000, 60_000_000     # 和 road_train(10M/50M)
 
 def run_episode(seed, level, weights=None, beta=0.0, collect=False, enc=None, a_lat=0.45, cap_max=None,
                 free=False, seg=(0.1, 0.0), aug=(0.0, 0.0), pair=False, lag_max=None, yolo=True, guard=False,
-                seg_lut=False, seg_fill=False, cap_min=None):
+                seg_lut=False, seg_fill=False, cap_min=None, near=False):
     """seg = (地面分割周期 s, 推理延迟 s),aug = (裁图平移抖动 m, 转角抖动 rad),见 BevEnv。
     pair:采集时每帧再裁一张(另一种亚格偏移),给一致性损失;lag_max:指令延迟拍数改成每局 0..lag_max 均匀抽。"""
     try:
@@ -43,27 +44,40 @@ def run_episode(seed, level, weights=None, beta=0.0, collect=False, enc=None, a_
     if lag_max is not None:
         from dataclasses import replace
         pl = replace(pl, lag=int(np.random.default_rng(seed + 17).integers(0, lag_max + 1)))
-    benv = BevEnv(road, pl, seed, start, noise=True, free=free, seg_period=seg[0], seg_lag=seg[1], aug=aug, yolo=yolo, guard=guard, seg_lut=seg_lut, seg_fill=seg_fill)
+    benv = BevEnv(road, pl, seed, start, noise=True, free=free, seg_period=seg[0], seg_lag=seg[1], aug=aug,
+                  yolo=yolo, guard=guard, seg_lut=seg_lut, seg_fill=seg_fill, near=near)
     teacher = SeenTeacher(benv, P, a_lat)
     rng = np.random.default_rng(seed + 1)
-    imgs, scs, ys, imgs2 = [], [], [], []
+    imgs, near_imgs, scs, ys, imgs2, near_imgs2 = [], [], [], [], [], []
     why, n = None, 0
     d = pl.enc.dead
     n_stop = n_brake = n_brake_label = 0          # 速度动作落在中位段 / 刹车段的拍数(只在带 _d 的契约下有)
     while why is None:
-        img, sc = benv.observation()
+        obs = benv.observation()
+        if near:
+            img, sc, near_img = obs
+        else:
+            img, sc = obs
+            near_img = None
         label = teacher()
         n_brake_label += bool(d) and label[1] <= -d
         if collect:
             imgs.append(np.packbits(img.astype(bool).ravel()))
+            if near:
+                near_imgs.append(np.packbits(near_img.astype(bool).ravel()))
             if pair:
-                imgs2.append(np.packbits(benv.image().astype(bool).ravel()))
+                if near:
+                    img2, near_img2 = benv.images()
+                    near_imgs2.append(np.packbits(near_img2.astype(bool).ravel()))
+                else:
+                    img2 = benv.image()
+                imgs2.append(np.packbits(img2.astype(bool).ravel()))
             scs.append(sc)
             ys.append(label)
         if weights is None or rng.random() < beta:
             act = label + (rng.normal(0, [0.05, 0.05]) if collect else 0.0)
         else:
-            act = forward(weights, img, sc)
+            act = forward_v25(weights, img, sc, near_img) if near else forward(weights, img, sc)
         n_stop += bool(d) and abs(act[1]) < d
         n_brake += bool(d) and act[1] <= -d
         why = benv.step(act)
@@ -72,8 +86,11 @@ def run_episode(seed, level, weights=None, beta=0.0, collect=False, enc=None, a_
                reverse_s=benv.env.speed.reverse_s,                 # 低速还在刹的时间(实车可能倒车,见 SpeedPlant)
                stop_frac=n_stop / n, brake_frac=n_brake / n, brake_label_frac=n_brake_label / n)
     if collect:
-        return np.asarray(imgs), np.asarray(scs, np.float32), np.asarray(ys, np.float32), row, \
-            (np.asarray(imgs2) if pair else None)
+        common = (np.asarray(imgs), np.asarray(scs, np.float32), np.asarray(ys, np.float32), row,
+                  (np.asarray(imgs2) if pair else None))
+        if near:
+            return common + (np.asarray(near_imgs), np.asarray(near_imgs2) if pair else None)
+        return common
     return row
 
 
@@ -82,28 +99,40 @@ def _job(args):
 
 
 class Replay:
-    def __init__(self, cap, c, pair=False):
-        self.c, self.bits = c, c * H * W
+    def __init__(self, cap, c, pair=False, near=False):
+        self.c, self.bits, self.near = c, c * H * W, near
+        self.near_bits = c * NEAR_SIZE * NEAR_SIZE if near else 0
         self.img = np.zeros((cap, (self.bits + 7) // 8), np.uint8)
         self.img2 = np.zeros_like(self.img) if pair else None      # 同一帧另一种亚格偏移(一致性损失)
+        self.near_img = np.zeros((cap, (self.near_bits + 7) // 8), np.uint8) if near else None
+        self.near_img2 = np.zeros_like(self.near_img) if pair and near else None
         self.sc = np.zeros((cap, N_SCALAR), np.float32)
         self.y = np.zeros((cap, 2), np.float32)
         self.size = self.ptr = 0
 
-    def add(self, img, sc, y, img2=None):
+    def add(self, img, sc, y, img2=None, near_img=None, near_img2=None):
         for i in range(len(y)):
             self.img[self.ptr], self.sc[self.ptr], self.y[self.ptr] = img[i], sc[i], y[i]
             if self.img2 is not None:
                 self.img2[self.ptr] = img2[i]
+            if self.near:
+                self.near_img[self.ptr] = near_img[i]
+                if self.near_img2 is not None:
+                    self.near_img2[self.ptr] = near_img2[i]
             self.ptr = (self.ptr + 1) % len(self.y)
             self.size = min(len(self.y), self.size + 1)
 
     def batch(self, rng, n):
         i = rng.integers(0, self.size, n)
-        def unpack(a):
-            return np.unpackbits(a[i], axis=1)[:, :self.bits].reshape(n, self.c, H, W).astype(np.float32)
-        return unpack(self.img), self.sc[i], self.y[i], (unpack(self.img2) if self.img2 is not None else None)
-
+        def unpack(a, bits, shape):
+            return np.unpackbits(a[i], axis=1)[:, :bits].reshape((n,) + shape).astype(np.float32)
+        img = unpack(self.img, self.bits, (self.c, H, W))
+        img2 = unpack(self.img2, self.bits, (self.c, H, W)) if self.img2 is not None else None
+        if not self.near:
+            return img, self.sc[i], self.y[i], img2
+        near_img = unpack(self.near_img, self.near_bits, (self.c, NEAR_SIZE, NEAR_SIZE))
+        near_img2 = unpack(self.near_img2, self.near_bits, (self.c, NEAR_SIZE, NEAR_SIZE)) if self.near_img2 is not None else None
+        return img, self.sc[i], self.y[i], img2, near_img, near_img2
 
 def summarize(rows):
     ok = [r['reason'] == 'goal' for r in rows]
@@ -161,8 +190,7 @@ def main():
     ap.add_argument('--seg-lut', action='store_true',
                     help='假地面分割按车上的像素投影出点(72x96 像素中心,远处条纹;一半帧只到 2 m),采集和评估都这样')
     ap.add_argument('--seg-fill', action='store_true', help='配 --seg-lut:补行间的缝(车上 ground_seg_node --fill)')
-    ap.add_argument('--schema', default=SCHEMA, help='bev_v1(5 通道)/ bev_v2(+可行驶地面,6 通道);'
-                    'bev_v2 可从 bev_v1 模型 --init(多出来的通道权重置 0)')
+    ap.add_argument('--schema', default=SCHEMA, choices=(SCHEMA, SCHEMA_V2, SCHEMA_V25), help='bev_v1(5 通道)/ bev_v2(6 通道)/ bev_v2.5(双图近场分支);支持从旧模型 --init 热启动')
     a = ap.parse_args()
     enc = spec_of('spica_v3' + a.contract) if a.contract else Encoding(a.speed_scale, V_LO, a.v_hi)
 
@@ -172,9 +200,10 @@ def main():
     torch.manual_seed(a.seed)
     rng = np.random.default_rng(a.seed)
     c_in = channels_of(a.schema)
-    free = c_in > channels_of(SCHEMA)
+    free = c_in == C2
+    near = a.schema == SCHEMA_V25
     dev = torch.device(a.device)
-    net, ema = make_net(c_in), make_net(c_in)
+    net, ema = make_net(c_in, near=near), make_net(c_in, near=near)
     if a.init is not None:
         from common.bev_policy import BevPolicy
         if BevPolicy(a.init).enc != enc:
@@ -203,7 +232,7 @@ def main():
     pair = a.consist > 0
     if pair and tuple(a.aug) == (0.0, 0.0):
         raise SystemExit('--consist 要配 --aug(两张图一样,一致性损失恒为 0)')
-    replay = Replay(a.replay, c_in, pair)
+    replay = Replay(a.replay, c_in, pair, near)
     brng = np.random.default_rng(a.seed + 1)
     wy = torch.tensor([1.0, 0.5], device=dev)
     seed = TRAIN_SEED0
@@ -216,24 +245,35 @@ def main():
                 seg = (float(rng.uniform(*a.seg_period)), float(rng.uniform(*a.seg_lag)))
                 jobs.append((seed, mix[int(rng.choice(len(mix), p=probs))][0], wts, beta, True, enc,
                              a.a_lat, a.cap_max, free, seg, (a.aug[0], math.radians(a.aug[1])), pair, a.lag_max,
-                             not a.no_yolo, a.guard, a.seg_lut, a.seg_fill, a.cap_min))
+                             not a.no_yolo, a.guard, a.seg_lut, a.seg_fill, a.cap_min, near))
                 seed += 1
             t0 = time.time()
             got = [g for g in ex.map(_job, jobs, chunksize=2) if g is not None]
-            for img, sc, y, _, img2 in got:
-                replay.add(img, sc, y, img2)
+            for g in got:
+                if near:
+                    img, sc, y, _, img2, near_img, near_img2 = g
+                    replay.add(img, sc, y, img2, near_img, near_img2)
+                else:
+                    img, sc, y, _, img2 = g
+                    replay.add(img, sc, y, img2)
             collect = summarize([g[3] for g in got])
             t_collect = time.time() - t0
 
             t0 = time.time()
             losses = []
             for _ in range(a.updates):
-                img, sc, y, img2 = replay.batch(brng, a.batch)
-                img, sc = torch.from_numpy(img).to(dev), torch.from_numpy(sc).to(dev)
-                pred = net(img, sc)
+                batch = replay.batch(brng, a.batch)
+                if near:
+                    img, sc, y, img2, near_img, near_img2 = batch
+                    sc = torch.from_numpy(sc).to(dev)
+                    pred = net(torch.from_numpy(img).to(dev), sc, torch.from_numpy(near_img).to(dev))
+                else:
+                    img, sc, y, img2 = batch
+                    sc = torch.from_numpy(sc).to(dev)
+                    pred = net(torch.from_numpy(img).to(dev), sc)
                 loss = (((pred - torch.from_numpy(y).to(dev)) ** 2) * wy).mean()
                 if pair:        # 同一帧换一种量化相位,输出该一样:不许按"墙落在哪一格"出转角
-                    pred2 = net(torch.from_numpy(img2).to(dev), sc)
+                    pred2 = net(torch.from_numpy(img2).to(dev), sc, torch.from_numpy(near_img2).to(dev)) if near                         else net(torch.from_numpy(img2).to(dev), sc)
                     loss = loss + a.consist * (((pred - pred2) ** 2) * wy).mean()
                 opt.zero_grad()
                 loss.backward()
@@ -248,7 +288,7 @@ def main():
             wts = weights_of(ema)
             ev = [e for e in ex.map(_job, [(SELECT_SEED0 + i, ev_levels[i % len(ev_levels)], wts, 0.0, False,
                                              enc, a.a_lat, a.cap_max, free, tuple(a.eval_seg), (0.0, 0.0), False,
-                                             None, not a.no_yolo, a.guard, a.seg_lut, a.seg_fill, a.cap_min)
+                                             None, not a.no_yolo, a.guard, a.seg_lut, a.seg_fill, a.cap_min, near)
                                             for i in range(a.eval_count)],
                                     chunksize=2) if e is not None]
             summ = summarize(ev)

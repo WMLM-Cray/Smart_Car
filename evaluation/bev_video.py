@@ -87,7 +87,7 @@ def main():
         from training.road_check import sample_episode
         road, pl, start, _, _ = sample_episode(a.seed, a.level, enc=pol.enc, cap_max=a.cap)
         title = f'随机路段 {a.level} seed {a.seed}'
-    benv = BevEnv(road, pl, a.seed, start, noise=True, free=pol.free)
+    benv = BevEnv(road, pl, a.seed, start, noise=True, free=pol.free, near=pol.near)
 
     lo, hi = road.centre.min(0), road.centre.max(0)
     whole = ((lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, max(hi - lo) / 2 + 1.0)
@@ -97,8 +97,9 @@ def main():
     f_big, f_small = font(16), font(13)
     trail, why = [], None
     while why is None and benv.env.t < a.max_t:
-        img, sc = benv.observation()
-        act = pol(img, sc)
+        obs = benv.observation()
+        img = obs[0]
+        act = pol(*obs)
         x, y, yaw = benv.pose
         trail.append((x, y))
         frame = Image.new('RGB', (2 * S, S + 40), (255, 255, 255))

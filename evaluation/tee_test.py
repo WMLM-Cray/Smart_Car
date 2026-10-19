@@ -46,7 +46,8 @@ def run_one(pol, road, turn, dist, off, yaw, seed):
     from training.bev_env import BevEnv
     pl = replace(Plant.sample(np.random.default_rng(seed), Encoding(3.0, V_LO, 3.0)), cap=0.7)   # 车上限速 0.7
     i0 = road.elems[1]['_i0'] - int(round(dist / 0.05))
-    b = BevEnv(road, pl, seed, (i0, off, math.radians(yaw)), noise=True, free=True, seg_period=0.33,
+    use_near = getattr(pol, 'near', False)
+    b = BevEnv(road, pl, seed, (i0, off, math.radians(yaw)), noise=True, free=True, near=use_near, seg_period=0.33,
                seg_lag=0.35, yolo=False, guard=True, seg_lut=True, seg_fill=True)     # 地面分割按车上的投影 + 补缝
     if pol == 'teacher':                # 对照:老师(特权参数、只走出口那条臂)在同样的截停规则下能不能过
         from common.params import CarParams
@@ -57,7 +58,7 @@ def run_one(pol, road, turn, dist, off, yaw, seed):
             return 'no_plan', []
         t = SeenTeacher(b, P, 1.47)
 
-        def pol(img, sc, t=t):
+        def pol(*obs, t=t):
             return t()
     poly = road.pockets[0]
     exit_side = 'R' if turn < 0 else 'L'

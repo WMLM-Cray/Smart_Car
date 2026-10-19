@@ -1,12 +1,12 @@
-"""bev_v1 的运行时:和 RoadRuntime 同一套使能心跳、传感器过期、限速和输出,只换"大脑"的输入。
+"""bev_v1/v2/v2.5 的运行时:和 RoadRuntime 同一套使能心跳、传感器过期、限速和输出,只换"大脑"的输入。
 
 车上没有真位姿:编码器车速 + 陀螺偏航角速度用 PoseIntegrator 推 odom 位姿(用户实测雷达
 里程计漂移很小,BEV 证据 20 s 过期,先不做扫描匹配)。每帧雷达按**收到那一刻**的位姿登记进
-BEV;每拍按当前位姿出 5×80×80 图(本帧雷达按扫描位姿投影,和 training/bev_env.py 一致)。
+BEV;每拍按当前位姿出主图(本帧雷达按扫描位姿投影,和 training/bev_env.py 一致)。bev_v2.5 再从同一张未合并 5 cm BEV 裁 6×64×64 近场图。
 
 摄像头:车上还没有 YOLO 节点,锥桶/胶带/区域三层是空的 —— 和训练时(FastSim 假 YOLO)不同,
 上车前要先在仿真里关掉假 YOLO 验证过。接上 YOLO 后在 on_detections() 里登记。
-地面分割(bev_v2):vehicle/ground_seg_node.py 发车体系地面点,on_free() 按**拍摄时刻**的位姿登记进 FREE 层
+地面分割(bev_v2/v2.5):vehicle/ground_seg_node.py 发车体系地面点,on_free() 按**拍摄时刻**的位姿登记进 FREE 层
 (分割要 ~60 ms,1.8 m/s 下按收到时刻登记会错 10 cm)。
 """
 from __future__ import annotations
@@ -16,7 +16,7 @@ from collections import deque
 import numpy as np
 
 from common.bev import Bev, CellType, PoseIntegrator
-from common.bev_policy import bev_image, scalars
+from common.bev_policy import bev_image, bev_images, scalars
 from common.road_runtime import RoadRuntime
 
 MAX_DT = 0.2            # 两次积分间隔超过这个就当传感器断过,不积分(停车/过期时 RoadRuntime 已回中位)
@@ -99,7 +99,14 @@ class BevRuntime(RoadRuntime):
 
     def _act(self, now):
         self._integrate(now)
+        sc = scalars(self.speed, self.speed_cap, self.yaw_rate, self.enc)
+        if self.policy.near:
+            img, near = bev_images(self.bev, self.odom.pose, float(now), self.scan, self.angles, self.scan_pose)
+            self.last_near_img = near
+            self.last_img = img
+            return self.policy(img, sc, near)
         img = bev_image(self.bev, self.odom.pose, float(now), self.scan, self.angles, self.scan_pose,
                         free=self.policy.free)
-        self.last_img = img             # 影子模式网页直接画这张,不再重算
-        return self.policy(img, scalars(self.speed, self.speed_cap, self.yaw_rate, self.enc))
+        self.last_img = img             # 影子模式网页直接画主图,不再重算
+        self.last_near_img = None
+        return self.policy(img, sc)

@@ -91,13 +91,14 @@ def run_one(args):
     from training.bev_env import BevEnv
     road = ell(width, open_left)
     pl = replace(Plant.sample(np.random.default_rng(seed), Encoding(3.0, V_LO, 3.0)), cap=0.7)
-    if model != 'teacher':
-        pl = replace(pl, enc=BevPolicy(model).enc)    # 动作按模型自己的速度契约解码(带 _d 的模型能停车 / 刹车);老模型的契约和这里一样,结果逐位不变
+    net = None if model == 'teacher' else BevPolicy(model)
+    if net is not None:
+        pl = replace(pl, enc=net.enc)    # 动作按模型自己的速度契约解码(带 _d 的模型能停车 / 刹车);老模型的契约和这里一样,结果逐位不变
     dist = FRONT - width - 0.05                          # 后轴到弯道起点(弯内角);前墙在弯起点外 r_in + 路宽
     i0 = road.elems[1]['_i0'] - int(round(dist / 0.05))
     off = -width / 2 + RIGHT                             # 横向:左正
-    b = BevEnv(road, pl, seed, (i0, off, math.radians(yaw)), noise=True, free=True, seg_period=0.33,
-               seg_lag=0.35, yolo=False, guard=True, seg_lut=True, seg_fill=True)     # 地面分割按车上的投影 + 补缝
+    b = BevEnv(road, pl, seed, (i0, off, math.radians(yaw)), noise=True, free=True, near=bool(net and net.near),
+               seg_period=0.33, seg_lag=0.35, yolo=False, guard=True, seg_lut=True, seg_fill=True)     # 地面分割按车上的投影 + 补缝
     if model == 'teacher':
         from common.params import CarParams
         from training.bev_env import SeenTeacher
@@ -106,9 +107,8 @@ def run_one(args):
         if isinstance(P, str):
             return 'no_plan', []
         t = SeenTeacher(b, P, 1.47)
-        pol = lambda img, sc: t()
+        pol = lambda *obs: t()
     else:
-        net = BevPolicy(model)
         pol = net
     why, path = None, []
     while why is None and b.env.t < 30.0:
@@ -143,7 +143,8 @@ def run_case(args):
         pl = replace(pl, enc=pol.enc)                      # 动作按模型自己的速度契约解码
     i0 = road.elems[1]['_i0'] - int(round((c['front'] - c['width'] - 0.05) / 0.05))
     off = sign * (-c['width'] / 2 + RIGHT)                 # 离外侧墙 RIGHT 米
-    b = BevEnv(road, pl, c['seed'], (i0, off, math.radians(c['yaw'])), noise=True, free=True, seg_period=0.33,
+    b = BevEnv(road, pl, c['seed'], (i0, off, math.radians(c['yaw'])), noise=True, free=True,
+               near=bool(pol is not None and pol.near), seg_period=0.33,
                seg_lag=0.35, yolo=False, guard=True, seg_lut=True, seg_fill=True)
     cp = CarParams()
     if pol is None:
