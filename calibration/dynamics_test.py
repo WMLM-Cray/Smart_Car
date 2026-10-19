@@ -42,6 +42,7 @@ PORT = 8091
 TICK = 0.02                 # 控制周期 s
 HB_TIMEOUT = 0.6            # 网页心跳断这么久就停
 ENC_STALE = 0.3
+IMU_STALE = 0.3            # 起跑前和行驶中都要求 IMU 持续更新
 COAST = 0.7                 # 滑停减速度 m/s²(实测 0.73–0.78,取小的)
 GUARD_MARGIN = 0.5          # 滑停之后保险杠前还要剩的净空 m
 GUARD_LOOKAHEAD = 7.0       # 本进程里把防撞沿弧看的距离放到这么远(默认 4 m,2.5 m/s 滑停就要 4.5 m)
@@ -115,6 +116,8 @@ class Safety:
             return '有别人在发 /teleop_cmd_vel'
         if now - s.enc_t > ENC_STALE:
             return '编码器掉线'
+        if not math.isfinite(s.imu_t) or not 0.0 <= now - s.imu_t <= IMU_STALE:
+            return 'IMU 掉线'
         if abs(s.v) > V_HARD:
             return f'超速 {s.v:.2f}'
         if math.hypot(s.x, s.y) > self.fence:
@@ -361,7 +364,7 @@ def main(argv=None):
 
     def run(prog, params, use_guard, fence):
         with lock:
-            if len(st['gyro']) < 20:
+            if len(st['gyro']) < 20 or not 0.0 <= time.time() - S.imu_t <= IMU_STALE:
                 st['state'] = '等 IMU 数据'
                 st['running'] = False
                 return

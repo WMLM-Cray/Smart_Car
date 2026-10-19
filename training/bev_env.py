@@ -21,7 +21,7 @@ import math
 import numpy as np
 from scipy.spatial import cKDTree
 
-from common.bev import Bev, CellType
+from common.bev import Bev, BevConfig, CellType
 from common.bev_policy import bev_image, scalars
 from simulation.fastsim.camera import FakeFloorSeg, FakeYolo
 from simulation.fastsim.road import DS, EDGE
@@ -29,6 +29,7 @@ from simulation.fastsim.road_env import RoadEnv
 from training.road_teacher import HORIZON, R_MIN, R_REPLAN, Teacher, plan
 
 SEEN_R = 0.8            # 边界点离雷达回波这么近算"看到过"(桶距最大 1.5 m)
+FLOOR_SEEN_R = math.sqrt(2) * BevConfig().res  # 地面只容许一格量化误差,不能沿用稀疏锥桶的 0.8 m
 MIN_WIN = 0.5           # 重规划窗口至少看这么远 m
 YOLO_PERIOD = 0.1       # [假设] 摄像头检测周期 s
 SEG_PERIOD = 0.1        # [假设] 地面分割周期 s(NPU 上 SegFormer-B0 待实测)
@@ -68,6 +69,8 @@ class BevEnv:
             self.seg = MapFloorSeg(world, seed=seed + 11)
         self.seg_period, self.seg_lag, self.next_seg = seg_period, seg_lag, 0.0
         self.seg_queue = []                                               # (到达时刻, 拍摄位姿, 点)
+        self.seg_hooks = []                                               # 已送到 BEV 的帧:pose, xy, stamp
+        self.seg_frame = None
         self.scan_hooks = []
         # guard=True:和车上 road_car_node 一样按将要打的转角扫车身矩形,保险杠前净空 < GUARD_STOP 就算这局失败('guard')。
         # 车上截停后油门回中位、策略不出倒车,基本就卡死了;仿真里原来不管,模型在锥桶方角贴着开也算过(2026-10-16:
@@ -109,8 +112,12 @@ class BevEnv:
             self.seg_queue.append((self.env.t + self.seg_lag, self.pose, self.seg.detect(self.pose)))
             self.next_seg += self.seg_period
         while self.seg_queue and self.env.t >= self.seg_queue[0][0] - 1e-9:
-            _, pose, xy = self.seg_queue.pop(0)
-            self.bev.update_camera(np.full(len(xy), int(CellType.FREE)), xy, pose, self.env.t)
+            arrival, pose, xy = self.seg_queue.pop(0)
+            stamp = arrival - self.seg_lag
+            self.bev.update_camera(np.full(len(xy), int(CellType.FREE)), xy, pose, stamp)
+            self.seg_frame = (pose, xy, stamp)
+            for hook in self.seg_hooks:
+                hook(pose, xy, stamp)
 
     def observation(self):
         env = self.env
@@ -157,21 +164,29 @@ class SeenTeacher(Teacher):
         self.nb = len(road.left)
         self.tree = cKDTree(np.vstack([road.left, road.right]))
         self.seen = np.zeros(2 * self.nb, bool)
-        # EDGE 边界(路面换材质)雷达扫不到,在地面分割视场里就算看到过;没开地面分割就永远看不到
+        # EDGE 只能由实际送到学生 BEV 的地面点确认,不能用理想视场提前登记。
         self.edge = np.concatenate([road.mat_left, road.mat_right]) == EDGE
         self.seg = benv.seg
         self.v_end = math.sqrt(a_lat * R_MIN)
         benv.scan_hooks.append(self._mark)
         self._mark(benv.pose)
+        benv.seg_hooks.append(self._mark_floor)
+        if benv.seg_frame is not None:
+            self._mark_floor(*benv.seg_frame)
 
     def _mark(self, pose):
         env = self.env
         from common.bev import lidar_points
         pts = lidar_points(env.ranges, env.angles, pose, env.cp, env.pl.lidar_yaw, 10.0)
         for idx in self.tree.query_ball_point(pts, SEEN_R):
-            self.seen[idx] = True
-        if self.seg is not None and self.edge.any():
-            self.seen |= self.edge & self.seg.in_view(self.tree.data, pose)
+            self.seen[idx] |= ~self.edge[idx]
+
+    def _mark_floor(self, pose, xy, stamp):
+        if not len(xy) or not self.edge.any():
+            return
+        from common.bev import body_to_odom
+        dist, _ = cKDTree(body_to_odom(xy, pose)).query(self.tree.data[self.edge])
+        self.seen[self.edge] |= dist <= FLOOR_SEEN_R
 
     def known_ahead(self, i):
         both = self.seen[:self.nb] & self.seen[self.nb:]

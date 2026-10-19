@@ -179,13 +179,25 @@ class FakeFloorSeg:
         self.grid_r = np.hypot(self.grid_cam[:, 0], self.grid_cam[:, 1])
         self.grid_a = np.arctan2(self.grid_cam[:, 1], self.grid_cam[:, 0])
 
-    def in_view(self, world, pose) -> np.ndarray:
-        """世界系点 (n, 2) 是否落在地面分割的视场里(和 detect 的采样范围一致)。"""
+    def in_view(self, world, pose, reach=None) -> np.ndarray:
+        """几何投影有效域(不表示该帧已识别/送达);reach 可指定该帧 2 m/3 m 距离。"""
         x, y, yaw = pose
         c, s = math.cos(yaw), math.sin(yaw)
         dx, dy = world[:, 0] - x, world[:, 1] - y
         bx, by = c * dx + s * dy - self.p.camera_x, -s * dx + c * dy
-        return ((bx >= self.near) & (np.hypot(bx, by) <= self.cfg.range)
+        reach = self.cfg.range if reach is None else min(reach, self.cfg.range)
+        if self.cfg.lut is not None:
+            from common.ground_proj import ground_to_pixel
+            uv = ground_to_pixel(np.c_[bx + self.p.camera_x, by], self.p)
+            width, height = self.p.camera_size
+            valid = (np.isfinite(uv).all(axis=1) & (uv[:, 0] >= 0) & (uv[:, 0] < width)
+                     & (uv[:, 1] >= 0) & (uv[:, 1] < height)
+                     & (np.hypot(bx, by) <= reach + 1e-9))
+            rows, cols = self.lut.shape
+            ij = (uv[valid] * (cols / width, rows / height)).astype(int)
+            valid[valid] &= self.lut.valid.reshape(rows, cols)[ij[:, 1], ij[:, 0]]
+            return valid
+        return ((bx >= self.near) & (np.hypot(bx, by) <= reach)
                 & (np.abs(np.arctan2(by, bx)) <= self.p.camera_hfov / 2))
 
     def detect(self, pose) -> np.ndarray:
