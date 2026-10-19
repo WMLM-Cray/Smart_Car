@@ -72,12 +72,18 @@ class BevRuntime(RoadRuntime):
         self.bev.update_camera(kinds, xy_body, self.odom.pose, float(now))
 
     def on_free(self, xy_body, stamp, now):
-        """地面分割(车体系落地点)按拍摄时刻 stamp 的位姿登记进 FREE 层。"""
+        """stamp 和 now 同属 ROS 时钟;旧帧、倒序帧不能续期或重新登记。"""
+        stamp, now = float(stamp), float(now)
+        if not (np.isfinite(stamp) and np.isfinite(now) and 0.0 <= now - stamp <= FREE_TIMEOUT):
+            return False
+        if self.free_t is not None and stamp <= self.free_t:
+            return False
         self._integrate(now)
-        self.free_t = float(now)
+        self.free_t = stamp
         if len(xy_body):
             self.bev.update_camera(np.full(len(xy_body), int(CellType.FREE)), xy_body,
-                                   self.pose_at(float(stamp)), float(now))
+                                   self.pose_at(stamp), stamp)
+        return True
 
     def stale_sensors(self, now):
         stale = super().stale_sensors(now)
