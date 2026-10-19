@@ -66,3 +66,8 @@ def test_initial_zero_lag_frame_is_available_to_teacher():
     assert teacher.seen.any()
     another = SeenTeacher(env, teacher.plan, 1.47)
     assert np.array_equal(teacher.seen, another.seen)
+
+
+def test_sampled_launch_does_not_allow_seconds_of_stationary_evidence():
+    rng = np.random.default_rng(10)
+    assert all(0 <= Plant.sample(rng).launch_delay <= 0.2 for _ in range(100))
