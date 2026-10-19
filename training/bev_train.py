@@ -23,7 +23,7 @@ from pathlib import Path
 import numpy as np
 
 from common.bev_policy import H, N_SCALAR, SCHEMA, W, channels_of, forward
-from common.road_policy import V_LO, Encoding
+from common.road_policy import V_LO, Encoding, spec_of
 from simulation.fastsim.road import LEVELS
 from training.bev_env import BevEnv, SeenTeacher
 from training.road_check import sample_episode
@@ -33,11 +33,11 @@ TRAIN_SEED0, SELECT_SEED0 = 30_000_000, 60_000_000     # 和 road_train(10M/50M)
 
 def run_episode(seed, level, weights=None, beta=0.0, collect=False, enc=None, a_lat=0.45, cap_max=None,
                 free=False, seg=(0.1, 0.0), aug=(0.0, 0.0), pair=False, lag_max=None, yolo=True, guard=False,
-                seg_lut=False, seg_fill=False):
+                seg_lut=False, seg_fill=False, cap_min=None):
     """seg = (地面分割周期 s, 推理延迟 s),aug = (裁图平移抖动 m, 转角抖动 rad),见 BevEnv。
     pair:采集时每帧再裁一张(另一种亚格偏移),给一致性损失;lag_max:指令延迟拍数改成每局 0..lag_max 均匀抽。"""
     try:
-        road, pl, start, P, _ = sample_episode(seed, level, enc=enc, a_lat=a_lat, cap_max=cap_max)
+        road, pl, start, P, _ = sample_episode(seed, level, enc=enc, a_lat=a_lat, cap_max=cap_max, cap_min=cap_min)
     except RuntimeError:
         return None
     if lag_max is not None:
@@ -63,7 +63,8 @@ def run_episode(seed, level, weights=None, beta=0.0, collect=False, enc=None, a_
             act = forward(weights, img, sc)
         why = benv.step(act)
         n += 1
-    row = dict(seed=seed, level=level, reason=why, cap=pl.cap, time=benv.env.t, steps=n)
+    row = dict(seed=seed, level=level, reason=why, cap=pl.cap, time=benv.env.t, steps=n,
+               reverse_s=benv.env.speed.reverse_s)                 # 低速还在刹的时间(实车可能倒车,见 SpeedPlant)
     if collect:
         return np.asarray(imgs), np.asarray(scs, np.float32), np.asarray(ys, np.float32), row, \
             (np.asarray(imgs2) if pair else None)
@@ -101,7 +102,8 @@ class Replay:
 def summarize(rows):
     ok = [r['reason'] == 'goal' for r in rows]
     return dict(n=len(rows), success=float(np.mean(ok)) if rows else 0.0,
-                reasons={k: sum(r['reason'] == k for r in rows) for k in {r['reason'] for r in rows}})
+                reasons={k: sum(r['reason'] == k for r in rows) for k in {r['reason'] for r in rows}},
+                reverse_eps=sum(r.get('reverse_s', 0.0) > 0 for r in rows))
 
 
 def main():
@@ -121,6 +123,10 @@ def main():
     ap.add_argument('--v-hi', type=float, default=3.0)
     ap.add_argument('--a-lat', type=float, default=0.45)
     ap.add_argument('--cap-max', type=float, default=1.8)
+    ap.add_argument('--cap-min', type=float, default=None, help='速度上限抽取下限(默认契约的 v_lo)')
+    ap.add_argument('--contract', default=None,
+                    help='完整速度契约后缀,比如 _s5_v0.45-5_d0.2_log(带停车 / 刹车死区、对数刻度);'
+                         '给了就不看 --speed-scale / --v-hi')
     ap.add_argument('--mix', default='L5:0.2,L5s:0.2,L6h:0.15,L6f:0.15,L4:0.15,L6:0.1,L3:0.05')
     ap.add_argument('--eval-levels', default='L5,L6h,L4c,L6f')
     ap.add_argument('--eval-count', type=int, default=192)
@@ -148,7 +154,7 @@ def main():
     ap.add_argument('--schema', default=SCHEMA, help='bev_v1(5 通道)/ bev_v2(+可行驶地面,6 通道);'
                     'bev_v2 可从 bev_v1 模型 --init(多出来的通道权重置 0)')
     a = ap.parse_args()
-    enc = Encoding(a.speed_scale, V_LO, a.v_hi)
+    enc = spec_of('spica_v3' + a.contract) if a.contract else Encoding(a.speed_scale, V_LO, a.v_hi)
 
     import torch
     from training.bev_net import export, make_net, weights_of
@@ -198,7 +204,7 @@ def main():
                 seg = (float(rng.uniform(*a.seg_period)), float(rng.uniform(*a.seg_lag)))
                 jobs.append((seed, mix[int(rng.choice(len(mix), p=probs))][0], wts, beta, True, enc,
                              a.a_lat, a.cap_max, free, seg, (a.aug[0], math.radians(a.aug[1])), pair, a.lag_max,
-                             not a.no_yolo, a.guard, a.seg_lut, a.seg_fill))
+                             not a.no_yolo, a.guard, a.seg_lut, a.seg_fill, a.cap_min))
                 seed += 1
             t0 = time.time()
             got = [g for g in ex.map(_job, jobs, chunksize=2) if g is not None]
@@ -229,7 +235,7 @@ def main():
             wts = weights_of(ema)
             ev = [e for e in ex.map(_job, [(SELECT_SEED0 + i, ev_levels[i % len(ev_levels)], wts, 0.0, False,
                                              enc, a.a_lat, a.cap_max, free, tuple(a.eval_seg), (0.0, 0.0), False,
-                                             None, not a.no_yolo, a.guard, a.seg_lut, a.seg_fill)
+                                             None, not a.no_yolo, a.guard, a.seg_lut, a.seg_fill, a.cap_min)
                                             for i in range(a.eval_count)],
                                     chunksize=2) if e is not None]
             summ = summarize(ev)

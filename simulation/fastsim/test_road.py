@@ -112,7 +112,6 @@ def test_brake_matches_1012_measurements_above_the_release_speed():
     for v0, dec, t_meas, d_meas in ((1.51, 1.31, 1.23, 1.05), (2.0, 1.495, 1.42, 1.48)):
         pl = Plant(v_plateau=0.6, v_top=2.5, launch_delay=0.0, accel_up=50.0, dead_time=0.2, brake_decel=dec)
         sp = SpeedPlant(pl)
-        sp.release = 0.0                                     # 实测脚本一直刹到 0.15,这里不提前松
         _run_to(sp, v0)
         sp.queue = [v0] * len(sp.queue)                       # 发刹车前一直在给前进
         t = d = 0.0
@@ -125,18 +124,38 @@ def test_brake_matches_1012_measurements_above_the_release_speed():
         assert d_meas * 0.98 <= d <= d_meas * 1.2
 
 
-def test_brake_below_release_speed_only_coasts():
+def test_plant_brakes_literally_and_counts_low_speed_braking():
+    """动力学照字面执行刹车(松刹在发指令那一侧);低于 REVERSE_RISK_V 还在刹的时间记进 reverse_s。"""
     pl = Plant(v_plateau=0.6, launch_delay=0.0, accel_up=5.0, decel=0.73, brake_decel=2.0, dead_time=0.2)
     sp = SpeedPlant(pl)
     _run_to(sp, 0.9)
-    v = [sp.step(BRAKE) for _ in range(300)]
-    rel = CarParams().brake_release_speed
+    assert sp.reverse_s == 0.0
+    v = [sp.step(BRAKE) for _ in range(100)]
+    assert min(v) == 0.0 and all(x >= 0.0 for x in v)                  # 仿真里不倒车
     drops = -np.diff(v)
-    above = np.array(v[1:]) > rel + 0.03
-    assert drops[above].max() == pytest.approx(2.0 * 0.01, rel=1e-6)    # 0.5 以上真刹
-    below = (np.array(v[:-1]) < rel) & (np.array(v[1:]) > 0)
-    assert drops[below].max() <= 0.73 * 0.01 + 1e-9                     # 以下只滑,不倒车
-    assert min(v) == 0.0
+    assert drops[np.array(v[1:]) > 0].max() == pytest.approx(2.0 * 0.01, rel=1e-6)
+    assert sp.reverse_s > 0.3
+
+
+def test_env_releases_brake_on_measured_speed_like_the_car():
+    """RoadEnv 发指令时测得车速 <= brake_release_speed 就把刹车改成中位(release_brake,车上同一段);
+    因为 dead_time 滞后,已发出的刹车照样执行,车速会降到松刹点以下。"""
+    from common.road_policy import spec_of
+    enc = spec_of('spica_v3_s3_v0.45-1_d0.2')
+    pl = Plant(v_plateau=0.6, v_top=1.0, cap=1.0, launch_delay=0.0, accel_up=5.0, decel=0.73, brake_decel=1.4,
+               dead_time=0.2, lag=0, enc=enc)
+    env = RoadEnv(corridor(2.0, 30.0), pl, 0, noise=False, sense=False)
+    while env.car.v < 0.99:
+        env.step((0.0, 1.0))
+    sent, v = [], []
+    for _ in range(40):
+        env.step((0.0, -1.0))
+        sent.append(env.speed.queue[-1])
+        v.append(env.car.v)
+    rel = CarParams().brake_release_speed
+    k = sent.index(STOP)                                             # 第一次松刹(之后一直是中位)
+    assert k > 0 and set(sent[k:]) == {STOP}
+    assert v[k - 1] > rel - 0.1 and v[k + 4] < rel - 0.2               # 已发出的刹车在滞后里照样执行,刹过松刹点
 
 
 def test_relaunch_after_stop_waits_then_jumps_to_plateau():

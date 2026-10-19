@@ -1,10 +1,11 @@
 """开放场景探索(强化学习用):车在随机楼层(simulation/fastsim/floorplan)里自由开,没有路、没有终点。
 
-奖励 = 这一拍地面分割新标出来的地面面积(m²,和车上 Logbook 的浅绿层同一个东西);截停 / 撞上扣 CRASH,这局结束。
+奖励 = 这一拍地面分割新标出来的地面面积(m²,和车上 Logbook 的浅绿层同一个东西);截停 / 撞上 / 停滞扣 CRASH,这局结束。
 只算相机地面(~3 m)不算雷达:雷达 10 m,原地转一圈就把整间屋标完了。
 放行时 BEV 是空的、车马上就走(同车上:重新使能清空 BEV,common/bev_runtime._reset_history;起步等待见 Plant.sample)。
 2026-10-18 之前是出发前原地攒 2 s BEV 再走,车上没有这 2 s。
-部署条件同车上:截停、无 YOLO、地面分割按车上的投影 + 补缝(MapFloorSeg)、速度上限 CAP。
+部署条件同车上:截停、无 YOLO、地面分割按车上的投影 + 补缝(MapFloorSeg)。速度上限:房间 CAP(车上开放场景的限速),
+路段关卡按种子在 ROAD_CAP 里抽 —— 0.7 下老师从不刹车,RL 碰不到入弯要减速的场合(docs/v4.5方案.md §5.2)。
 """
 from __future__ import annotations
 
@@ -12,11 +13,16 @@ from dataclasses import replace
 
 import numpy as np
 
+from simulation.fastsim.road_env import CONTROL_DT
+
 CAP = 0.7               # 车上网页设的速度上限
 DURATION = 60.0         # 每局最长 s
 CRASH = 5.0             # 截停 / 撞上扣的分(= 5 m² 新地面)
 PROGRESS = 1.0          # 路段关卡:沿路每前进 1 m 的奖励(0.7 m/s 开 40 s ≈ 28,和房间一局的面积分同一量级)
 OFF_ROAD = 20.0         # 路段关卡出界扣的分:按面积给分时出界只扣 5,第二轮 iter 149 测试集出界 27 -> 81 次(2026-10-18)
+STALL_V, STALL_S = 0.05, 3.0   # 车速低于 STALL_V 持续 STALL_S 秒 = 停滞,和截停一样结束、扣 CRASH(主动停车不是目标,
+                                # 紧急停车归 guard;不罚的话 RL 可能学会停着不动躲截停扣分,2026-10-19 用户定 3 s)
+ROAD_CAP = (0.7, 2.0)           # 路段关卡的速度上限抽取范围
 SEG_PERIOD, SEG_LAG = 0.33, 0.35
 
 
@@ -56,6 +62,7 @@ class Explore:
         self.road = road
         self.s = road.s[b.env.idx] if road is not None else 0.0   # 路段关卡:沿中心线走到哪了 m
         self.dist = 0.0                                       # 放行后开过的路程 m(RoadEnv 没有 dist,自己记)
+        self.still = 0.0                                      # 连续低于 STALL_V 的时间 s
 
     def _mark(self, xy, pose):
         if not len(xy):
@@ -98,9 +105,13 @@ class Explore:
     def step(self, action):
         """一拍(50 ms)。返回 (奖励, 结束原因或 None)。
         房间:新标的地面面积;路段:沿路前进的距离 × PROGRESS(路边敞开的地面也是地面,按面积给分等于奖励开出路,
-        第二轮遗忘的几乎全是出界)。截停 / 撞上扣 CRASH,路段出界扣 OFF_ROAD。"""
+        第二轮遗忘的几乎全是出界)。截停 / 撞上 / 停滞扣 CRASH,路段出界扣 OFF_ROAD。"""
         before, (x0, y0, _) = self.area, self.b.pose
         why = self.b.step(action)
+        e = self.b.env
+        self.still = self.still + CONTROL_DT if e.car.v < STALL_V else 0.0
+        if why is None and self.still >= STALL_S:
+            why = 'stall'
         x1, y1, _ = self.b.pose
         self.dist += float(np.hypot(x1 - x0, y1 - y0))
         if self.road is None:
@@ -110,7 +121,7 @@ class Explore:
             r, self.s = PROGRESS * (s - self.s), s
         if why == 'off_track' and self.road is not None:
             r -= OFF_ROAD
-        elif why in ('guard', 'collision', 'off_track'):
+        elif why in ('guard', 'collision', 'off_track', 'stall'):
             r -= CRASH
         return r, why
 
@@ -153,7 +164,8 @@ def make(seed: int, enc, level: str = 'building'):
     if room is None:
         from training.road_check import sample_episode
         road, pl, start, _, _ = sample_episode(seed, level, enc=enc)
-        return Explore(None, replace(pl, cap=CAP), seed, start, road=road), None
+        cap = float(np.random.default_rng([seed, 7]).uniform(*ROAD_CAP))   # 单独的随机流,路和车辆参数不变
+        return Explore(None, replace(pl, cap=cap), seed, start, road=road), None
     rng = np.random.default_rng(seed)
     for _ in range(20):                 # 小房间摆满家具时可能找不到"能绕圈"的出发点,换一张图
         world, info = generate(rng, room[0])

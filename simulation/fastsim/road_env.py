@@ -18,13 +18,14 @@ from common.params import CarParams, TrackParams
 from common.pwm import turn_to_steer
 from simulation.fastsim.raycast import cast_cones, cast_walls
 from simulation.fastsim.road import WALL_HEIGHT, Road, inside
-from common.road_policy import BRAKE_CMD, DEFAULT_ENC, STOP_CMD, Encoding, action_to_speed, observe
+from common.road_policy import BRAKE_CMD, DEFAULT_ENC, STOP_CMD, Encoding, action_to_speed, observe, release_brake
 from simulation.fastsim.vehicle import Car
 
 CONTROL_DT = 0.05
 PHYSICS_DT = 0.01
 STOP = STOP_CMD     # SpeedPlant 指令:中位,滑行到停(正数 = 前进目标车速);和动作解码共用 common/road_policy
-BRAKE = BRAKE_CMD   # SpeedPlant 指令:刹车(车速低于 CarParams.brake_release_speed 自动改成滑行,不倒车)
+BRAKE = BRAKE_CMD   # SpeedPlant 指令:刹车(照字面执行;松刹在发指令那一侧,见 RoadEnv.step / release_brake)
+REVERSE_RISK_V = 0.2  # 车速低于它还在执行刹车 = 实车可能倒车,记 SpeedPlant.reverse_s(阈值待实测,docs/v4.5方案.md §7)
 OBS_RANGE = 10.0
 TRACK = TrackParams()
 GOAL_BEFORE_END = 1.0       # 离路终点这么远就算到达
@@ -56,15 +57,15 @@ class Plant:
 
     @staticmethod
     def sample(rng: np.random.Generator, enc: Encoding = DEFAULT_ENC,
-               cap_max: float | None = None) -> 'Plant':
-        """cap_max:课程分档时速度上限只抽到这里(默认到契约的 v_hi)。抽取顺序不变。"""
+               cap_max: float | None = None, cap_min: float | None = None) -> 'Plant':
+        """cap_max / cap_min:速度上限的抽取范围(默认契约的 v_hi / v_lo)。抽取顺序不变。"""
         return Plant(steer_rate=rng.uniform(3.5, 7.0), steer_gain=rng.uniform(0.9, 1.1),
                      servo_offset=rng.uniform(-1.0, 1.0), lag=int(rng.integers(0, 2)),
                      v_plateau=rng.uniform(0.45, 0.70), v_top=rng.uniform(0.85, 1.1) * enc.v_hi,
                      accel_up=rng.uniform(0.4, 1.0), decel=rng.uniform(0.68, 0.78),
                      dead_time=rng.uniform(0.2, 0.35), launch_delay=rng.uniform(0.0, 0.2),
                      lidar_yaw=math.radians(rng.uniform(-1.0, 1.0)),
-                     cap=rng.uniform(enc.v_lo, cap_max or enc.v_hi), enc=enc,
+                     cap=rng.uniform(cap_min or enc.v_lo, cap_max or enc.v_hi), enc=enc,
                      # 2026-10-19 加停车 / 刹车,新参数抽在最后,前面的参数和以前同种子一样
                      # 再起步:实测从中位直跳 0.2~0.45 s 动,其中 ~0.2 s 是指令延迟(dead_time 已经算了)
                      brake_decel=rng.uniform(1.3, 2.6), relaunch_delay=rng.uniform(0.0, 0.25))
@@ -74,7 +75,8 @@ class SpeedPlant:
     """闭环后车速的近似模型,并未执行真实 SpeedLoop。指令:正数 = 前进目标车速、STOP = 中位滑行、BRAKE = 刹车。
     电调死区(docs/实测/电调/电调说明.md:中位区间 1540 ± 45,前进和刹车对称):
       前进最低就是平台速度,不能慢爬;停稳后再给油要先回中位、直跳破静点,等 relaunch_delay 才动,一动就到平台;
-      还在滚着时给油照常加速。刹车只在 brake_release_speed 以上有效,低了是滑行,不会倒车。
+      还在滚着时给油照常加速。刹车照字面执行(仿真里不倒车,停住为止);低速还在刹的时间记 reverse_s,
+      松刹由发指令那一侧按测得车速做(release_brake),和车上一样会因为滞后刹过头。
     刹车的起效滞后实测 0.12~0.2 s,比前进的 dead_time 0.2~0.35 短,统一用 dead_time(偏保守,用户 2026-10-19 定)。"""
 
     def __init__(self, pl: Plant):
@@ -85,7 +87,7 @@ class SpeedPlant:
         self.queue = [first] * max(1, int(round(pl.dead_time / PHYSICS_DT)))
         self.stopped = False    # 用停车 / 刹车停稳过(开局的起步走 launch_delay,不算)
         self.hold = None        # 再起步要等到的时刻
-        self.release = CarParams().brake_release_speed
+        self.reverse_s = 0.0    # 车速低于 REVERSE_RISK_V 时还在执行刹车的累计时间 s
 
     def step(self, cmd: float, dt: float = PHYSICS_DT) -> float:
         pl = self.pl
@@ -96,7 +98,9 @@ class SpeedPlant:
             return self.v
         if cmd <= 0.0:                                  # 中位 / 刹车
             self.hold = None
-            dec = pl.brake_decel if (cmd < 0.0 and self.v > self.release) else pl.decel
+            if cmd < 0.0 and self.v < REVERSE_RISK_V:
+                self.reverse_s += dt
+            dec = pl.brake_decel if cmd < 0.0 else pl.decel
             self.v = max(0.0, self.v - dec * dt)
             self.stopped = self.stopped or self.v == 0.0
             return self.v
@@ -134,6 +138,7 @@ class RoadEnv:
         self.car.reset(c[0] - math.sin(h) * d0, c[1] + math.cos(h) * d0, h + yaw0,
                        steer_gain=pl.steer_gain)
         self.speed = SpeedPlant(pl)
+        self.release = car_params.brake_release_speed
         self.idx = i0
         self.t, self.next_scan = 0.0, 0.0
         self.pending = [(0.0, pl.enc.v_lo)] * pl.lag       # 指令延迟队列
@@ -195,6 +200,9 @@ class RoadEnv:
         self.cmd = self.pending.pop(0)
         steer_a, v_cmd = self.cmd
         pl = self.pl
+        if v_cmd == BRAKE:          # 松刹按发指令时测得的车速(编码器噪声同 observation);只有刹车才抽随机数,老契约逐位不变
+            v_meas = self.car.v + (self.rng.normal(0, 0.02) if self.noise else 0.0)
+            v_cmd = release_brake(v_cmd, v_meas, self.release)
         servo = self.cp.turn_mid + steer_a * self.cp.turn_span + pl.servo_offset
         steer = turn_to_steer(servo, self.cp)
         v_cmd = min(v_cmd, pl.cap)

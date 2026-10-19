@@ -242,3 +242,27 @@ def test_evaluators_decode_actions_with_the_models_own_contract(tmp_path):
     why, path = l_test.run_one((str(go), 3.5, 0.0, 0, False))
     assert np.hypot(*(path[-1][:2] - path[0][:2])) > 1.0
     assert boundary_test.run_one((str(stop), 'clean', 3.5, 0.0, 0, False))[0] == 'timeout'
+
+
+def test_standing_still_for_three_seconds_is_a_stall():
+    """主动停车不是目标(紧急停车归 guard):车速 < STALL_V 持续 STALL_S 秒就结束、扣 CRASH(用户 2026-10-19 定 3 s)。"""
+    from common.road_policy import spec_of
+    from simulation.fastsim.road_env import CONTROL_DT
+    from training.explore_env import CRASH, STALL_S, make
+    enc = spec_of('spica_v3_s3_v0.45-1_d0.2')
+    env, _ = make(1, enc, 'room')
+    total, why, n = 0.0, None, 0
+    while why is None and n < 200:
+        r, why = env.step(np.array([0.0, 0.0]))            # 一直中位:不动
+        total += r
+        n += 1
+    assert why == 'stall' and abs(n * CONTROL_DT - STALL_S) < 0.3
+    assert abs(total - (env.area - env.area0 - CRASH)) < 1e-9          # 原地也看得到一片地面
+
+
+def test_road_levels_sample_a_higher_cap_rooms_keep_the_car_cap():
+    """路段关卡限速按种子在 ROAD_CAP 里抽(0.7 下老师不刹车,RL 练不到入弯减速);房间保持 CAP。"""
+    from training.explore_env import CAP, ROAD_CAP, make
+    caps = [make(s, ENC, 'LW3')[0].b.env.pl.cap for s in range(6)]
+    assert all(ROAD_CAP[0] <= c <= ROAD_CAP[1] for c in caps) and max(caps) - min(caps) > 0.3
+    assert make(1, ENC, 'room')[0].b.env.pl.cap == CAP

@@ -231,7 +231,7 @@ def train(a):
             ev = list(ex.map(evaluate, [(EVAL_SEED0 + i, w, enc, a.duration, nm) for i in range(a.eval_count)]))
             why = [e[0] for e in ev]
             m = (f'{nm}: 面积 {np.mean([e[1] for e in ev]):.1f} m² 截停/撞 '
-                 f'{np.mean([w_ in ("guard", "collision") for w_ in why]):.0%}')
+                 f'{np.mean([w_ in ("guard", "collision") for w_ in why]):.0%} 停滞 {why.count("stall") / len(why):.0%}')
             if room_level(nm) is None:  # 路段关卡:出界、到终点也报(只看截停时看不出往路外开)
                 m += f' 出界 {why.count("off_track") / len(why):.0%} 到终点 {why.count("goal") / len(why):.0%}'
             msg.append(m)

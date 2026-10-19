@@ -56,7 +56,7 @@ def drop_last_action(schema) -> bool:
 
 
 STOP_CMD = 0.0      # 速度指令:中位,滑行到停(只有带 _d 的契约会出)
-BRAKE_CMD = -1.0    # 速度指令:刹车(车速低于 CarParams.brake_release_speed 时按中位滑行,不倒车)
+BRAKE_CMD = -1.0    # 速度指令:刹车(发指令时测得车速不高于 CarParams.brake_release_speed 就改中位,见 release_brake)
 
 
 class Encoding(NamedTuple):
@@ -118,6 +118,12 @@ def action_to_speed(a: float, enc: Encoding = DEFAULT_ENC) -> float:
         f = (a - d) / (1.0 - d)
         return enc.v_lo * (enc.v_hi / enc.v_lo) ** f if enc.log else enc.v_lo + f * (enc.v_hi - enc.v_lo)
     return STOP_CMD if a > -d else BRAKE_CMD
+
+
+def release_brake(v_cmd: float, v_meas: float, release: float) -> float:
+    """松刹:刹车指令在发出那一刻按**测得的**车速判断,不高于 release 就改成中位(低速一直刹,电调会倒车)。
+    车上和仿真(RoadEnv.step)共用这一段;动力学收到什么就执行什么(docs/v4.5方案.md §2.1)。"""
+    return STOP_CMD if (v_cmd == BRAKE_CMD and v_meas <= release) else v_cmd
 
 
 def speed_to_action(v: float, enc: Encoding = DEFAULT_ENC) -> float:
