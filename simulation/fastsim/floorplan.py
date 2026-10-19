@@ -25,6 +25,7 @@ CELL = 0.05
 class PlanConfig:
     kind: str = 'building'                          # 'building' = 走廊 + 房间;'room' = 一间长方形房间(课程第一步)
     room_box: tuple = ((5.0, 12.0), (4.0, 10.0))    # kind='room' 时房间的长、宽 m
+    square: bool = False                            # kind='room':宽 = 长(正方形房间,往返跑关卡用)
     # kind='room' 的墙面起伏:浅槽(墙往外凹)、凸起(墙往里凸,壁柱 / 柜子嵌墙)、切角(L 形房间)
     features: tuple = (0, 1)                        # 起伏个数
     feature_w: tuple = (0.4, 2.0)                   # 沿墙宽 m
@@ -261,7 +262,8 @@ def generate(rng: np.random.Generator, cfg: PlanConfig = PlanConfig(), tries: in
     for _ in range(tries):
         if cfg.kind == 'room':
             m = 1.5                                         # 四周留出浅槽的地方
-            L, D = rng.uniform(*cfg.room_box[0]), rng.uniform(*cfg.room_box[1])
+            L = rng.uniform(*cfg.room_box[0])
+            D = L if cfg.square else rng.uniform(*cfg.room_box[1])
             X, Y = L + 2 * m, D + 2 * m
             floor = np.zeros((int(X / CELL) + 1, int(Y / CELL) + 1), bool)
             _rect(floor, m, m, m + L, m + D)

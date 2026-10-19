@@ -81,7 +81,7 @@ def test_rollout_and_evaluate_run_on_road_and_room_levels():
     from training.explore_rl import evaluate, rollout
     w = {k: v.astype(np.float32) for k, v in weights_of(make_net(C2)).items()}
     for lv in ('LW3', 'room'):                          # 路段关卡的 RoadEnv 没有 dist(第三轮第一次评估就崩了)
-        why, area, dist = evaluate((5, w, ENC, 3.0, lv))
+        why, area, dist, _ = evaluate((5, w, ENC, 3.0, lv))
         assert why in ('timeout', 'guard', 'collision', 'off_track', 'goal') and dist >= 0
         out = rollout((5, 1, w, np.log(np.full(2, 0.1)), ENC, 3.0, lv))
         assert len(out[0]) == len(out[4]) > 0
@@ -266,3 +266,25 @@ def test_road_levels_sample_a_higher_cap_rooms_keep_the_car_cap():
     caps = [make(s, ENC, 'LW3')[0].b.env.pl.cap for s in range(6)]
     assert all(ROAD_CAP[0] <= c <= ROAD_CAP[1] for c in caps) and max(caps) - min(caps) > 0.3
     assert make(1, ENC, 'room')[0].b.env.pl.cap == CAP
+
+
+def test_shuttle_starts_inside_square_room_and_rewards_progress():
+    """往返跑:正方形空房间,出发点在地面上、朝另一端;朝目标开奖励为正,到了换目标并加奖励。"""
+    from common.road_policy import spec_of
+    from training.explore_env import SHUTTLE_BONUS, make
+    enc = spec_of('spica_v3_s5_v0.45-5_d0.2_log')
+    for seed in range(5):
+        env, info = make(seed, enc, 'shuttle')
+        x0, y0, x1, y1, _ = info['rooms'][0]
+        assert abs((x1 - x0) - (y1 - y0)) < 1e-9
+        w, (x, y, _) = env.world, env.b.pose
+        i, j = int(round(x / w.cell)) - w.i0, int(round(y / w.cell)) - w.j0
+        assert w.free[i, j]
+        gx, gy = env.targets[0]
+        assert np.hypot(gx - x, gy - y) > 2.0
+    total, why = 0.0, None
+    while why is None and env.reached == 0:
+        r, why = env.step(np.array([0.0, 0.8], np.float32))
+        total += r
+    assert env.reached == 1 and env.goal == 1, why
+    assert total > SHUTTLE_BONUS

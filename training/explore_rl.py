@@ -74,7 +74,7 @@ def rollout(args):
 
 
 def evaluate(args):
-    """确定性策略跑一局:返回 (结束原因, 新标面积, 距离)。"""
+    """确定性策略跑一局:返回 (结束原因, 新标面积, 距离, 往返跑到达目标的次数)。"""
     seed, params, enc, duration, level = args
     from training.explore_env import make
     env, _ = make(seed, enc, level)
@@ -82,7 +82,7 @@ def evaluate(args):
     why = None
     while why is None:
         _, why = env.step(np.clip(mean_raw(params, *env.observation()), -1, 1))
-    return why, env.area - env.area0, env.dist
+    return why, env.area - env.area0, env.dist, env.reached
 
 
 def speed_head_affine(old, new) -> tuple[float, float]:
@@ -234,6 +234,8 @@ def train(a):
                  f'{np.mean([w_ in ("guard", "collision") for w_ in why]):.0%} 停滞 {why.count("stall") / len(why):.0%}')
             if room_level(nm) is None:  # 路段关卡:出界、到终点也报(只看截停时看不出往路外开)
                 m += f' 出界 {why.count("off_track") / len(why):.0%} 到终点 {why.count("goal") / len(why):.0%}'
+            if nm == 'shuttle':
+                m += f' 到端点 {np.mean([e[3] for e in ev]):.1f} 次'
             msg.append(m)
         return 'eval ' + ' / '.join(msg)
 

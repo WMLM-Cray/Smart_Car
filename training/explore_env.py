@@ -23,6 +23,12 @@ OFF_ROAD = 20.0         # 路段关卡出界扣的分:按面积给分时出界�
 STALL_V, STALL_S = 0.05, 3.0   # 车速低于 STALL_V 持续 STALL_S 秒 = 停滞,和截停一样结束、扣 CRASH(主动停车不是目标,
                                 # 紧急停车归 guard;不罚的话 RL 可能学会停着不动躲截停扣分,2026-10-19 用户定 3 s)
 ROAD_CAP = (0.7, 2.0)           # 路段关卡的速度上限抽取范围
+# 往返跑关卡(shuttle,2026-10-19 用户提的想法):正方形空房间,两端各一个目标点,到了就换另一端。
+# 奖励 = 离当前目标近了多少 m(朝目标的速度分量 × 时间),不直接奖励车速 —— 按车速给分在空房间里会学成高速绕圈;
+# 掉头越快越早开始拿分,所以不另设"长时间转弯"惩罚。练的是"看到前面是墙、什么时候开始转"。
+SHUTTLE_END = 1.3       # 目标点离端墙 m(后轴转弯半径 0.88 + 车身,留出掉头的地方)
+SHUTTLE_REACH = 0.8     # 后轴离目标点这么近算到了
+SHUTTLE_BONUS = 2.0     # 到一次的奖励
 SEG_PERIOD, SEG_LAG = 0.33, 0.35
 
 
@@ -37,7 +43,8 @@ class _RoadGrid:
 
 
 class Explore:
-    def __init__(self, world, pl, seed: int, start, duration: float = DURATION, seg=(SEG_PERIOD, SEG_LAG), road=None):
+    def __init__(self, world, pl, seed: int, start, duration: float = DURATION, seg=(SEG_PERIOD, SEG_LAG), road=None,
+                 targets=None):
         """world:RealMap 场地(楼层 / 房间);或者 road:路段关卡(training 的 LW3 等,防止忘掉沿路开,
         Wołczyk 2024 —— 只在楼层里练,第二轮 89 轮后原来的无锥桶测试集 81% -> 76%),start 用路的约定 (i, 横移, 朝向)。"""
         from training.bev_env import BevEnv
@@ -63,6 +70,9 @@ class Explore:
         self.s = road.s[b.env.idx] if road is not None else 0.0   # 路段关卡:沿中心线走到哪了 m
         self.dist = 0.0                                       # 放行后开过的路程 m(RoadEnv 没有 dist,自己记)
         self.still = 0.0                                      # 连续低于 STALL_V 的时间 s
+        self.targets = targets                                # 往返跑:[(x, y), (x, y)],先去 targets[0]
+        self.goal, self.reached = 0, 0
+        self.d_goal = self._d_goal() if targets is not None else 0.0
 
     def _mark(self, xy, pose):
         if not len(xy):
@@ -79,6 +89,11 @@ class Explore:
     def area(self) -> float:
         """标出来的地面面积 m²(只算地图上真是地面的格)。"""
         return float((self.marked & self.grid.free).sum()) * self.grid.cell ** 2
+
+    def _d_goal(self) -> float:
+        x, y, _ = self.b.pose
+        gx, gy = self.targets[self.goal]
+        return float(np.hypot(gx - x, gy - y))
 
     def observation(self):
         return self.b.observation()
@@ -114,7 +129,15 @@ class Explore:
             why = 'stall'
         x1, y1, _ = self.b.pose
         self.dist += float(np.hypot(x1 - x0, y1 - y0))
-        if self.road is None:
+        if self.targets is not None:
+            d = self._d_goal()
+            r, self.d_goal = self.d_goal - d, d
+            if d < SHUTTLE_REACH:
+                r += SHUTTLE_BONUS
+                self.reached += 1
+                self.goal = 1 - self.goal
+                self.d_goal = self._d_goal()
+        elif self.road is None:
             r = self.area - before
         else:
             s = self.road.s[self.b.env.idx]
@@ -137,6 +160,7 @@ def levels():
             'room_n': PlanConfig(kind='room', **none, **shape),
             'room_f': PlanConfig(kind='room', **shape, chair_sets=(0, 2), chairs_per_set=(1, 5),
                                  wall_chairs=(0, 3), boxes=(0, 3)),
+            'shuttle': PlanConfig(kind='room', square=True, room_box=((5.0, 10.0), (5.0, 10.0)), **none),
             'building': PlanConfig()}
 
 
@@ -176,5 +200,31 @@ def make(seed: int, enc, level: str = 'building'):
             continue
     else:
         raise RuntimeError(f'{level} 种子 {seed}:20 张图都找不到出发点')
+    if level == 'shuttle':
+        start, targets = _shuttle(rng, info)
+        pl = replace(Plant.sample(rng, enc), cap=float(rng.uniform(*ROAD_CAP)))   # 要练跑快,限速同路段关卡
+        return Explore(world, pl, seed, start, targets=targets), info
     pl = replace(Plant.sample(rng, enc), cap=CAP)
     return Explore(world, pl, seed, start), info
+
+
+def _shuttle(rng, info):
+    """往返跑:沿房间的一条轴(随机 x / y),两端离端墙 SHUTTLE_END 各一个目标点;车从一端出发、朝另一端,
+    横向偏中线 ±1/6 边长、朝向 ±15°。返回 (出发位姿, [目标, 起点那端])。"""
+    from simulation.fastsim.floorplan import CELL
+    x0, y0, x1, y1, _ = info['rooms'][0]
+    off = info['pad'] * CELL                               # RealMap 的世界坐标 = 格坐标 + pad 格
+    x0, y0, x1, y1 = x0 + off, y0 + off, x1 + off, y1 + off
+    side = x1 - x0
+    lat = float(rng.uniform(-side / 6, side / 6))
+    yaw = float(rng.uniform(-1, 1)) * np.radians(15.0)
+    a, b = SHUTTLE_END, side - SHUTTLE_END
+    if rng.random() < 0.5:                                 # 沿 x
+        cy = (y0 + y1) / 2
+        ends = [(x0 + a, cy), (x0 + b, cy)]
+        start = (x0 + a, cy + lat, yaw)
+    else:                                                  # 沿 y
+        cx = (x0 + x1) / 2
+        ends = [(cx, y0 + a), (cx, y0 + b)]
+        start = (cx + lat, y0 + a, np.pi / 2 + yaw)
+    return start, [ends[1], ends[0]]
