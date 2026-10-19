@@ -141,8 +141,9 @@ class RoadEnv:
         self.release = car_params.brake_release_speed
         self.idx = i0
         self.t, self.next_scan = 0.0, 0.0
-        self.pending = [(0.0, pl.enc.v_lo)] * pl.lag       # 指令延迟队列
-        self.cmd = (0.0, pl.enc.v_lo)
+        first = STOP if pl.enc.dead else pl.enc.v_lo       # 同 SpeedPlant:能停车的契约开局是中位(车上重新使能也是)
+        self.pending = [(0.0, first)] * pl.lag             # 指令延迟队列
+        self.cmd = (0.0, first)
         n = car_params.lidar_points
         self.angles = -math.pi + np.arange(n) * (2 * math.pi / n)
         self.min_clear = math.inf

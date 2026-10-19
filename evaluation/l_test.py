@@ -5,7 +5,7 @@
 实车那段(车的起点坐标系,x 前 y 左):右边是墙(y ≈ -1.9),正前方 7 m 是墙,出口在左边(一大片屋子,家具零散);
 车贴右墙往前开了 6.3 m,停在离前墙 0.7 m 处。这里:进口直道 + 尖 90° 左弯(外侧方角)+ 出口直道,
 车(后轴)离前墙 FRONT 米、离右墙 RIGHT 米;路宽(= 左边多空)和初始朝向扫一遍。开到出口直道终点算过,
-截停 / 撞 / 超时算失败。部署条件同 tee_test:不用 YOLO、地面分割 0.33 s / 0.35 s。
+截停 / 撞 / 超时算失败。部署条件同 tee_test:不用 YOLO、地面分割 0.33 s / 0.35 s、按车上的投影 + 补缝(10-19 起;之前是理想地面分割)。
 """
 from __future__ import annotations
 
@@ -83,7 +83,7 @@ def run_one(args):
     i0 = road.elems[1]['_i0'] - int(round(dist / 0.05))
     off = -width / 2 + RIGHT                             # 横向:左正
     b = BevEnv(road, pl, seed, (i0, off, math.radians(yaw)), noise=True, free=True, seg_period=0.33,
-               seg_lag=0.35, yolo=False, guard=True)
+               seg_lag=0.35, yolo=False, guard=True, seg_lut=True, seg_fill=True)     # 地面分割按车上的投影 + 补缝
     if model == 'teacher':
         from common.params import CarParams
         from training.bev_env import SeenTeacher

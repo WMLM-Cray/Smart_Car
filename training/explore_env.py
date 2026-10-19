@@ -163,9 +163,8 @@ def make(seed: int, enc, level: str = 'building'):
     room = room_level(level)
     if room is None:
         from training.road_check import sample_episode
-        road, pl, start, _, _ = sample_episode(seed, level, enc=enc)
-        cap = float(np.random.default_rng([seed, 7]).uniform(*ROAD_CAP))   # 单独的随机流,路和车辆参数不变
-        return Explore(None, replace(pl, cap=cap), seed, start, road=road), None
+        road, pl, start, _, _ = sample_episode(seed, level, enc=enc, cap_min=ROAD_CAP[0], cap_max=ROAD_CAP[1])
+        return Explore(None, pl, seed, start, road=road), None     # 限速在抽局时就定,老师可通检查用的是同一个限速
     rng = np.random.default_rng(seed)
     for _ in range(20):                 # 小房间摆满家具时可能找不到"能绕圈"的出发点,换一张图
         world, info = generate(rng, room[0])

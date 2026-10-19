@@ -48,9 +48,12 @@ def run_episode(seed, level, weights=None, beta=0.0, collect=False, enc=None, a_
     rng = np.random.default_rng(seed + 1)
     imgs, scs, ys, imgs2 = [], [], [], []
     why, n = None, 0
+    d = pl.enc.dead
+    n_stop = n_brake = n_brake_label = 0          # 速度动作落在中位段 / 刹车段的拍数(只在带 _d 的契约下有)
     while why is None:
         img, sc = benv.observation()
         label = teacher()
+        n_brake_label += bool(d) and label[1] <= -d
         if collect:
             imgs.append(np.packbits(img.astype(bool).ravel()))
             if pair:
@@ -61,10 +64,13 @@ def run_episode(seed, level, weights=None, beta=0.0, collect=False, enc=None, a_
             act = label + (rng.normal(0, [0.05, 0.05]) if collect else 0.0)
         else:
             act = forward(weights, img, sc)
+        n_stop += bool(d) and abs(act[1]) < d
+        n_brake += bool(d) and act[1] <= -d
         why = benv.step(act)
         n += 1
     row = dict(seed=seed, level=level, reason=why, cap=pl.cap, time=benv.env.t, steps=n,
-               reverse_s=benv.env.speed.reverse_s)                 # 低速还在刹的时间(实车可能倒车,见 SpeedPlant)
+               reverse_s=benv.env.speed.reverse_s,                 # 低速还在刹的时间(实车可能倒车,见 SpeedPlant)
+               stop_frac=n_stop / n, brake_frac=n_brake / n, brake_label_frac=n_brake_label / n)
     if collect:
         return np.asarray(imgs), np.asarray(scs, np.float32), np.asarray(ys, np.float32), row, \
             (np.asarray(imgs2) if pair else None)
@@ -103,7 +109,10 @@ def summarize(rows):
     ok = [r['reason'] == 'goal' for r in rows]
     return dict(n=len(rows), success=float(np.mean(ok)) if rows else 0.0,
                 reasons={k: sum(r['reason'] == k for r in rows) for k in {r['reason'] for r in rows}},
-                reverse_eps=sum(r.get('reverse_s', 0.0) > 0 for r in rows))
+                reverse_eps=sum(r.get('reverse_s', 0.0) > 0 for r in rows),
+                # 执行的动作里中位 / 刹车的比例,和老师刹车标签的比例(老师从不给中位标签:学生停下来是回归把两种标签平均进了死区)
+                **{k: float(np.mean([r[k] for r in rows])) if rows else 0.0
+                   for k in ('stop_frac', 'brake_frac', 'brake_label_frac')})
 
 
 def main():
