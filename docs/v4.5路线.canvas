@@ -1,0 +1,371 @@
+{
+ "nodes": [
+  {
+   "id": "g0",
+   "type": "group",
+   "label": "已完成",
+   "x": -30,
+   "y": -80,
+   "width": 380,
+   "height": 980,
+   "color": "4"
+  },
+  {
+   "id": "g1",
+   "type": "group",
+   "label": "现在(待你定)",
+   "x": 390,
+   "y": -80,
+   "width": 380,
+   "height": 980,
+   "color": "3"
+  },
+  {
+   "id": "g2",
+   "type": "group",
+   "label": "下一步",
+   "x": 810,
+   "y": -80,
+   "width": 380,
+   "height": 980,
+   "color": "5"
+  },
+  {
+   "id": "g3",
+   "type": "group",
+   "label": "之后",
+   "x": 1230,
+   "y": -80,
+   "width": 380,
+   "height": 980
+  },
+  {
+   "id": "g4",
+   "type": "group",
+   "label": "上车",
+   "x": 1650,
+   "y": -80,
+   "width": 380,
+   "height": 980
+  },
+  {
+   "id": "v4g",
+   "type": "text",
+   "text": "**v4g**\n现回滚模型\nL 弯 100/100,2.19 m",
+   "x": 0,
+   "y": -40,
+   "width": 320,
+   "height": 150
+  },
+  {
+   "id": "a0",
+   "type": "text",
+   "text": "**A0 第 1 段** ✅\n老契约 只滑行\n最好 003:81/100,1.96 m",
+   "x": 0,
+   "y": 140,
+   "width": 320,
+   "height": 150,
+   "color": "4"
+  },
+  {
+   "id": "a1",
+   "type": "text",
+   "text": "**A 第 1 段** ✅\n新契约 会刹车\n选 **011**:95/100,2.35 m",
+   "x": 0,
+   "y": 320,
+   "width": 320,
+   "height": 150,
+   "color": "4"
+  },
+  {
+   "id": "a2",
+   "type": "text",
+   "text": "**A 第 2 段** ✅\nL 弯上没改善\n回退用第 1 段",
+   "x": 0,
+   "y": 500,
+   "width": 320,
+   "height": 150,
+   "color": "4"
+  },
+  {
+   "id": "pr",
+   "type": "text",
+   "text": "**PR / issue** ✅\n#41 #42 #43 #47 修复已推\nbev_v2.5 交给队友 #48",
+   "x": 0,
+   "y": 680,
+   "width": 320,
+   "height": 150,
+   "color": "4"
+  },
+  {
+   "id": "dec",
+   "type": "text",
+   "text": "**先转 B_beta?** ❓\n只跑第 1 段\n和 A 第 1 段比",
+   "x": 420,
+   "y": 140,
+   "width": 320,
+   "height": 150,
+   "color": "3"
+  },
+  {
+   "id": "time",
+   "type": "text",
+   "text": "**B_beta1 先训?** ❓\n还是等车上\n测完推理耗时",
+   "x": 420,
+   "y": 320,
+   "width": 320,
+   "height": 150,
+   "color": "3"
+  },
+  {
+   "id": "test",
+   "type": "text",
+   "text": "**正式测试**\n测试种子 300 局\nA 对 v4g、A 对 A0",
+   "x": 420,
+   "y": 500,
+   "width": 320,
+   "height": 150,
+   "color": "3"
+  },
+  {
+   "id": "code",
+   "type": "text",
+   "text": "**写 B_beta 代码**\nnumpy / torch 两套\n+ 一致性测试",
+   "x": 840,
+   "y": -40,
+   "width": 320,
+   "height": 150
+  },
+  {
+   "id": "bb2",
+   "type": "text",
+   "text": "**B_beta2** 宽 FC\n输入 bev_v2\nM4 约 1 小时",
+   "x": 840,
+   "y": 140,
+   "width": 320,
+   "height": 150,
+   "color": "5"
+  },
+  {
+   "id": "bb1",
+   "type": "text",
+   "text": "**B_beta1** 加宽 + 残差\n输入 bev_v2\n先测车上耗时",
+   "x": 840,
+   "y": 320,
+   "width": 320,
+   "height": 150,
+   "color": "5"
+  },
+  {
+   "id": "ba",
+   "type": "text",
+   "text": "**B_alpha** bev_v2.5\n5 cm 近场分支\n等队友 #48",
+   "x": 840,
+   "y": 500,
+   "width": 320,
+   "height": 150,
+   "color": "6"
+  },
+  {
+   "id": "s2",
+   "type": "text",
+   "text": "**第 2 段重做**\n加 L 弯类关卡\n改奖励",
+   "x": 840,
+   "y": 680,
+   "width": 320,
+   "height": 150
+  },
+  {
+   "id": "base",
+   "type": "text",
+   "text": "**重跑基线**\n老师 / v4g / r1A\n新转向起始点定义",
+   "x": 1260,
+   "y": -40,
+   "width": 320,
+   "height": 150
+  },
+  {
+   "id": "pick",
+   "type": "text",
+   "text": "**取舍**\nB 组各和 A 配对比\n按路线 Holm 校正",
+   "x": 1260,
+   "y": 140,
+   "width": 320,
+   "height": 150
+  },
+  {
+   "id": "seeds",
+   "type": "text",
+   "text": "**多种子复训**\n赢的 + A\n种子 0 / 1 / 2",
+   "x": 1260,
+   "y": 320,
+   "width": 320,
+   "height": 150
+  },
+  {
+   "id": "bap",
+   "type": "text",
+   "text": "**B_alpha'**\n近场降到 10 cm\nB_alpha 胜出才做",
+   "x": 1260,
+   "y": 500,
+   "width": 320,
+   "height": 150,
+   "color": "6"
+  },
+  {
+   "id": "car",
+   "type": "text",
+   "text": "**车上刹车支持**\n要现场 + 你同意",
+   "x": 1680,
+   "y": 140,
+   "width": 320,
+   "height": 150
+  },
+  {
+   "id": "deploy",
+   "type": "text",
+   "text": "**部署**\n核 md5、备份、回滚说明",
+   "x": 1680,
+   "y": 320,
+   "width": 320,
+   "height": 150
+  }
+ ],
+ "edges": [
+  {
+   "id": "a0-a1",
+   "fromNode": "a0",
+   "fromSide": "bottom",
+   "toNode": "a1",
+   "toSide": "top",
+   "label": "对照"
+  },
+  {
+   "id": "a1-a2",
+   "fromNode": "a1",
+   "fromSide": "bottom",
+   "toNode": "a2",
+   "toSide": "top"
+  },
+  {
+   "id": "v4g-a0",
+   "fromNode": "v4g",
+   "fromSide": "bottom",
+   "toNode": "a0",
+   "toSide": "top"
+  },
+  {
+   "id": "a1-dec",
+   "fromNode": "a1",
+   "fromSide": "right",
+   "toNode": "dec",
+   "toSide": "left"
+  },
+  {
+   "id": "a1-time",
+   "fromNode": "a1",
+   "fromSide": "right",
+   "toNode": "time",
+   "toSide": "left"
+  },
+  {
+   "id": "a1-test",
+   "fromNode": "a1",
+   "fromSide": "right",
+   "toNode": "test",
+   "toSide": "left"
+  },
+  {
+   "id": "v4g-test",
+   "fromNode": "v4g",
+   "fromSide": "right",
+   "toNode": "test",
+   "toSide": "left",
+   "label": "对照"
+  },
+  {
+   "id": "dec-bb2",
+   "fromNode": "dec",
+   "fromSide": "right",
+   "toNode": "bb2",
+   "toSide": "left"
+  },
+  {
+   "id": "time-bb1",
+   "fromNode": "time",
+   "fromSide": "right",
+   "toNode": "bb1",
+   "toSide": "left"
+  },
+  {
+   "id": "code-bb2",
+   "fromNode": "code",
+   "fromSide": "bottom",
+   "toNode": "bb2",
+   "toSide": "top"
+  },
+  {
+   "id": "a1-ba",
+   "fromNode": "a1",
+   "fromSide": "right",
+   "toNode": "ba",
+   "toSide": "left"
+  },
+  {
+   "id": "a2-s2",
+   "fromNode": "a2",
+   "fromSide": "right",
+   "toNode": "s2",
+   "toSide": "left"
+  },
+  {
+   "id": "bb2-pick",
+   "fromNode": "bb2",
+   "fromSide": "right",
+   "toNode": "pick",
+   "toSide": "left"
+  },
+  {
+   "id": "bb1-pick",
+   "fromNode": "bb1",
+   "fromSide": "right",
+   "toNode": "pick",
+   "toSide": "left"
+  },
+  {
+   "id": "ba-pick",
+   "fromNode": "ba",
+   "fromSide": "right",
+   "toNode": "pick",
+   "toSide": "left"
+  },
+  {
+   "id": "ba-bap",
+   "fromNode": "ba",
+   "fromSide": "right",
+   "toNode": "bap",
+   "toSide": "left"
+  },
+  {
+   "id": "pick-seeds",
+   "fromNode": "pick",
+   "fromSide": "bottom",
+   "toNode": "seeds",
+   "toSide": "top"
+  },
+  {
+   "id": "seeds-car",
+   "fromNode": "seeds",
+   "fromSide": "right",
+   "toNode": "car",
+   "toSide": "left"
+  },
+  {
+   "id": "car-deploy",
+   "fromNode": "car",
+   "fromSide": "bottom",
+   "toNode": "deploy",
+   "toSide": "top"
+  }
+ ]
+}
