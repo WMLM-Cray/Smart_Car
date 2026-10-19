@@ -282,16 +282,46 @@ class Bev:
         ok = (row >= 0) & (row < h) & (col >= 0) & (col < w)
         return sel[ok], row[ok], col[ok]
 
+    def _crop_free(self, pose, t):
+        """目标格中心反查 odom 格的 FREE 证据,避免旋转正向投点的重复落格/漏格。
+
+        只采已有源格;未知或该层过期仍为 0。稀疏障碍层继续用 _window 正向投点,
+        不使用这条路径,避免最近邻采样漏掉单个障碍回波。
+        """
+        cfg = self.cfg
+        out = np.zeros(cfg.shape, bool)
+        layer = CAMERA_LAYER[CellType.FREE]
+        if not len(self.keys) or not self.count[:, layer].any():
+            return out
+        row, col = np.indices(cfg.shape)
+        xy = np.column_stack(((cfg.ahead - (row.ravel() + 0.5) * cfg.res),
+                              (cfg.side - (col.ravel() + 0.5) * cfg.res)))
+        world = body_to_odom(xy, pose)
+        query = _keys(np.floor(world[:, 0] / cfg.res), np.floor(world[:, 1] / cfg.res))
+        pos = np.searchsorted(self.keys, query)
+        found = pos < len(self.keys)
+        found[found] &= self.keys[pos[found]] == query[found]
+        dest = np.flatnonzero(found)
+        src = pos[dest]
+        hit = self.count[src, layer] > 0
+        if t is not None:
+            hit &= t - self.last[src, layer] <= cfg.max_age
+        out.ravel()[dest] = hit
+        return out
+
     def crop(self, pose, t: float | None = None) -> np.ndarray:
         """以车(后轴)为中心、车头朝上的类型图 (H, W) int8,值是 CellType。
         t 给了就只画 max_age 以内的格子(不必先 prune)。"""
         img = np.zeros(self.cfg.shape, np.int8)
+        img[self._crop_free(pose, t)] = int(CellType.FREE)
         if len(self.keys):
             idx, row, col = self._window(pose, t)
             count = self.count[idx]
             if t is not None:
                 count = np.where(t - self.last[idx] <= self.cfg.max_age, count, 0)
             for kind in reversed(PRIORITY):
+                if kind == CellType.FREE:
+                    continue                         # FREE 已按目标格中心采样,其它类型优先覆盖
                 layer = LIDAR_LAYER if kind == CellType.OBSTACLE else CAMERA_LAYER[kind]
                 hit = count[:, layer] > 0
                 img[row[hit], col[hit]] = int(kind)
@@ -302,9 +332,12 @@ class Bev:
     def crop_layers(self, pose, t: float | None = None) -> np.ndarray:
         """同一窗口的各来源层 (len(LAYERS), H, W) float32,值 = 有没有证据(0/1)。给网络当输入用。"""
         out = np.zeros((len(LAYERS),) + self.cfg.shape, np.float32)
+        out[CAMERA_LAYER[CellType.FREE]] = self._crop_free(pose, t)
         if len(self.keys):
             idx, row, col = self._window(pose, t)
             for k in range(len(LAYERS)):
+                if k == CAMERA_LAYER[CellType.FREE]:
+                    continue
                 hit = self.count[idx, k] > 0
                 if t is not None:
                     hit &= t - self.last[idx, k] <= self.cfg.max_age

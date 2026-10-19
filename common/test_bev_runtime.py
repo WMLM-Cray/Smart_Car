@@ -271,7 +271,8 @@ def test_car_node_records_frames_for_replay(tmp_path):
     assert k >= 0 and (z['cam'][:k] == -1).all()
     assert (tmp_path / 'log' / 'seg_01' / 'frames' / f'cam_{k:04d}.jpg').read_bytes() == b'jpg-1'
 
-def test_v25_runtime_and_simulation_extract_identical_inputs(tmp_path):
+@pytest.mark.parametrize('heading_offset', [0.0, 0.37, -math.pi/4])
+def test_v25_runtime_and_simulation_extract_identical_inputs(tmp_path, heading_offset):
     from copy import deepcopy
     from common.bev import PoseIntegrator
     from common.bev_policy import SCHEMA_V25
@@ -284,6 +285,7 @@ def test_v25_runtime_and_simulation_extract_identical_inputs(tmp_path):
     road = generate(rng, next(level for level in LEVELS if level.name == 'L3'))
     pl = Plant.sample(rng, pol.enc)
     sim = BevEnv(road, pl, 25, noise=False, free=True, near=True)
+    sim.env.car.yaw += heading_offset  # 转过车头重裁已有地图,覆盖 FREE 逆向采样路径。
     rt = BevRuntime(pol, speed_cap=pl.cap)
     rt.bev = deepcopy(sim.bev)
     rt.odom = PoseIntegrator(*sim.pose)
