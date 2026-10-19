@@ -17,7 +17,7 @@ import numpy as np
 from common.params import CarParams
 from simulation.fastsim.camera import FloorSegConfig
 from simulation.fastsim.real_map import RealMap
-from simulation.fastsim.road_env import Plant, RoadEnv, SpeedPlant
+from simulation.fastsim.road_env import STOP, Plant, RoadEnv, SpeedPlant
 from simulation.fastsim.vehicle import Car
 
 
@@ -32,9 +32,11 @@ class RealMapEnv(RoadEnv):
         self.car = Car(self.cp)
         self.car.reset(*start, steer_gain=pl.steer_gain)
         self.speed = SpeedPlant(pl)
+        self.release = car_params.brake_release_speed
         self.t, self.next_scan = 0.0, 0.0
-        self.pending = [(0.0, pl.enc.v_lo)] * pl.lag
-        self.cmd = (0.0, pl.enc.v_lo)
+        first = STOP if pl.enc.dead else pl.enc.v_lo       # 同 RoadEnv:能停车的契约开局是中位
+        self.pending = [(0.0, first)] * pl.lag
+        self.cmd = (0.0, first)
         n = car_params.lidar_points
         self.angles = -math.pi + np.arange(n) * (2 * math.pi / n)
         self.min_clear = math.inf

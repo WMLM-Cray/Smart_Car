@@ -7,7 +7,8 @@ import numpy as np
 
 from simulation.fastsim.real_map import RealMap
 from simulation.fastsim.real_map_env import MapFloorSeg, RealMapEnv
-from simulation.fastsim.road_env import Plant
+from common.road_policy import spec_of
+from simulation.fastsim.road_env import STOP, Plant
 
 
 def corridor(length=8.0, half=0.6, cell=0.05):
@@ -65,3 +66,14 @@ def test_clear_swept_removes_cells_under_real_path():
     xs = np.arange(-0.5, 7.0, 0.1)
     world.clear_swept(np.stack([xs, np.zeros_like(xs), np.zeros_like(xs)], 1), 0.45, 0.25, 0.1)
     assert world.occ.sum() == n - 1                                  # 两侧墙不动
+
+
+def test_dead_band_contract_brakes_and_starts_neutral():
+    """能刹车的契约(v4.5):开局队列是中位,刹车动作走发指令侧的松刹(RoadEnv.step 用 self.release)。"""
+    pl = Plant(launch_delay=0.0, enc=spec_of('spica_v3_s5_v0.45-5_d0.2_log'))
+    env = RealMapEnv(corridor(), pl, 0, (0.0, 0.0, 0.0), noise=False, duration=1.0)
+    assert all(c == STOP for _, c in env.pending) and env.cmd[1] == STOP
+    why = None
+    while why is None:
+        why = env.step((0.0, -1.0))
+    assert why == 'timeout'
