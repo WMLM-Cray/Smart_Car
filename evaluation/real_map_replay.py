@@ -3,7 +3,7 @@
 
     python -m evaluation.real_map_replay runs/drv_1015b/logbook_1015_181810/seg_03 models/a.npz models/b.npz
 
-每局换一个种子(车辆参数按 Plant.sample 抽,速度上限固定 0.7、起步等待固定 0.5 s);结束原因:
+每局换一个种子(车辆参数按 Plant.sample 抽,速度上限固定 0.7);同车上,放行时 BEV 是空的、车马上就走。结束原因:
 guard(车上截停,实车到这一步基本卡死)、collision、unknown(开出建图时见过的范围,后面没有图,算"没出事")、timeout。
 --png 画图:车上同款点阵图 + 实车路径(蓝)+ 各模型每局路径(红 / 橙 / 紫)。
 """
@@ -23,8 +23,6 @@ import numpy as np
 
 CAP = 0.7               # 车上网页设的速度上限
 SEG_PERIOD, SEG_LAG = 0.33, 0.35     # 车上 M2F-T 288 地面分割的周期 / 延迟(training/bev_env 文档)
-WARM = 2.0              # 出发前原地攒 BEV 的时间 s:车上放行前 BEV 早就在攒了,第一拍不是只有一帧雷达、没有地面层
-                        # (不攒的话 1014 seg_04 三个模型第一拍都往右前一个近处障碍打方向、当场截停,实车那拍只打了 -0.05)
 COLORS = [(40, 40, 220), (0, 140, 255), (180, 60, 160), (60, 160, 60), (120, 120, 0)]     # 模型路径(BGR):红、橙、紫、绿、青;实车是蓝
 
 
@@ -61,18 +59,15 @@ def run_one(args):
     from simulation.fastsim.road_env import Plant
     from training.bev_env import BevEnv
     pol = BevPolicy(model)
-    pl = replace(Plant.sample(np.random.default_rng(seed), pol.enc), cap=CAP, launch_delay=WARM + 0.5)
+    pl = replace(Plant.sample(np.random.default_rng(seed), pol.enc), cap=CAP)
     b = BevEnv(None, pl, seed, start, noise=True, free=pol.free, seg_period=SEG_PERIOD, seg_lag=SEG_LAG,
                guard=True, world=world)
-    b.env.budget_s = WARM + duration
-    while b.env.t < WARM - 1e-9:             # 原地攒 BEV:车还没放行,不截停(速度环在 launch_delay 内不动车)
-        b.env.step(pol(*b.observation()))
-        b._camera()
-    why, path = None, []
+    b.env.budget_s = duration                # 放行时清空旧证据,只有使能后新到的传感器帧能进入 BEV
+    why, path = None, []                     # 2026-10-18 之前这里先原地攒 2 s,前提"车上放行前早就在攒"是错的
     while why is None:
         why = b.step(pol(*b.observation()))
         path.append(b.pose[:2])
-    return why, b.env.dist, b.env.t - WARM, np.array(path)
+    return why, b.env.dist, b.env.t, np.array(path)
 
 
 def main(argv=None):
