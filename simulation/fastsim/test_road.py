@@ -216,3 +216,21 @@ def test_l6f_is_a_narrow_sparse_square_corner_after_a_long_lead_in():
                 leads.append(road.elems[i - 1]['length'])
     assert all(4.0 <= x <= 7.0 or 0.5 <= x <= 2.5 for x in leads)
     assert sum(4.0 <= x <= 7.0 for x in leads) >= len(leads) // 3
+
+
+def test_teacher_brakes_only_with_a_dead_band_contract():
+    """能刹车的契约(_d):老师在弯前光滑行来不及时给刹车标签,照样开到终点;老契约不规划刹车(标签逐位不变)。"""
+    from common.road_policy import spec_of
+    from training.road_check import sample_episode
+    enc = spec_of('spica_v3_s5_v0.45-5_d0.2_log')
+    road, pl, start, P, _ = sample_episode(2, 'L5', enc=enc, cap_max=2.0)
+    env = RoadEnv(road, pl, 0, start, noise=False, sense=False)
+    t = Teacher(env, P)
+    why, labels = None, []
+    while why is None:
+        a = t()
+        labels.append(action_to_speed(float(a[1]), enc))
+        why = env.step(a)
+    assert why == 'goal' and labels.count(BRAKE) > 10 and STOP not in labels
+    old = Teacher(RoadEnv(road, Plant(), 0, start, noise=False, sense=False), P)
+    assert old.brake is None and plan(road, 0, 0.0, CarParams().width, Plant()).v_coast is None

@@ -17,9 +17,13 @@ scale 是**训练时**观测里速度通道的归一化尺度,不是部署速度
         a >= d 前进,线性映射到 [v_lo, v_hi];|a| < d 中位 STOP_CMD(滑行到停);a <= -d 刹车 BRAKE_CMD。
         前进段最低仍是 v_lo,不出慢爬的速度(电调死区:停在中位以上、破静以下再加油不认)。
         车上 RoadRuntime 还不支持后两种指令,遇到带 _d 的模型直接拒绝加载。
+    ..._s5_v0.45-5_d0.2_log          前进段按对数刻度:v = v_lo·(v_hi/v_lo)^((a-d)/(1-d))(2026-10-19,比赛车速
+        没定、要留到 5 m/s):动作仍是绝对车速(限速只截断,调高限速不会让学过的动作变快),
+        低速段不被压扁 —— 0.45~0.7 占前进段 18%(线性 5%),0.7 附近动作差 0.01 ≈ 0.02 m/s。
 V_HI 是动作空间能表达的最高目标速度 —— 它设小了,策略物理上就快不起来。
 见 docs/spica方案.md §3.2。
 """
+import math
 import re
 from typing import NamedTuple
 
@@ -61,6 +65,7 @@ class Encoding(NamedTuple):
     v_lo: float = V_LO
     v_hi: float = V_HI
     dead: float = 0.0
+    log: bool = False               # 前进段对数刻度(只和 dead 一起用)
 
 
 DEFAULT_ENC = Encoding()
@@ -68,7 +73,7 @@ DEFAULT_ENC = Encoding()
 # road_v2.5 是 2026-09 的 v2.5 模型线(车上在用 road_v2.5/candidate_b036),和 spica_v3_s3_v0.45-3
 # 是同一个契约:观测速度按 3.0 归一化、动作速度 0.45~3.0、265 列输入。新模型一律用后缀导出。
 ALIASES = {'road_v2.5': Encoding(3.0, 0.45, 3.0)}
-_SUFFIX = re.compile(r'^_s(?P<scale>[0-9.]+)_v(?P<lo>[0-9.]+)-(?P<hi>[0-9.]+)(_d(?P<dead>0?\.[0-9]+))?$')
+_SUFFIX = re.compile(r'^_s(?P<scale>[0-9.]+)_v(?P<lo>[0-9.]+)-(?P<hi>[0-9.]+)(_d(?P<dead>0?\.[0-9]+)(?P<log>_log)?)?$')
 
 
 def spec_of(schema) -> Encoding:
@@ -93,14 +98,15 @@ def spec_of(schema) -> Encoding:
     if m is None:
         raise ValueError(f'schema {s} 的后缀 {rest!r} 不认识'
                          f'(能认的是 {_SUFFIX.pattern!r},或什么都不带 = 默认契约)')
-    return Encoding(float(m['scale']), float(m['lo']), float(m['hi']), float(m['dead'] or 0.0))
+    return Encoding(float(m['scale']), float(m['lo']), float(m['hi']), float(m['dead'] or 0.0), bool(m['log']))
 
 
 def suffix_of(enc: Encoding) -> str:
     """Encoding -> schema 后缀。默认契约给空串,于是老模型的名字原样保留。"""
     if tuple(enc) == tuple(DEFAULT_ENC):
         return ''
-    return f'_s{enc.scale:g}_v{enc.v_lo:g}-{enc.v_hi:g}' + (f'_d{enc.dead:g}' if enc.dead else '')
+    return (f'_s{enc.scale:g}_v{enc.v_lo:g}-{enc.v_hi:g}' + (f'_d{enc.dead:g}' if enc.dead else '')
+            + ('_log' if enc.log else ''))
 
 
 def action_to_speed(a: float, enc: Encoding = DEFAULT_ENC) -> float:
@@ -109,7 +115,8 @@ def action_to_speed(a: float, enc: Encoding = DEFAULT_ENC) -> float:
     if not d:
         return enc.v_lo + (a + 1.0) / 2.0 * (enc.v_hi - enc.v_lo)
     if a >= d:
-        return enc.v_lo + (a - d) / (1.0 - d) * (enc.v_hi - enc.v_lo)
+        f = (a - d) / (1.0 - d)
+        return enc.v_lo * (enc.v_hi / enc.v_lo) ** f if enc.log else enc.v_lo + f * (enc.v_hi - enc.v_lo)
     return STOP_CMD if a > -d else BRAKE_CMD
 
 
@@ -122,7 +129,11 @@ def speed_to_action(v: float, enc: Encoding = DEFAULT_ENC) -> float:
         return -1.0
     if v == STOP_CMD:
         return 0.0
-    return min(1.0, d + max(0.0, v - enc.v_lo) / (enc.v_hi - enc.v_lo) * (1.0 - d))
+    if enc.log:
+        f = math.log(max(v, enc.v_lo) / enc.v_lo) / math.log(enc.v_hi / enc.v_lo)
+    else:
+        f = max(0.0, v - enc.v_lo) / (enc.v_hi - enc.v_lo)
+    return min(1.0, d + f * (1.0 - d))
 
 
 def observe(ranges, angles, speed, cap, yaw_rate, last_action, scale=None):

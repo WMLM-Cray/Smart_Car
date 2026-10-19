@@ -191,6 +191,22 @@ def test_dead_band_contract_round_trips_and_car_refuses_it():
         RoadRuntime(p)
 
 
+def test_log_contract_round_trips_and_spends_the_band_on_low_and_high_speeds():
+    """_log:前进段按对数刻度,0.45~5 里 0.7 以下占约 18%、2~5 占约 38%(线性只有 5% / 66%)。"""
+    import pytest
+    from common.road_policy import action_to_speed, spec_of, speed_to_action, suffix_of
+    from training.explore_rl import speed_head_affine
+    enc = spec_of('spica_v3_s5_v0.45-5_d0.2_log')
+    assert enc.log and enc.dead == 0.2 and suffix_of(enc) == '_s5_v0.45-5_d0.2_log'
+    assert action_to_speed(0.2, enc) == pytest.approx(0.45) and action_to_speed(1.0, enc) == pytest.approx(5.0)
+    for v in (0.45, 0.7, 1.0, 2.0, 5.0):
+        assert action_to_speed(speed_to_action(v, enc), enc) == pytest.approx(v)
+    band = lambda v: (speed_to_action(v, enc) - 0.2) / 0.8
+    assert band(0.7) == pytest.approx(0.183, abs=1e-3) and 1 - band(2.0) == pytest.approx(0.381, abs=1e-3)
+    with pytest.raises(AssertionError):                                     # 对数契约换算不是仿射,不支持
+        speed_head_affine(spec_of('spica_v3_s3_v0.45-3'), enc)
+
+
 def test_speed_head_conversion_keeps_executed_speed():
     """老契约 v0.45-3 换到 v0.45-1_d0.2:限速 0.7 以内执行的目标车速逐位相同,老动作 -1 落在新前进段起点。"""
     from common.road_policy import action_to_speed, spec_of

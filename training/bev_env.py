@@ -184,7 +184,7 @@ class SeenTeacher(Teacher):
         env, car = self.env, self.env.car
         i, d = env.road.project((car.x, car.y), env.idx)
         win = min(HORIZON, max(MIN_WIN, self.known_ahead(i)))
-        P = plan(env.road, i, d, env.cp.width, self.pl, win, R_REPLAN, self.a_lat, self.v_end)
+        P = plan(env.road, i, d, env.cp.width, self.pl, win, R_REPLAN, self.a_lat, self.v_end, self.brake)
         if isinstance(P, str):
             self.fails += 1
             return

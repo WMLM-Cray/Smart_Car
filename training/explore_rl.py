@@ -89,7 +89,7 @@ def speed_head_affine(old, new) -> tuple[float, float]:
     """老的线性速度契约 old 换到带死区的 new:新动作 = k·老动作 + c,在 old 能表达、new 的前进段装得下的车速上
     解出来的目标车速逐位相同(老动作 -1 -> 新前进段起点 new.dead,也就是 v_lo;超过 new.v_hi 的部分裁掉)。
     网络最后一层是线性的,速度那一行乘 k 加 c 就是精确换算,从老模型热启动不用重训速度头。"""
-    assert not old.dead and new.dead
+    assert not old.dead and new.dead and not new.log      # 对数刻度不是仿射,换不过去
     span = (new.v_hi - new.v_lo) / (1.0 - new.dead)
     k = (old.v_hi - old.v_lo) / 2.0 / span
     return k, new.dead + (old.v_lo - new.v_lo + (old.v_hi - old.v_lo) / 2.0) / span
