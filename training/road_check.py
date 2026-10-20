@@ -30,7 +30,7 @@ import numpy as np
 
 from common.params import CarParams
 from common.road_policy import DEFAULT_ENC
-from simulation.fastsim.road import LEVELS, generate, generate_loop
+from simulation.fastsim.road import EDGE, LEVELS, generate, generate_loop
 from simulation.fastsim.road_env import GOAL_BEFORE_END, Plant, RoadEnv, footprint_clearance
 from training.road_teacher import A_LAT, R_MIN, Teacher, plan
 
@@ -62,9 +62,10 @@ def check(road, pl, start, a_lat: float = A_LAT, r_min: float = R_MIN) -> tuple[
         car.x, car.y, car.yaw = P.pts[k, 0], P.pts[k, 1], heading[k]
         if footprint_clearance(car, road) < SWEEP_CLEAR:
             return False, 'sweep', None
-    # 3 可见(放在闭环前面,便宜)
+    # 3 可见(放在闭环前面,便宜)。EDGE 路(无锥桶无墙)雷达本来就什么都看不到,路沿靠地面分割,不查
+    edge_road = bool((np.asarray(road.mat_left) == EDGE).any() or (np.asarray(road.mat_right) == EDGE).any())
     last = -math.inf
-    for k in range(len(P.pts)):
+    for k in range(0 if edge_road else len(P.pts)):
         if P.s[k] > P.s[-1] - GOAL_BEFORE_END:     # 过了终点线就结束了,路尽头前面本来就空
             break
         if P.s[k] - last < LOOK_STEP:

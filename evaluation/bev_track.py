@@ -28,7 +28,7 @@ def run(args):
     road, lap_len = official(name, True)
     pol = BevPolicy(model)
     pl = replace(Plant.sample(np.random.default_rng(seed), pol.enc), cap=cap)
-    benv = BevEnv(road, pl, seed, noise=True)
+    benv = BevEnv(road, pl, seed, noise=True, free=pol.free)
     laps, why = [], None
     while why is None:
         why = benv.step(pol(*benv.observation()))

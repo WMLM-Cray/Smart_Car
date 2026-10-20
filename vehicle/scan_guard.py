@@ -16,11 +16,20 @@ gap() 返回的是**车头**到障碍的距离,所以要减掉 NOSE_AHEAD。
 
 现在按当前前轮转角算后轴的行驶圆弧,只看**扫掠路径**上的东西,距离也沿弧长量。
 转角给 0(或不给)就退化成原来的直走廊,老调用方行为不变。
+
+## 改成扫车身矩形(2026-10-10)
+
+原来是"后轴路径两侧各 0.28 m 的带子里、在后轴前面的点"都算,距离 = 沿弧长 - 车长。车身**旁边**的点
+(比如平行的墙离车中线 0.25 m,车身外还有 7.5 cm)算出来是负数 -> 截停,擦得过去的也被拦(用户实测)。
+现在把车身矩形(后轴系 x ∈ [-REAR_OVERHANG, NOSE_AHEAD]、|y| ≤ 半宽 + SIDE_MARGIN)沿当前转角的路径往前推,
+gap = 后轴还能走多远车身才碰到第一个点。已经在车身旁边、不在前进路线上的点不算。
 """
 from __future__ import annotations
 
 import math
 import time
+
+import numpy as np
 
 # [实测 2026-09-30 用户量] 雷达圆心到车身前端 0.24、后端 0.20 m;前轮比车身前端多伸出 0.03、后轮比后端 0.01;
 # 轮径 ~0.13;雷达离地 0.28;车尾里程计展开后再伸出 0.17。推出:最前端是前轮(雷达前 0.27),
@@ -28,12 +37,16 @@ import time
 BUMPER_AHEAD = 0.27        # [实测] 雷达到车最前端(前轮胎面),直行净空只用它
 LIDAR_X = 0.145            # [实测推算] 后轴到雷达
 NOSE_AHEAD = LIDAR_X + BUMPER_AHEAD    # 0.415,后轴到车最前端
-HALF_CORRIDOR = 0.28       # 车半宽 0.175 + 余量,只管这条走廊里的东西
+HALF_WIDTH = 0.175         # [实测] 车身半宽
+SIDE_MARGIN = 0.04         # 车身两侧余量:雷达噪声 ~1 cm + 实际转角和标定的偏差(原来是 0.105)
+HALF_CORRIDOR = HALF_WIDTH + SIDE_MARGIN
+REAR_OVERHANG = 0.065      # [实测] 后轴到车尾
 FRONT_HALF_ANGLE = 1.05    # 只看正前方 ±60°,再宽就把侧面的锥桶也算进来了
 STALE = 1.0                # 这么久没有新扫描就当雷达掉线
 WHEELBASE = 0.35           # [实测 2026-09-30] 轴距(前轴雷达前 0.205 + 后轴雷达后 0.145),算转弯半径用。09-22 记的 0.33,出厂源码的 0.305 是别的车
 STRAIGHT_STEER = 0.02      # 转角小于这个就按直行算(R > 15m,和直线没区别)
 MAX_LOOKAHEAD = 4.0        # 沿弧最多看这么远,免得绕一圈把身后的东西算进来
+SWEEP_STEP = 0.02          # 转弯时车身每推进这么多 m 查一次
 
 
 class ScanGuard:
@@ -62,28 +75,37 @@ class ScanGuard:
         self.stamp = time.time()
 
     def _clear(self, steer):
-        """后轴沿当前路径到最近障碍的距离(米),没有就 inf。"""
+        """后轴沿当前路径还能走多远(米)车身矩形才碰到第一个障碍点;碰不到返回 inf。"""
+        if not self.points:
+            return float('inf')
+        p = np.asarray(self.points)
         if abs(steer) < STRAIGHT_STEER:
-            return min((x for x, y in self.points if abs(y) <= HALF_CORRIDOR),
-                       default=float('inf'))
-        # 后轴走半径 R 的圆,圆心在正侧方 (0, s*R)。左打方向 s=+1,逆时针。
-        s = 1.0 if steer > 0 else -1.0
+            ahead = p[(np.abs(p[:, 1]) <= HALF_CORRIDOR) & (p[:, 0] >= -REAR_OVERHANG)]
+            if len(ahead) == 0:
+                return float('inf')
+            return float(max(0.0, (ahead[:, 0] - NOSE_AHEAD).min()))
+        # 后轴走半径 R 的圆,圆心在正侧方 (0, s*R)。车走过弧长 d,等价于点绕圆心反转 d/R。
+        sgn = 1.0 if steer > 0 else -1.0
         radius = WHEELBASE / abs(math.tan(steer))
-        best = float('inf')
-        car_ang = math.atan2(-s * radius, 0.0)      # 车相对圆心的方位角
-        for x, y in self.points:
-            d = math.hypot(x, y - s * radius)
-            if abs(d - radius) > HALF_CORRIDOR:     # 不在扫掠环带里,绕得过去
-                continue
-            theta = (math.atan2(y - s * radius, x) - car_ang) * s
-            theta %= 2 * math.pi                    # 只算前方那一侧,身后的绕一圈变成大角
-            along = theta * radius
-            if along < best:
-                best = along
-        return best if best <= MAX_LOOKAHEAD else float('inf')
+        cy = sgn * radius
+        # 车身矩形离圆心的距离只在 [R - 半宽, hypot(R + 半宽, 车头)] 之间,环带外的点永远扫不到
+        r = np.hypot(p[:, 0], p[:, 1] - cy)
+        p = p[(r >= radius - HALF_CORRIDOR) & (r <= math.hypot(radius + HALF_CORRIDOR, NOSE_AHEAD))]
+        if len(p) == 0:
+            return float('inf')
+        d = np.arange(0.0, MAX_LOOKAHEAD + 1e-9, SWEEP_STEP)
+        phi = -sgn * d / radius                                  # (k,)
+        c, sn = np.cos(phi)[:, None], np.sin(phi)[:, None]
+        px, py = p[:, 0][None, :], (p[:, 1] - cy)[None, :]
+        x = c * px - sn * py
+        y = sn * px + c * py + cy
+        hit = ((x >= -REAR_OVERHANG) & (x <= NOSE_AHEAD) & (np.abs(y) <= HALF_CORRIDOR)).any(1)
+        k = np.flatnonzero(hit)
+        return float(d[k[0]]) if len(k) else float('inf')
 
     def gap(self, steer=0.0, now=None):
-        """车头到前方最近障碍沿行驶路径的距离;雷达没数据或数据过期返回 None。
+        """沿行驶路径还能走多远(米)车身才碰到障碍;雷达没数据或数据过期返回 None。
+        直行时就是车头到前方障碍的距离。
 
         steer 是前轮转角(rad,左正)。不给就按直行算 —— 老调用方(网页遥控、
         pwm_sweep)本来就是直着走的。
@@ -91,7 +113,4 @@ class ScanGuard:
         now = time.time() if now is None else now
         if not self.stamp or now - self.stamp > STALE:
             return None
-        clear = self._clear(steer)
-        if math.isinf(clear):
-            return float('inf')
-        return clear - NOSE_AHEAD
+        return self._clear(steer)

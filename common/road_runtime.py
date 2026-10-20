@@ -93,13 +93,17 @@ class RoadRuntime:
             self._reset_history()
             return STOP
 
-        obs = observe(self.scan, self.angles, self.speed, self.speed_cap,
-                      self.yaw_rate, self.last_action, scale=self.enc.scale)
-        action = np.clip(np.asarray(self.policy(obs), dtype=np.float32).reshape(2), -1.0, 1.0)
+        action = np.clip(np.asarray(self._act(now), dtype=np.float32).reshape(2), -1.0, 1.0)
         self.last_action[:] = action
         steer = action_to_steer(float(action[0]), self.params)
         target_speed = min(action_to_speed(float(action[1]), self.enc), self.speed_cap)
         return steer, target_speed
+
+    def _act(self, now):
+        """模型这一拍的原始动作;BevRuntime 换成 BEV 输入。"""
+        obs = observe(self.scan, self.angles, self.speed, self.speed_cap,
+                      self.yaw_rate, self.last_action, scale=self.enc.scale)
+        return self.policy(obs)
 
     def step(self, now):
         """Simulation output: (linear m/s, yaw rad/s); None means disabled and silent."""

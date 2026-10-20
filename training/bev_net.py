@@ -7,14 +7,15 @@ from common.bev_policy import C, CONVS, H, HIDDEN, N_SCALAR, SCHEMA, W
 from common.road_policy import DEFAULT_ENC, Encoding, suffix_of
 
 
-def make_net():
+def make_net(c_in: int = C):
     import torch
     from torch import nn
 
     class BevNet(nn.Module):
         def __init__(self):
             super().__init__()
-            self.convs = nn.ModuleList(nn.Conv2d(ci, co, k, stride=2, padding=k // 2) for ci, co, k in CONVS)
+            convs = ((c_in,) + CONVS[0][1:],) + CONVS[1:]
+            self.convs = nn.ModuleList(nn.Conv2d(ci, co, k, stride=2, padding=k // 2) for ci, co, k in convs)
             flat = CONVS[-1][1] * (H // 16) * (W // 16)
             self.f0 = nn.Linear(flat + N_SCALAR, HIDDEN)
             self.f1 = nn.Linear(HIDDEN, HIDDEN)
@@ -42,16 +43,22 @@ def weights_of(net) -> dict:
     return out
 
 
-def export(net, path, enc: Encoding = DEFAULT_ENC):
-    np.savez(path, schema=np.array(SCHEMA + suffix_of(enc)), **weights_of(net))
+def export(net, path, enc: Encoding = DEFAULT_ENC, schema: str = SCHEMA):
+    np.savez(path, schema=np.array(schema + suffix_of(enc)), **weights_of(net))
 
 
 def load_into(net, path):
+    """第一层输入通道比文件里多(bev_v1 -> bev_v2 热启动):已有通道照抄,多出来的置 0。"""
     import torch
     with np.load(path) as z:
         with torch.no_grad():
             for k, conv in enumerate(net.convs):
-                conv.weight.copy_(torch.from_numpy(z[f'c{k}w']))
+                w = torch.from_numpy(z[f'c{k}w'])
+                if w.shape[1] < conv.weight.shape[1]:
+                    conv.weight.zero_()
+                    conv.weight[:, :w.shape[1]].copy_(w)
+                else:
+                    conv.weight.copy_(w)
                 conv.bias.copy_(torch.from_numpy(z[f'c{k}b']))
             for k, fc in enumerate((net.f0, net.f1, net.f2)):
                 fc.weight.copy_(torch.from_numpy(z[f'f{k}w']))

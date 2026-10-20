@@ -12,6 +12,27 @@ N = 1667
 ANG = -math.pi + np.arange(N) * (2 * math.pi / N)
 
 
+@pytest.mark.parametrize('kind', [CellType.FREE, CellType.TAPE, CellType.ZONE, CellType.TRAFFIC_LIGHT])
+def test_lidar_cannot_renew_camera_layers_with_or_without_prune(kind):
+    from common.bev import CAMERA_LAYER
+    bev = Bev(BevConfig(max_age=20.0))
+    pose, xy = (0.0, 0.0, 0.0), np.array([[2.02, 0.02]])
+    bev.update_camera([kind], xy, pose, 0.0)
+    for t in range(1, 42):
+        bev._add(xy, 0, t)
+    layers = bev.crop_layers(pose, 41.0)
+    assert layers[0].any() and not layers[CAMERA_LAYER[kind]].any()
+    assert kind not in bev.crop(pose, 41.0)
+    bev.prune(41.0)
+    assert bev.types().tolist() == [CellType.OBSTACLE]
+    bev.update_camera([kind], xy, pose, 42.0)
+    bev.prune(62.0)
+    assert not bev.crop_layers(pose, 62.0)[0].any()
+    assert bev.crop_layers(pose, 62.0)[CAMERA_LAYER[kind]].any()
+    bev.prune(62.1)
+    assert not len(bev)
+
+
 def scan_of(points, pose):
     """理想雷达:每个点落在最近的那条射线上,其余方向无回波。"""
     x, y, yaw = pose
@@ -31,7 +52,7 @@ def test_contract_resolution_window_and_types_are_fixed():
     assert [int(t) for t in CellType] == list(range(7))
     assert [t.name for t in CellType] == ['UNKNOWN', 'FREE', 'OBSTACLE', 'CONE', 'TAPE', 'ZONE',
                                           'TRAFFIC_LIGHT']
-    assert LAYERS[0] == CellType.OBSTACLE and len(LAYERS) == 5
+    assert LAYERS[0] == CellType.OBSTACLE and len(LAYERS) == 6 and LAYERS[-1] == CellType.FREE
 
 
 def test_points_land_where_the_object_is_from_any_pose():
@@ -88,7 +109,7 @@ def test_camera_detections_register_with_their_class_and_priority():
     assert (img == CellType.CONE).sum() > 20                                # 画成一个实心圆(半径 0.14)
     assert (img == CellType.TAPE).sum() == 1                                # 雷达看不见的胶带
     layers = bev.crop_layers(pose)
-    assert layers.shape == (5, 160, 160) and layers[0].sum() >= 1           # 雷达层仍在
+    assert layers.shape == (6, 160, 160) and layers[0].sum() >= 1           # 雷达层仍在(第 6 层 FREE)
     with pytest.raises(ValueError):
         bev.update_camera([CellType.OBSTACLE], [cone_body], pose, 0.2)      # 摄像头不登记"障碍"
 

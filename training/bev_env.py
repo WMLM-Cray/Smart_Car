@@ -3,14 +3,16 @@
 位姿:用 FastSim 的真位姿(车上用雷达里程计,用户实测漂移很小,先不建漂移模型)。
 雷达:每次 RoadEnv 真扫描时,按**扫描那一刻**的位姿登记进 BEV。
 摄像头:每 yolo_period 秒检测一次(香橙派上 YOLO 帧率待实测,先按 10 Hz [假设])。
+地面分割(bev_v2,free=True):每 seg_period 秒拍一次,seg_lag 秒后(推理延迟)按拍摄那一刻的位姿登记进 FREE 层
+(FakeFloorSeg;和车上 BevRuntime.on_free 一样)。默认 0.1 s、无延迟是训练时的设定;实车 M2F-T 288 是 ~0.33 s / ~0.35 s。
 
-老师(SeenTeacher)的信息合同:**道路几何**只用"左右边界都被雷达扫到过、且没过 BEV 的
-max_age"的那一段 —— 和学生 BEV 里还留着的证据同一时效。初始化、每拍重规划、重规划失败的
-回退都守这一条:
-  - 规划窗口 = 已知前方长度(不设真值保底);窗口没到路终点时末端限速 sqrt(a_lat·R_MIN)
-  - 一开始就没有合规计划、或旧计划剩下不到 MIN_LEFT,就"摸着走":不转向、最低速度,等雷达扫到更多
-仍然是特权的:车辆参数(延迟、增益、中位等,和 road_train 一样)和"哪些格子算边界"(用真值
-边界点去对雷达回波)。所以它是"只用学生已看到的路"的老师,不是"只用 BEV 像素"的老师。
+老师(SeenTeacher):特权车辆参数(和 road_train 一样);重规划窗口只到"左右边界都被雷达扫到过"
+的地方,窗口没到路终点时末端限速 sqrt(a_lat·R_MIN)。它**不是**严格只用学生 BEV 里的信息:
+  - 已知前方不足 MIN_WIN 时仍按真值道路规划 MIN_WIN(plan() 至少要 3 个粗网格点)
+  - 初始计划是全路计划,重规划失败时沿用旧计划(开局连续失败就会用上它)
+  - "扫到过"不过期,学生 BEV 20 s 后会忘
+2026-10-09 试过严格版(去掉以上三条,未知就最低速直行):老师自己开成功率 99.4% -> 95.4%
+(0.45 m/s²/限速 1.8)、98.4% -> 95.3%(1.47/2.5),L6h/L6f 掉 5~9 个点,所以保留现在的特权。
 """
 from __future__ import annotations
 
@@ -19,27 +21,32 @@ import math
 import numpy as np
 from scipy.spatial import cKDTree
 
-from common.bev import Bev
+from common.bev import Bev, CellType
 from common.bev_policy import bev_image, scalars
-from simulation.fastsim.camera import FakeYolo
-from simulation.fastsim.road import DS
+from simulation.fastsim.camera import FakeFloorSeg, FakeYolo
+from simulation.fastsim.road import DS, EDGE
 from simulation.fastsim.road_env import RoadEnv
 from training.road_teacher import HORIZON, R_MIN, R_REPLAN, Teacher, plan
 
 SEEN_R = 0.8            # 边界点离雷达回波这么近算"看到过"(桶距最大 1.5 m)
-MIN_LEFT = 0.3          # 重规划失败时旧计划在车前至少还剩这么长 m,否则改"摸着走"
+MIN_WIN = 0.5           # 重规划窗口至少看这么远 m
 YOLO_PERIOD = 0.1       # [假设] 摄像头检测周期 s
+SEG_PERIOD = 0.1        # [假设] 地面分割周期 s(NPU 上 SegFormer-B0 待实测)
 
 
 class BevEnv:
     """包一层 RoadEnv:每拍维护 BEV,observation() 给 (图, 标量)。"""
 
     def __init__(self, road, pl, seed, start=(0, 0.0, 0.0), noise=True, robust=False,
-                 yolo_period=YOLO_PERIOD):
+                 yolo_period=YOLO_PERIOD, free=False, seg_period=SEG_PERIOD, seg_lag=0.0):
         self.env = RoadEnv(road, pl, seed, start, noise=noise, robust=robust)
         self.bev = Bev(lidar_yaw=pl.lidar_yaw)
         self.cam = FakeYolo(road, seed=seed + 7)
         self.yolo_period, self.next_yolo = yolo_period, 0.0
+        self.free = free
+        self.seg = FakeFloorSeg(road, seed=seed + 11) if free else None    # 独立随机流:不改 bev_v1 的局
+        self.seg_period, self.seg_lag, self.next_seg = seg_period, seg_lag, 0.0
+        self.seg_queue = []                                               # (到达时刻, 拍摄位姿, 点)
         self.scan_hooks = []
         env, scan = self.env, self.env._scan
 
@@ -66,12 +73,18 @@ class BevEnv:
             kinds, xy = self.cam.detect(self.pose)
             self.bev.update_camera(kinds, xy, self.pose, self.env.t)
             self.next_yolo += self.yolo_period
+        if self.seg is not None and self.env.t >= self.next_seg:
+            self.seg_queue.append((self.env.t + self.seg_lag, self.pose, self.seg.detect(self.pose)))
+            self.next_seg += self.seg_period
+        while self.seg_queue and self.env.t >= self.seg_queue[0][0] - 1e-9:
+            _, pose, xy = self.seg_queue.pop(0)
+            self.bev.update_camera(np.full(len(xy), int(CellType.FREE)), xy, pose, self.env.t)
 
     def observation(self):
         env = self.env
         enc_speed = env.car.v + (env.rng.normal(0, 0.02) if env.noise else 0.0)
         gyro = env.car.yaw_rate + (env.rng.normal(0, env.cp.gyro_sigma) if env.noise else 0.0)
-        img = bev_image(self.bev, self.pose, env.t, env.ranges, env.angles, self.scan_pose)
+        img = bev_image(self.bev, self.pose, env.t, env.ranges, env.angles, self.scan_pose, free=self.free)
         return img, scalars(enc_speed, env.pl.cap, gyro, env.pl.enc)
 
     def step(self, action):
@@ -81,65 +94,43 @@ class BevEnv:
 
 
 class SeenTeacher(Teacher):
-    """重规划窗口只到左右边界都被雷达扫到过(且未过期)的地方;合同见文件头。"""
+    """重规划窗口只到左右边界都被雷达扫到过的地方。"""
 
     def __init__(self, benv: BevEnv, P, a_lat: float):
-        # 不接全路计划 P(参数留着和 Teacher 同签名):初始计划也只用已知段。重规划由这里每拍做,
-        # 父类不再自己重规划(它的失败回退会沿用旧计划,不守合同)。
-        super().__init__(benv.env, None, replan=False, a_lat=a_lat)
+        super().__init__(benv.env, P, a_lat=a_lat)
         road = benv.env.road
         self.nb = len(road.left)
         self.tree = cKDTree(np.vstack([road.left, road.right]))
-        self.seen_t = np.full(2 * self.nb, -np.inf)          # 每个边界点最后一次被扫到的时刻
-        self.max_age = benv.bev.cfg.max_age
+        self.seen = np.zeros(2 * self.nb, bool)
+        # EDGE 边界(路面换材质)雷达扫不到,在地面分割视场里就算看到过;没开地面分割就永远看不到
+        self.edge = np.concatenate([road.mat_left, road.mat_right]) == EDGE
+        self.seg = benv.seg
         self.v_end = math.sqrt(a_lat * R_MIN)
-        self.creeps = 0
         benv.scan_hooks.append(self._mark)
-        self._mark(benv.scan_pose)
+        self._mark(benv.pose)
 
     def _mark(self, pose):
         env = self.env
         from common.bev import lidar_points
         pts = lidar_points(env.ranges, env.angles, pose, env.cp, env.pl.lidar_yaw, 10.0)
         for idx in self.tree.query_ball_point(pts, SEEN_R):
-            self.seen_t[idx] = env.t
-
-    def known(self):
-        fresh = self.env.t - self.seen_t <= self.max_age
-        return fresh[:self.nb] & fresh[self.nb:]
+            self.seen[idx] = True
+        if self.seg is not None and self.edge.any():
+            self.seen |= self.edge & self.seg.in_view(self.tree.data, pose)
 
     def known_ahead(self, i):
-        both = self.known()
-        if not both[i]:
-            return 0.0
+        both = self.seen[:self.nb] & self.seen[self.nb:]
         j = i
         while j < self.nb - 1 and both[j + 1]:
             j += 1
         return (j - i) * DS
 
-    def _left(self):
-        """旧计划在车前还剩多长。"""
-        car = self.env.car
-        dd = self.plan.pts - (car.x, car.y)
-        k = int(np.argmin(np.einsum('ij,ij->i', dd, dd)))
-        return float(self.plan.s[-1] - self.plan.s[k])
-
     def _replan(self):
         env, car = self.env, self.env.car
         i, d = env.road.project((car.x, car.y), env.idx)
-        win = min(HORIZON, self.known_ahead(i))
-        P = plan(env.road, i, d, env.cp.width, self.pl, win, R_REPLAN, self.a_lat, self.v_end) if win > 0 else 'unseen'
+        win = min(HORIZON, max(MIN_WIN, self.known_ahead(i)))
+        P = plan(env.road, i, d, env.cp.width, self.pl, win, R_REPLAN, self.a_lat, self.v_end)
         if isinstance(P, str):
             self.fails += 1
-            if self.plan is not None and self._left() < MIN_LEFT:
-                self.plan = None
             return
         self.plan, self.j = P, 0
-
-    def __call__(self) -> np.ndarray:
-        self._replan()
-        if self.plan is None:                                # 摸着走:不转向、最低速度
-            self.n += 1
-            self.creeps += 1
-            return np.array([0.0, -1.0], np.float32)
-        return super().__call__()
