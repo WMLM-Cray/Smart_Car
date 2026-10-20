@@ -99,13 +99,22 @@ def _job(args):
 
 
 class Replay:
-    def __init__(self, cap, c, pair=False, near=False):
+    def __init__(self, cap, c, pair=False, near=False, disk=None):
+        """disk:图放到这个目录下的 np.memmap 文件(bev_v2.5 成对 150 万帧要 23 GB,虚拟机 30 GB 放不下),
+        内存只留操作系统缓存得下的部分;标量和标签仍在内存。"""
         self.c, self.bits, self.near = c, c * H * W, near
         self.near_bits = c * NEAR_SIZE * NEAR_SIZE if near else 0
-        self.img = np.zeros((cap, (self.bits + 7) // 8), np.uint8)
-        self.img2 = np.zeros_like(self.img) if pair else None      # 同一帧另一种亚格偏移(一致性损失)
-        self.near_img = np.zeros((cap, (self.near_bits + 7) // 8), np.uint8) if near else None
-        self.near_img2 = np.zeros_like(self.near_img) if pair and near else None
+
+        def zeros(name, bits):
+            shape = (cap, (bits + 7) // 8)
+            if disk is None:
+                return np.zeros(shape, np.uint8)
+            disk.mkdir(parents=True, exist_ok=True)
+            return np.memmap(disk / f'{name}.u8', np.uint8, 'w+', shape=shape)
+        self.img = zeros('img', self.bits)
+        self.img2 = zeros('img2', self.bits) if pair else None      # 同一帧另一种亚格偏移(一致性损失)
+        self.near_img = zeros('near_img', self.near_bits) if near else None
+        self.near_img2 = zeros('near_img2', self.near_bits) if pair and near else None
         self.sc = np.zeros((cap, N_SCALAR), np.float32)
         self.y = np.zeros((cap, 2), np.float32)
         self.size = self.ptr = 0
@@ -153,6 +162,8 @@ def main():
     ap.add_argument('--batch', type=int, default=256)
     ap.add_argument('--lr', type=float, default=1e-3)
     ap.add_argument('--replay', type=int, default=300_000)
+    ap.add_argument('--replay-disk', type=Path, default=None,
+                    help='回放池的图放到这个目录(np.memmap,内存不够时用;跑完可删)')
     ap.add_argument('--ema', type=float, default=0.999)
     ap.add_argument('--device', default='cpu', help='网络更新用的设备:cpu / mps(Apple GPU)/ cuda;采样始终在 CPU 进程里')
     ap.add_argument('--workers', type=int, default=7)
@@ -232,7 +243,7 @@ def main():
     pair = a.consist > 0
     if pair and tuple(a.aug) == (0.0, 0.0):
         raise SystemExit('--consist 要配 --aug(两张图一样,一致性损失恒为 0)')
-    replay = Replay(a.replay, c_in, pair, near)
+    replay = Replay(a.replay, c_in, pair, near, a.replay_disk)
     brng = np.random.default_rng(a.seed + 1)
     wy = torch.tensor([1.0, 0.5], device=dev)
     seed = TRAIN_SEED0

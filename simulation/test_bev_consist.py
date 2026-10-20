@@ -95,6 +95,23 @@ def test_v25_replay_bitpacking_and_pair_alignment_through_wraparound():
         np.testing.assert_array_equal(label[k], y[j])
 
 
+def test_disk_replay_matches_memory_replay(tmp_path):
+    """--replay-disk:图放 memmap,同样的写入、同样的随机数,取出的 batch 逐位一样。"""
+    from training.bev_train import Replay
+    from common.bev_policy import C2, NEAR_SIZE
+    rng = np.random.default_rng(7)
+    pack = lambda a: np.packbits(a.reshape(len(a), -1), axis=1)
+    imgs = pack(rng.integers(0, 2, (5, C2, 80, 80), dtype=np.uint8))
+    near = pack(rng.integers(0, 2, (5, C2, NEAR_SIZE, NEAR_SIZE), dtype=np.uint8))
+    sc, y = rng.random((5, 3), np.float32), rng.random((5, 2), np.float32)
+    mem, disk = Replay(3, C2, pair=True, near=True), Replay(3, C2, pair=True, near=True, disk=tmp_path / 'r')
+    for r in (mem, disk):
+        r.add(imgs, sc, y, imgs[::-1], near, near[::-1])
+    assert isinstance(disk.img, np.memmap) and (tmp_path / 'r' / 'near_img2.u8').exists()
+    for a, b in zip(mem.batch(np.random.default_rng(1), 16), disk.batch(np.random.default_rng(1), 16)):
+        np.testing.assert_array_equal(a, b)
+
+
 def test_v25_collection_pairs_main_and_near_crops_share_augmentation():
     from common.bev_policy import C2, NEAR_SIZE
     sample = run_episode(3, 'LW3', aug=(0.05, 0.017), pair=True, near=True, **KW)
