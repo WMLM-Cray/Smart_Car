@@ -1,0 +1,3351 @@
+<?xml version='1.0' encoding='utf-8'?>
+<sdf version="1.6">
+  <world name="prototype">
+    <gravity>0 0 -9.81</gravity>
+    <physics name="default" type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_update_rate>1000</real_time_update_rate>
+    </physics>
+    <light name="sun" type="directional">
+      <direction>-0.5 0.2 -1</direction>
+      <diffuse>1 1 1 1</diffuse>
+    </light>
+    <model name="ground">
+      <static>true</static>
+      <pose>0 0 -0.05 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>200 200 0.1</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>.35 .35 .35 1</ambient>
+            <diffuse>.35 .35 .35 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>200 200 0.1</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c0">
+      <static>true</static>
+      <pose>-8.5207 -0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c1">
+      <static>true</static>
+      <pose>-8.0168 -0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c2">
+      <static>true</static>
+      <pose>-7.5129 -0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c3">
+      <static>true</static>
+      <pose>-7.0089 -0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c4">
+      <static>true</static>
+      <pose>-6.5050 -0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c5">
+      <static>true</static>
+      <pose>-6.0010 -0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c6">
+      <static>true</static>
+      <pose>-5.4971 -0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c7">
+      <static>true</static>
+      <pose>-4.9931 -0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c8">
+      <static>true</static>
+      <pose>-4.4892 -0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c9">
+      <static>true</static>
+      <pose>-3.9852 -0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c10">
+      <static>true</static>
+      <pose>-3.4813 -0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c11">
+      <static>true</static>
+      <pose>-2.9774 -0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c12">
+      <static>true</static>
+      <pose>-2.4734 -0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c13">
+      <static>true</static>
+      <pose>-1.9695 -0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c14">
+      <static>true</static>
+      <pose>-1.4655 -0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c15">
+      <static>true</static>
+      <pose>-0.9616 -0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c16">
+      <static>true</static>
+      <pose>-0.4576 -0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c17">
+      <static>true</static>
+      <pose>0.0463 -0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c18">
+      <static>true</static>
+      <pose>0.5502 -0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c19">
+      <static>true</static>
+      <pose>1.0542 -0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c20">
+      <static>true</static>
+      <pose>1.5581 -0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c21">
+      <static>true</static>
+      <pose>2.0621 -0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c22">
+      <static>true</static>
+      <pose>2.5660 -0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c23">
+      <static>true</static>
+      <pose>3.0693 -0.7380 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c24">
+      <static>true</static>
+      <pose>3.5624 -0.6387 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c25">
+      <static>true</static>
+      <pose>4.0291 -0.4506 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c26">
+      <static>true</static>
+      <pose>4.4535 -0.1804 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c27">
+      <static>true</static>
+      <pose>4.8231 0.1610 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c28">
+      <static>true</static>
+      <pose>5.1222 0.5657 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c29">
+      <static>true</static>
+      <pose>5.3440 1.0172 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c30">
+      <static>true</static>
+      <pose>5.4806 1.5015 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c31">
+      <static>true</static>
+      <pose>5.5250 2.0027 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c32">
+      <static>true</static>
+      <pose>5.4795 2.5037 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c33">
+      <static>true</static>
+      <pose>5.3422 2.9878 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c34">
+      <static>true</static>
+      <pose>5.1194 3.4388 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c35">
+      <static>true</static>
+      <pose>4.8197 3.8430 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c36">
+      <static>true</static>
+      <pose>4.4494 4.1837 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c37">
+      <static>true</static>
+      <pose>4.0244 4.4530 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c38">
+      <static>true</static>
+      <pose>3.5575 4.6404 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c39">
+      <static>true</static>
+      <pose>2.7707 4.7560 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c40">
+      <static>true</static>
+      <pose>-2.8514 4.7560 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c41">
+      <static>true</static>
+      <pose>-3.5734 4.5623 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c42">
+      <static>true</static>
+      <pose>-3.9902 4.2798 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c43">
+      <static>true</static>
+      <pose>-4.3991 3.9855 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c44">
+      <static>true</static>
+      <pose>-4.8460 3.7549 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c45">
+      <static>true</static>
+      <pose>-5.3330 3.6297 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c46">
+      <static>true</static>
+      <pose>-5.8358 3.6112 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c47">
+      <static>true</static>
+      <pose>-6.3326 3.6900 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c48">
+      <static>true</static>
+      <pose>-6.7976 3.8811 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c49">
+      <static>true</static>
+      <pose>-7.2186 4.1572 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c50">
+      <static>true</static>
+      <pose>-7.6248 4.4554 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c51">
+      <static>true</static>
+      <pose>-8.0721 4.6837 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c52">
+      <static>true</static>
+      <pose>-8.5682 4.7543 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c53">
+      <static>true</static>
+      <pose>-9.0685 4.7002 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c54">
+      <static>true</static>
+      <pose>-9.5501 4.5547 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c55">
+      <static>true</static>
+      <pose>-9.9981 4.3258 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c56">
+      <static>true</static>
+      <pose>-10.3960 4.0177 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c57">
+      <static>true</static>
+      <pose>-10.7316 3.6429 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c58">
+      <static>true</static>
+      <pose>-10.9947 3.2140 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c59">
+      <static>true</static>
+      <pose>-11.1728 2.7434 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c60">
+      <static>true</static>
+      <pose>-11.2643 2.2487 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c61">
+      <static>true</static>
+      <pose>-11.2639 1.7455 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c62">
+      <static>true</static>
+      <pose>-11.1712 1.2511 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c63">
+      <static>true</static>
+      <pose>-10.9919 0.7810 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c64">
+      <static>true</static>
+      <pose>-10.7281 0.3524 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c65">
+      <static>true</static>
+      <pose>-10.3917 -0.0216 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c66">
+      <static>true</static>
+      <pose>-9.9933 -0.3289 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c67">
+      <static>true</static>
+      <pose>-9.5447 -0.5568 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c68">
+      <static>true</static>
+      <pose>-9.0628 -0.7011 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c69">
+      <static>true</static>
+      <pose>-8.5207 0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c70">
+      <static>true</static>
+      <pose>-8.0168 0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c71">
+      <static>true</static>
+      <pose>-7.5129 0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c72">
+      <static>true</static>
+      <pose>-7.0089 0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c73">
+      <static>true</static>
+      <pose>-6.5050 0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c74">
+      <static>true</static>
+      <pose>-6.0010 0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c75">
+      <static>true</static>
+      <pose>-5.4971 0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c76">
+      <static>true</static>
+      <pose>-4.9931 0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c77">
+      <static>true</static>
+      <pose>-4.4892 0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c78">
+      <static>true</static>
+      <pose>-3.9852 0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c79">
+      <static>true</static>
+      <pose>-3.4813 0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c80">
+      <static>true</static>
+      <pose>-2.9774 0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c81">
+      <static>true</static>
+      <pose>-2.4734 0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c82">
+      <static>true</static>
+      <pose>-1.9695 0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c83">
+      <static>true</static>
+      <pose>-1.4655 0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c84">
+      <static>true</static>
+      <pose>-0.9616 0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c85">
+      <static>true</static>
+      <pose>-0.4576 0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c86">
+      <static>true</static>
+      <pose>0.0463 0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c87">
+      <static>true</static>
+      <pose>0.5502 0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c88">
+      <static>true</static>
+      <pose>1.0542 0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c89">
+      <static>true</static>
+      <pose>1.5581 0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c90">
+      <static>true</static>
+      <pose>2.0621 0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c91">
+      <static>true</static>
+      <pose>2.5660 0.7559 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c92">
+      <static>true</static>
+      <pose>3.0670 0.7925 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c93">
+      <static>true</static>
+      <pose>3.5190 1.0068 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c94">
+      <static>true</static>
+      <pose>3.8503 1.3820 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c95">
+      <static>true</static>
+      <pose>4.0063 1.8576 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c96">
+      <static>true</static>
+      <pose>3.9621 2.3560 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c97">
+      <static>true</static>
+      <pose>3.7253 2.7967 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c98">
+      <static>true</static>
+      <pose>3.3341 3.1086 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c99">
+      <static>true</static>
+      <pose>2.7707 3.2441 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c100">
+      <static>true</static>
+      <pose>-2.8514 3.2441 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c101">
+      <static>true</static>
+      <pose>-3.3084 3.1692 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c102">
+      <static>true</static>
+      <pose>-3.7546 2.9385 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c103">
+      <static>true</static>
+      <pose>-4.1607 2.6401 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c104">
+      <static>true</static>
+      <pose>-4.5823 2.3650 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c105">
+      <static>true</static>
+      <pose>-5.0482 2.1760 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c106">
+      <static>true</static>
+      <pose>-5.5451 2.0991 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c107">
+      <static>true</static>
+      <pose>-6.0479 2.1193 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c108">
+      <static>true</static>
+      <pose>-6.5343 2.2463 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c109">
+      <static>true</static>
+      <pose>-6.9804 2.4785 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c110">
+      <static>true</static>
+      <pose>-7.3890 2.7733 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c111">
+      <static>true</static>
+      <pose>-7.8064 3.0549 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c112">
+      <static>true</static>
+      <pose>-8.2785 3.2237 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c113">
+      <static>true</static>
+      <pose>-8.7795 3.2169 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c114">
+      <static>true</static>
+      <pose>-9.2379 3.0160 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c115">
+      <static>true</static>
+      <pose>-9.5801 2.6510 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c116">
+      <static>true</static>
+      <pose>-9.7509 2.1807 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c117">
+      <static>true</static>
+      <pose>-9.7228 1.6812 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c118">
+      <static>true</static>
+      <pose>-9.5001 1.2329 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c119">
+      <static>true</static>
+      <pose>-9.1183 0.9093 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c120">
+      <static>true</static>
+      <pose>2.0199 4.4733 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c121">
+      <static>true</static>
+      <pose>1.5520 4.2972 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c122">
+      <static>true</static>
+      <pose>1.0840 4.1211 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c123">
+      <static>true</static>
+      <pose>0.6161 3.9450 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c124">
+      <static>true</static>
+      <pose>0.1481 3.7688 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c125">
+      <static>true</static>
+      <pose>-0.3200 3.8085 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c126">
+      <static>true</static>
+      <pose>-0.7883 3.9838 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c127">
+      <static>true</static>
+      <pose>-1.2565 4.1590 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c128">
+      <static>true</static>
+      <pose>-1.7248 4.3343 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c129">
+      <static>true</static>
+      <pose>2.0212 2.9620 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c130">
+      <static>true</static>
+      <pose>1.5532 2.7859 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c131">
+      <static>true</static>
+      <pose>1.0853 2.6098 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c132">
+      <static>true</static>
+      <pose>0.6174 2.4336 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c133">
+      <static>true</static>
+      <pose>0.1494 2.2574 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c134">
+      <static>true</static>
+      <pose>-0.3187 2.2962 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c135">
+      <static>true</static>
+      <pose>-0.7870 2.4715 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c136">
+      <static>true</static>
+      <pose>-1.2553 2.6468 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="cone_proxy_c137">
+      <static>true</static>
+      <pose>-1.7235 2.8220 0.315 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>.28 .28 .63</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <plugin name="gazebo_ros_state" filename="libgazebo_ros_state.so"/>
+  </world>
+</sdf>

@@ -4,3 +4,8 @@
 *.service text eol=lf
 *.npz binary
 *.png binary
+*.npy binary
+# 认证赛道的世界文件：它的 sha256 就是"这一局跑在哪条赛道上"的判据
+# （评审第二轮第 3 条：面板赛道必须能干净检出复现）。行尾转换会改哈希，
+# 所以按字节处理、不转换 —— 仓里存的就是各局 .ver/manifest 里记的那些字节。
+evaluation/panel/*/track_sim.world -text
