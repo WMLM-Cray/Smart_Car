@@ -28,9 +28,18 @@ from training.bev_env import BevEnv
 CAR = dict(guard=True, yolo=False, seg_lut=True, seg_fill=True, seg_period=0.33, seg_lag=0.35)     # 同 l_test / bev_testset 的部署参数
 
 
+def perturb(road, rng, jitter, drop):
+    """实车摆桶和规则图不一样:每个桶位置加高斯抖动 jitter m,再按概率 drop 拿掉(大空档压力测试)。出界仍按规则图的区域判。"""
+    if not (jitter or drop):
+        return road
+    c = road.cones + rng.normal(0, jitter, road.cones.shape)
+    return replace(road, cones=c[rng.random(len(c)) >= drop])
+
+
 def run(args):
-    model, name, seed, cap, car, fill_v = args
+    model, name, seed, cap, car, fill_v, jitter, drop = args
     road, lap_len = official(name, fill_v)
+    road = perturb(road, np.random.default_rng(seed + 7), jitter, drop)
     pol = BevPolicy(model)
     pl = replace(Plant.sample(np.random.default_rng(seed), pol.enc), cap=cap)
     benv = BevEnv(road, pl, seed, noise=True, free=pol.free, near=pol.near, **(CAR if car else {}))
@@ -56,8 +65,10 @@ def main():
     ap.add_argument('--out', default=None)
     ap.add_argument('--car', action='store_true', help='按车上条件跑(见 CAR)')
     ap.add_argument('--no-fill-v', action='store_true', help='黄 V 不补桶(按规则只有胶带)')
+    ap.add_argument('--cone-jitter', type=float, default=0.0, help='每局桶位置高斯抖动 m')
+    ap.add_argument('--cone-drop', type=float, default=0.0, help='每局每个桶被拿掉的概率')
     a = ap.parse_args()
-    jobs = [(a.model, t, a.seed_start + i, cap, a.car, not a.no_fill_v)
+    jobs = [(a.model, t, a.seed_start + i, cap, a.car, not a.no_fill_v, a.cone_jitter, a.cone_drop)
             for t in a.tracks for cap in a.caps for i in range(a.count)]
     with ProcessPoolExecutor(a.workers) as ex:
         rows = list(ex.map(run, jobs))
