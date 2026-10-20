@@ -17,6 +17,9 @@ from pathlib import Path
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+
+plt.rcParams['font.sans-serif'] = ['AR PL UKai CN', 'Noto Serif CJK SC', 'DejaVu Sans']
+plt.rcParams['axes.unicode_minus'] = False
 import numpy as np
 from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.collections import LineCollection
