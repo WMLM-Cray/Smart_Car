@@ -6,7 +6,7 @@ import pytest
 
 from common.params import CarParams
 from common.pwm import action_to_steer, steer_to_turn
-from common.road_policy import RoadPolicy
+from common.road_policy import Encoding, RoadPolicy
 from simulation.fastsim.road import LEVELS, generate
 from simulation.fastsim.road_env import Plant, RoadEnv
 from vehicle import road_car_node
@@ -213,3 +213,45 @@ def test_launch_jump_stays_below_measured_breakaway():
     """起步跳点紧贴高位实测最低破静点 1594 下方;不能跳过它。
     低位(上电锁成 ~1500)时破静 1552,这个跳点会冲出去 —— 靠"先开服务再开电调"的规程保证高位。"""
     assert P.pwm_mid < LAUNCH_FROM < 1594
+
+
+class DeadPolicy(FakePolicy):
+    """带停车 / 刹车死区的新契约(v4.5)。"""
+    enc = Encoding(5.0, 0.45, 5.0, 0.2, True)     # _s5_v0.45-5_d0.2_log
+
+
+def drive(ctl, t, speed):
+    ctl.on_scan(FakeScan(np.full(N, 5.0)), t)
+    feed(ctl, t, speed)
+    return ctl.tick(t)
+
+
+def test_dead_band_contract_stop_is_neutral():
+    ctl = ready(DeadPolicy((0.0, 0.0)))
+    assert drive(ctl, 10.05, 1.0)[0] == P.pwm_mid
+
+
+def test_dead_band_contract_brakes_only_above_release_speed():
+    """刹车:车速高于 brake_release_speed 发 brake_pwm;低了改中位,不倒车(同仿真 release_brake)。"""
+    ctl = ready(DeadPolicy((0.0, -1.0)))
+    assert drive(ctl, 10.05, P.brake_release_speed + 0.3)[0] == P.brake_pwm
+    assert drive(ctl, 10.10, P.brake_release_speed)[0] == P.pwm_mid
+
+
+def test_dead_band_contract_forward_after_brake_relaunches_by_jump():
+    """刹停后再给油:速度环清过状态,第一拍是起步跳点,不从刹车 PWM 往上爬。"""
+    pol = DeadPolicy((0.0, -1.0))
+    ctl = ready(pol)
+    drive(ctl, 10.05, 1.0)
+    pol.action = np.asarray((0.0, 1.0), np.float32)
+    assert drive(ctl, 10.10, 0.0)[0] == LAUNCH_FROM
+
+
+def test_guard_still_sends_neutral_while_model_brakes():
+    """截停照旧回中位(和改之前一样),刹车不改截停路径。"""
+    wall = np.full(N, 5.0)
+    ang = -math.pi + np.arange(N) * INC
+    wall[np.abs(ang) < 1.2] = BUMPER_AHEAD + 0.10
+    ctl = ready(DeadPolicy((0.0, -1.0)), ranges=wall)
+    feed(ctl, 10.05, 1.0)
+    assert ctl.tick(10.05)[0] == P.pwm_mid and ctl.event == 'guard'

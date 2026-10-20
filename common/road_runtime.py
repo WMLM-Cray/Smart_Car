@@ -6,7 +6,7 @@ import numpy as np
 from common.control import to_cmd_vel
 from common.params import CarParams
 from common.pwm import action_to_steer
-from common.road_policy import DEFAULT_ENC, RoadPolicy, action_to_speed, observe
+from common.road_policy import DEFAULT_ENC, RoadPolicy, action_to_speed, observe, release_brake
 
 
 STOP = 'stop'
@@ -21,8 +21,6 @@ class RoadRuntime:
         # 速度契约跟着模型走:RoadPolicy 从 schema 反解(见 common/road_policy.py)。
         # 假策略(测试用)没有 enc,退回默认区间。
         self.enc = getattr(policy, 'enc', DEFAULT_ENC)
-        if self.enc.dead:       # 速度环 / 节点还不会执行 STOP_CMD / BRAKE_CMD,发出去就是 0 / -1 m/s 的目标车速
-            raise ValueError(f'模型的速度契约带停车 / 刹车死区(_d{self.enc.dead:g}),车上还不支持,不能加载')
         self.speed_cap = float(speed_cap)
         self.sensor_timeout = float(sensor_timeout)
         self.enable_timeout = float(enable_timeout)
@@ -82,7 +80,8 @@ class RoadRuntime:
         """One control step shared by the sim and car nodes.
 
         None = disabled, send nothing; STOP = heartbeat or a sensor went stale, send neutral;
-        otherwise (steer rad, target speed m/s).
+        otherwise (steer rad, target speed m/s);带 _d 的契约 target 还可能是 STOP_CMD(0,中位滑行)
+        或 BRAKE_CMD(负数,刹车;测得车速不高于 brake_release_speed 时已改成 STOP_CMD,和仿真 RoadEnv.step 一样)。
         """
         now = float(now)
         if not self.enabled:
@@ -98,7 +97,8 @@ class RoadRuntime:
         action = np.clip(np.asarray(self._act(now), dtype=np.float32).reshape(2), -1.0, 1.0)
         self.last_action[:] = action
         steer = action_to_steer(float(action[0]), self.params)
-        target_speed = min(action_to_speed(float(action[1]), self.enc), self.speed_cap)
+        target_speed = min(release_brake(action_to_speed(float(action[1]), self.enc), self.speed,
+                                         self.params.brake_release_speed), self.speed_cap)
         return steer, target_speed
 
     def _act(self, now):
@@ -113,4 +113,4 @@ class RoadRuntime:
         if d is None or d is STOP:
             return None if d is None else (0.0, 0.0)
         steer, target_speed = d
-        return to_cmd_vel(target_speed, steer, self.params)
+        return to_cmd_vel(max(0.0, target_speed), steer, self.params)

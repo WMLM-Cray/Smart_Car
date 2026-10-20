@@ -61,6 +61,7 @@ class CarParams:
     # 刹车(PWM 低于中位区间下沿 ~1495;docs/实测/2026-10-12-brake):1470/1440/1400 一样,1.5 m/s 起 ~1.3、2 m/s 起 ~1.5、
     # 1 m/s 起 ~2.6 m/s²(已经混进倒车)。刹到低速还给低 PWM 就变倒车(倒退 0.1~0.2 m),所以只在这个车速以上刹,低了回中位滑行。
     brake_release_speed: float = 0.5   # [实测推的规则] m/s,车上节点和仿真 SpeedPlant 共用
+    brake_pwm: int = 1470           # [实测] 车上执行 BRAKE_CMD 发的 PWM:1470/1440/1400 刹车力一样,取离中位最近的
     v_fwd_full: float = 3.0         # [假设] 基础 Car 模型速度钳位；road_v2 实际速度由 SpeedPlant 决定
     v_rev_full: float = 1.5         # [假设]
     speed_tau: float = 0.35         # [假设] 电机+电调一阶响应时间常数 s

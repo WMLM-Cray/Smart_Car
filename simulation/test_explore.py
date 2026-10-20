@@ -171,10 +171,9 @@ def test_cramped_start_faces_an_obstacle_but_one_full_lock_side_gets_out():
         assert None in out
 
 
-def test_dead_band_contract_round_trips_and_car_refuses_it():
+def test_dead_band_contract_round_trips():
     import pytest
     from common.road_policy import BRAKE_CMD, STOP_CMD, action_to_speed, spec_of, speed_to_action, suffix_of
-    from common.road_runtime import RoadRuntime
     enc = spec_of('spica_v3_s3_v0.45-1_d0.2')
     assert enc.dead == 0.2 and suffix_of(enc) == '_s3_v0.45-1_d0.2'
     assert spec_of('spica_v3_s3_v0.45-3').dead == 0.0                       # 老模型逐位不变
@@ -182,13 +181,6 @@ def test_dead_band_contract_round_trips_and_car_refuses_it():
     assert action_to_speed(-0.2, enc) == BRAKE_CMD and action_to_speed(0.2, enc) == 0.45   # 前进最低就是平台,不慢爬
     for v in (BRAKE_CMD, STOP_CMD, 0.45, 0.7, 1.0):
         assert action_to_speed(speed_to_action(v, enc), enc) == pytest.approx(v)
-
-    class P:
-        pass
-    p = P()
-    p.enc = enc
-    with pytest.raises(ValueError):                                         # 车上还不会执行停车 / 刹车
-        RoadRuntime(p)
 
 
 def test_log_contract_round_trips_and_spends_the_band_on_low_and_high_speeds():

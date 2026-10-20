@@ -175,6 +175,9 @@ class RoadCarController:
             return self.p.pwm_mid, servo
         self.event = 'avoid' if steer != model_steer else None
         self.block_t = None
+        if target < 0:      # BRAKE_CMD:车速够高才会到这里(低了 RoadRuntime 已改中位,防倒车),下一拍起步走阶梯
+            self.loop.reset()
+            return self.p.brake_pwm, servo
         return round(self.loop.update(target, self.rt.speed, CONTROL_PERIOD)), servo
 
     def avoid(self, steer):
