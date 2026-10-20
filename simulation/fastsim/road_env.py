@@ -76,6 +76,9 @@ class SpeedPlant:
         self.t += dt
         if self.t < pl.launch_delay:
             return self.v
+        if cmd <= 0.0:                                  # 松油停车:滑行减速到 0(实测 0.68~0.78)
+            self.v = max(0.0, self.v - pl.decel * dt)
+            return self.v
         target = min(max(cmd, pl.v_plateau), pl.v_top)
         if self.v < pl.v_plateau - 0.01:                # 过了破静点一跳到平台
             self.v += (pl.v_plateau - self.v) * min(1.0, dt / 0.1)
