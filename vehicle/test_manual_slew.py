@@ -54,3 +54,15 @@ def test_release_and_push_again_restarts_from_launch_pwm(srv):
 
 def test_policy_caps_are_the_three_modes():
     assert CarParams().policy_mode_caps == (0.7, 1.2, 2.5)
+
+
+def test_brake_sends_brake_pwm_only_when_moving_forward_fast(srv):
+    """按刹车:往前 >brake_release_speed 发 brake_pwm;慢了、倒着走、编码器过期都回中位(防倒车)。"""
+    p, s = CarParams(), srv['S']
+    s.thr, s.brake, s.last_t, s.enc_t = 0, 1000, 10.0, 10.0
+    for spd, want in ((p.brake_release_speed + 0.3, p.brake_pwm), (p.brake_release_speed, srv['SPEED_MID']),
+                      (-1.0, srv['SPEED_MID'])):
+        s.spd = spd
+        assert srv['compute'](10.05)[0] == want
+    s.spd, s.enc_t = 2.0, 9.0
+    assert srv['compute'](10.05)[0] == srv['SPEED_MID']

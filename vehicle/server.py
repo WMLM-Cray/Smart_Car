@@ -36,6 +36,9 @@ FWD_CAP = [1610, 1620, 1620]          # Sloth / Roaming / MAD MAX
 # 只限加油,松油/回中位不限。1600 -> 1620 用 0.5 s。
 FWD_SLEW = 40.0
 POLICY_CAPS = CarParams().policy_mode_caps
+# 手动刹车:按刹车且车往前走得比 brake_release_speed 快就发 brake_pwm,慢了 / 编码器没数据回中位滑行
+# (同策略节点:刹到低速还给低 PWM 会变倒车)。原来按刹车只回中位滑行。
+BRAKE_PWM, BRAKE_RELEASE = CarParams().brake_pwm, CarParams().brake_release_speed
 # ⚠️ 倒车:厂家 teleop 用 1360 起步,实车上会窜出去(2026-09-17)。
 # 电调存在起转平台，平台速度随工况变化；手动 PWM 不保证目标车速。
 # 倒车仅保留 PWM 上限；不根据编码器速度截断输出，不能保证实际车速上限。
@@ -121,6 +124,8 @@ def compute(now):
         turn = round(TURN_MID + max(-1, min(1, S.steer / 1000)) * TURN_SPAN)
         t = max(-1.0, min(1.0, S.thr / 1000))
         want = 1 if t > 0 else -1 if t < 0 else 0
+        if S.brake > 20 and now - S.enc_t < 0.3 and S.spd > BRAKE_RELEASE:
+            return BRAKE_PWM, turn, True
         if S.brake > 20 or want == 0:
             return SPEED_MID, turn, True
         if want != S.last_dir:
