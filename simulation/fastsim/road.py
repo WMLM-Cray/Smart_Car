@@ -184,6 +184,9 @@ LEVELS = (
     *[Level(name, width=(0.9, 2.0), angles=(90.0,), sharp_chance=1.0, jog_chance=0.3, n_elems=(3, 5),
             straight=(1.0, 3.0), wall_chance=1.0, pocket_chance=0.7, pocket_depth=d, cone_free=True)
       for name, d in (('LWT3a', (0.2, 0.7)), ('LWT3b', (0.7, 1.4)), ('LWT3c', (1.4, 2.5)))],
+    # 弯外侧大空档的闭环锥桶赛道:实车 A 赛道原始布局外圈弯顶空档 2.16 m(maps/realA_1020.yaml,10-21),
+    # L5s 弯外侧最多 1.5 m。追加在末尾,老关卡逐位不变。
+    Level('L5g', loop=True, straight_spacing=(1.1, 1.5), outer_spacing=(1.6, 2.4)),
 )
 
 

@@ -25,7 +25,7 @@ import numpy as np
 from common.bev_runtime import FREE_TIMEOUT
 from simulation.fastsim.road_env import CONTROL_DT, PHYSICS_DT
 
-CAP = 0.7               # 车上网页设的速度上限
+CAP = 1.2               # 默认速度上限(网页 Roaming 档;10-21 起评估默认 1.2,之前 0.7)
 SEG_PERIOD, SEG_LAG = 0.33, 0.35     # 车上 M2F-T 288 地面分割的周期 / 延迟(training/bev_env 文档)
 COLORS = [(40, 40, 220), (0, 140, 255), (180, 60, 160), (60, 160, 60), (120, 120, 0)]     # 模型路径(BGR):红、橙、紫、绿、青;实车是蓝
 
@@ -83,13 +83,13 @@ def _wait_for_ground(b, path):
 
 
 def run_one(args):
-    seg, ref, T, model, start, seed, duration, lidar_floor = args
+    seg, ref, T, model, start, seed, duration, lidar_floor, cap = args
     from common.bev_policy import BevPolicy
     world = load_world(seg, ref, T, lidar_floor)
     from simulation.fastsim.road_env import Plant
     from training.bev_env import BevEnv
     pol = BevPolicy(model)
-    pl = replace(Plant.sample(np.random.default_rng(seed), pol.enc), cap=CAP)
+    pl = replace(Plant.sample(np.random.default_rng(seed), pol.enc), cap=cap)
     b = BevEnv(None, pl, seed, start, noise=True, free=pol.free, near=getattr(pol, 'near', False), seg_period=SEG_PERIOD, seg_lag=SEG_LAG,
                guard=True, world=world)
     b.env.budget_s = duration                # 放行时清空旧证据,只有使能后新到的传感器帧能进入 BEV
@@ -109,6 +109,7 @@ def main(argv=None):
     ap.add_argument('--duration', type=float, default=None, help='每局最长 s(默认 = 实车这段的时长 + 10)')
     ap.add_argument('--png', default=None)
     ap.add_argument('--workers', type=int, default=8)
+    ap.add_argument('--cap', type=float, default=CAP, help='策略速度上限 m/s(Sloth 0.7 / Roaming 1.2)')
     ap.add_argument('--no-lidar-floor', action='store_true', help='地面层只用相机建图时看过的(实车没拐的岔口没有地面)')
     ap.add_argument('--ref', default=None, help='参考图段目录(扫描匹配建的录包图),配 --T')
     ap.add_argument('--T', type=float, nargs=3, default=None, metavar=('X', 'Y', 'DEG'),
@@ -124,7 +125,7 @@ def main(argv=None):
     paths = {}
     from concurrent.futures import ProcessPoolExecutor
     with ProcessPoolExecutor(a.workers) as ex:
-        res = list(ex.map(run_one, [(a.seg, a.ref, T, m, start, 1000 + k, dur, not a.no_lidar_floor) for m in a.models for k in range(a.runs)]))
+        res = list(ex.map(run_one, [(a.seg, a.ref, T, m, start, 1000 + k, dur, not a.no_lidar_floor, a.cap) for m in a.models for k in range(a.runs)]))
     for n, m in enumerate(a.models):
         rows = res[n * a.runs:(n + 1) * a.runs]
         paths[m] = [r[3] for r in rows]

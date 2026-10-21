@@ -56,7 +56,7 @@ def replay(monkeypatch):
     def run(duration, free=True, empty=False, lag=0.35):
         options.update(free=free, empty=empty)
         monkeypatch.setattr(real_map_replay, 'SEG_LAG', lag)
-        result = real_map_replay.run_one(('unused', None, None, 'unused', (0, 0, 0), 1000, duration, True))
+        result = real_map_replay.run_one(('unused', None, None, 'unused', (0, 0, 0), 1000, duration, True, 0.7))
         return result, calls, envs[0], scans
 
     return run
