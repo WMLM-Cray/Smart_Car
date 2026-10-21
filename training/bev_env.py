@@ -25,8 +25,10 @@ from common.bev import Bev, BevConfig, CellType
 from common.bev_policy import bev_image, bev_images, scalars
 from simulation.fastsim.camera import FakeFloorSeg, FakeYolo
 from simulation.fastsim.road import DS, EDGE
-from simulation.fastsim.road_env import RoadEnv
-from training.road_teacher import HORIZON, R_MIN, R_REPLAN, Teacher, plan
+from simulation.fastsim.road_env import CONTROL_DT, RoadEnv
+from training.road_teacher import BRAKE_MARGIN, HORIZON, R_MIN, R_REPLAN, Teacher, plan
+
+GUARD_MARGIN = 0.1             # SeenTeacher(guard_aware) 净空额外留的余量 m
 
 SEEN_R = 0.8            # 边界点离雷达回波这么近算"看到过"(桶距最大 1.5 m)
 FLOOR_SEEN_R = math.sqrt(2) * BevConfig().res  # 地面只容许一格量化误差,不能沿用稀疏锥桶的 0.8 m
@@ -177,8 +179,11 @@ class BevEnv:
 class SeenTeacher(Teacher):
     """重规划窗口只到左右边界都被雷达扫到过的地方。"""
 
-    def __init__(self, benv: BevEnv, P, a_lat: float):
+    def __init__(self, benv: BevEnv, P, a_lat: float, guard_aware: bool = False):
         super().__init__(benv.env, P, a_lat=a_lat)
+        # guard_aware:按车上截停规则限速(要 benv 开了 guard)。按这一拍要打的转角扫净空,扣掉指令生效前
+        # 要走的距离,反解 guard_stop 得允许车速;超了就刹车。默认关:老训练配置逐位不变。2026-10-21 加。
+        self.benv = benv if guard_aware and benv.guard is not None else None
         road = benv.env.road
         self.nb = len(road.left)
         self.tree = cKDTree(np.vstack([road.left, road.right]))
@@ -206,6 +211,31 @@ class SeenTeacher(Teacher):
         from common.bev import body_to_odom
         dist, _ = cKDTree(body_to_odom(xy, pose)).query(self.tree.data[self.edge])
         self.seen[self.edge] |= dist <= FLOOR_SEEN_R
+
+    def __call__(self) -> np.ndarray:
+        a = super().__call__()
+        if self.benv is None:
+            return a
+        from common.pwm import action_to_steer
+        from common.road_policy import BRAKE_CMD, speed_to_action
+        from vehicle.road_car_node import guard_speed
+        env, car, pl = self.env, self.env.car, self.pl
+        from vehicle.road_car_node import guard_stop
+        lead = car.v * (pl.dead_time + CONTROL_DT * (pl.lag + 1)) + GUARD_MARGIN
+        # 净空按"这一拍的转角 + 刹停距离内路线上要打的转角"取最小:转角一变扫掠弧就变,净空会突然塌(实测 inf -> 0.7 m)
+        P = self.plan
+        reach = P.s[self.j] + lead + guard_stop(car.v, env.cp)
+        ks = P.kappa[self.j:int(np.searchsorted(P.s, reach)) + 1:3]
+        steers = [action_to_steer(float(a[0]), env.cp)] + [math.atan(env.cp.wheelbase * k) for k in ks]
+        clear = min(self.benv.guard._clear(st) for st in steers)
+        if not math.isfinite(clear):
+            return a
+        v_ok = guard_speed(clear - lead, env.cp)
+        if car.v > max(v_ok, self.release) + BRAKE_MARGIN:
+            return np.array([a[0], speed_to_action(BRAKE_CMD, env.pl.enc)], np.float32)
+        if a[1] > speed_to_action(v_ok, env.pl.enc):
+            a = np.array([a[0], speed_to_action(v_ok, env.pl.enc)], np.float32)
+        return a
 
     def known_ahead(self, i):
         both = self.seen[:self.nb] & self.seen[self.nb:]

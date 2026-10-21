@@ -56,6 +56,15 @@ def guard_stop(speed, p):
     v0 = p.guard_base_speed
     extra = p.guard_latency * (speed - v0) + (speed * speed - v0 * v0) / (2 * p.guard_brake_decel)
     return GUARD_STOP + max(0.0, extra)
+
+
+def guard_speed(clear, p):
+    """guard_stop 的反函数:净空 clear 下不截停的最高车速;clear < GUARD_STOP 返回 0。"""
+    if clear < GUARD_STOP:
+        return 0.0
+    L, D, v0 = p.guard_latency, p.guard_brake_decel, p.guard_base_speed
+    c = clear - GUARD_STOP + L * v0 + v0 * v0 / (2 * D)
+    return max(v0, D * (-L + math.sqrt(L * L + 2 * c / D)))
 STUCK_SECONDS = 3.0         # 同 steer_policy_node:连续截停这么久就当卡死
 # 转向避障:模型要走的路线 AVOID_CLEAR 内会碰到雷达障碍,就在 AVOID_STEERS 个候选转角里挑离模型最近、走得够远的;
 # 都不够远就挑走得最远的。模型没见过迎面的障碍(仿真的路中间不会立一块板),会直直开过去(2026-10-15 走廊实测)

@@ -10,7 +10,7 @@ from common.road_policy import Encoding, RoadPolicy
 from simulation.fastsim.road import LEVELS, generate
 from simulation.fastsim.road_env import Plant, RoadEnv
 from vehicle import road_car_node
-from vehicle.road_car_node import AVOID_CLEAR, GUARD_STOP, LAUNCH_FROM, STUCK_SECONDS, RoadCarController, guard_stop
+from vehicle.road_car_node import AVOID_CLEAR, GUARD_STOP, LAUNCH_FROM, STUCK_SECONDS, RoadCarController, guard_speed, guard_stop
 from vehicle.scan_guard import BUMPER_AHEAD, LIDAR_X
 from vehicle.speed_loop import PWM_HARD_MAX
 
@@ -290,3 +290,10 @@ def test_speed_cap_starts_at_sloth_and_follows_web_mode_within_max():
     assert RoadCarController(DeadPolicy(), 1.2).set_speed_cap(2.5) == 1.2
     assert ctl.set_speed_cap(0.0) == DeadPolicy.enc.v_lo
     assert RoadCarController(DeadPolicy(), 0.5).rt.speed_cap == 0.5
+
+
+def test_guard_speed_inverts_guard_stop():
+    p = CarParams()
+    for v in (0.8, 1.2, 1.8, 2.5):
+        assert guard_speed(guard_stop(v, p), p) == pytest.approx(v)
+    assert guard_speed(GUARD_STOP - 0.01, p) == 0.0 and guard_speed(GUARD_STOP, p) == pytest.approx(p.guard_base_speed)
