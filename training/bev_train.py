@@ -34,7 +34,7 @@ TRAIN_SEED0, SELECT_SEED0 = 30_000_000, 60_000_000     # 和 road_train(10M/50M)
 
 def run_episode(seed, level, weights=None, beta=0.0, collect=False, enc=None, a_lat=0.45, cap_max=None,
                 free=False, seg=(0.1, 0.0), aug=(0.0, 0.0), pair=False, lag_max=None, yolo=True, guard=False,
-                seg_lut=False, seg_fill=False, cap_min=None, near=False):
+                seg_lut=False, seg_fill=False, cap_min=None, near=False, teacher_guard=False):
     """seg = (地面分割周期 s, 推理延迟 s),aug = (裁图平移抖动 m, 转角抖动 rad),见 BevEnv。
     pair:采集时每帧再裁一张(另一种亚格偏移),给一致性损失;lag_max:指令延迟拍数改成每局 0..lag_max 均匀抽。"""
     try:
@@ -46,7 +46,7 @@ def run_episode(seed, level, weights=None, beta=0.0, collect=False, enc=None, a_
         pl = replace(pl, lag=int(np.random.default_rng(seed + 17).integers(0, lag_max + 1)))
     benv = BevEnv(road, pl, seed, start, noise=True, free=free, seg_period=seg[0], seg_lag=seg[1], aug=aug,
                   yolo=yolo, guard=guard, seg_lut=seg_lut, seg_fill=seg_fill, near=near)
-    teacher = SeenTeacher(benv, P, a_lat)
+    teacher = SeenTeacher(benv, P, a_lat, guard_aware=teacher_guard)
     rng = np.random.default_rng(seed + 1)
     imgs, near_imgs, scs, ys, imgs2, near_imgs2 = [], [], [], [], [], []
     why, n = None, 0
@@ -196,6 +196,8 @@ def main():
                     help='采集时指令延迟每局 0..N 拍均匀抽(默认按 Plant.sample 的 0..1);实车打方向延迟没量过,v4 用 3')
     ap.add_argument('--no-yolo', action='store_true',
                     help='锥桶/胶带/区域层恒空(车上没跑 YOLO);路上的锥桶照样在,雷达照样扫得到。采集和每轮评估都这样')
+    ap.add_argument('--teacher-guard', action='store_true',
+                    help='配 --guard:老师按车上截停规则限速 / 刹车(SeenTeacher guard_aware;10-21 加)')
     ap.add_argument('--guard', action='store_true',
                     help='按车上的截停规则(扫车身矩形、保险杠前 < 0.25 m)判失败,采集和每轮评估都这样')
     ap.add_argument('--seg-lut', action='store_true',
@@ -256,7 +258,7 @@ def main():
                 seg = (float(rng.uniform(*a.seg_period)), float(rng.uniform(*a.seg_lag)))
                 jobs.append((seed, mix[int(rng.choice(len(mix), p=probs))][0], wts, beta, True, enc,
                              a.a_lat, a.cap_max, free, seg, (a.aug[0], math.radians(a.aug[1])), pair, a.lag_max,
-                             not a.no_yolo, a.guard, a.seg_lut, a.seg_fill, a.cap_min, near))
+                             not a.no_yolo, a.guard, a.seg_lut, a.seg_fill, a.cap_min, near, a.teacher_guard))
                 seed += 1
             t0 = time.time()
             got = [g for g in ex.map(_job, jobs, chunksize=2) if g is not None]
