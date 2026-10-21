@@ -3,6 +3,8 @@
     python -m evaluation.bev_track --model runs/bev_v1_a/candidate_030.npz --caps 0.5 0.7 1.0 1.5 1.8 --count 16
     # 按车上条件(截停、无 YOLO、地面分割 3 Hz / 0.35 s 车上投影 + 补缝),赛道 A 不补黄 V:
     python -m evaluation.bev_track --model m.npz --tracks A --caps 0.7 --count 32 --car --no-fill-v
+    # 实车 A 赛道原始布局(maps/realA_1020.yaml,10-20 seg_04 雷达图抠桶):
+    python -m evaluation.bev_track --model m.npz --tracks realA_1020 --caps 1.2 --count 32 --car
 """
 from __future__ import annotations
 
@@ -20,7 +22,7 @@ from pathlib import Path
 import numpy as np
 
 from common.bev_policy import BevPolicy
-from evaluation.road_track import LAPS, official
+from evaluation.road_track import LAPS, official, real_track
 from simulation.fastsim.road_env import Plant
 from training.bev_env import BevEnv
 
@@ -38,7 +40,7 @@ def perturb(road, rng, jitter, drop):
 
 def run(args):
     model, name, seed, cap, car, fill_v, jitter, drop = args
-    road, lap_len = official(name, fill_v)
+    road, lap_len = official(name, fill_v) if name in 'ABCD' else real_track(name)    # 其他名字 = maps/<name>.yaml 实车赛道
     road = perturb(road, np.random.default_rng(seed + 7), jitter, drop)
     pol = BevPolicy(model)
     pl = replace(Plant.sample(np.random.default_rng(seed), pol.enc), cap=cap)
