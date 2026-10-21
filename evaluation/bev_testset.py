@@ -39,8 +39,8 @@ SCHEMA = 'road_v2.5'
 def _one(args):
     from common.road_policy import spec_of
     from training.road_check import sample_episode
-    seed, level = args
-    road, pl, start, _, _ = sample_episode(seed, level, enc=spec_of(SCHEMA), cap_max=CAP_MAX)
+    seed, level, cap = args
+    road, pl, start, _, _ = sample_episode(seed, level, enc=spec_of(SCHEMA), cap_max=cap or CAP_MAX, cap_min=cap)
     return dict(seed=seed, level=level, road=road, pl=pl, start=start)
 
 
@@ -55,7 +55,7 @@ def fingerprint(eps) -> str:
 
 
 def build(a):
-    jobs = [(a.seed0 + i, L) for L in a.levels.split(',') for i in range(a.per_level)]
+    jobs = [(a.seed0 + i, L, a.cap) for L in a.levels.split(',') for i in range(a.per_level)]
     with ProcessPoolExecutor(a.workers) as ex:
         eps = list(ex.map(_one, jobs, chunksize=4))
     with open(a.out, 'wb') as f:
@@ -130,6 +130,15 @@ def mcnemar(a_ok, b_ok):
     return n01, n10, p
 
 
+def paired_diff_ci(a_ok, b_ok, z=1.96):
+    """B − A 通过率的配对差及 Wald 区间(z = 1.96 即 95% 双侧):返回 (差, 下限, 上限)。"""
+    n = len(a_ok)
+    n01, n10, _ = mcnemar(a_ok, b_ok)
+    d = (n01 - n10) / n
+    se = math.sqrt(max(0.0, (n01 + n10) - (n01 - n10) ** 2 / n)) / n
+    return d, d - z * se, d + z * se
+
+
 def compare(a):
     A, B = (json.load(open(p)) for p in (a.a, a.b))
     if A['fingerprint'] != B['fingerprint']:
@@ -139,6 +148,10 @@ def compare(a):
     n01, n10, p = mcnemar(*ok)
     print(f"A {A['model']}: {np.mean(ok[0]):.4f}\nB {B['model']}: {np.mean(ok[1]):.4f}\n"
           f"A 败 B 胜 {n01} / A 胜 B 败 {n10},McNemar p = {p:.4g}(n = {len(ok[0])})")
+    d, lo, hi = paired_diff_ci(*ok)
+    verdict = '不劣' if lo > -a.margin else ('劣' if hi < -a.margin else '不确定')
+    print(f"B − A = {100 * d:+.2f} 个百分点,95% 区间 {100 * lo:+.2f} ~ {100 * hi:+.2f};"
+          f"非劣界限 −{100 * a.margin:g}:{verdict}")
 
 
 def main():
@@ -150,6 +163,7 @@ def main():
     b.add_argument('--levels', default=','.join(LEVELS), help='无锥桶对照用 LE3,LE4')
     b.add_argument('--seed0', type=int, default=SEED0)
     b.add_argument('--workers', type=int, default=8)
+    b.add_argument('--cap', type=float, default=None, help='固定速度上限 m/s(默认在 [0.45, CAP_MAX] 随机抽;给了就是另一批局)')
     r = sub.add_parser('run')
     r.add_argument('--eps', required=True)
     r.add_argument('--model', required=True)
@@ -166,6 +180,7 @@ def main():
     c = sub.add_parser('compare')
     c.add_argument('a')
     c.add_argument('b')
+    c.add_argument('--margin', type=float, default=0.01, help='非劣界限(B 比 A 最多低多少,0.01 = 1 个百分点)')
     a = ap.parse_args()
     {'build': build, 'run': run, 'compare': compare}[a.cmd](a)
 
