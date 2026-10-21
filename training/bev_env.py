@@ -75,14 +75,14 @@ class BevEnv:
         self.seg_hooks = []                                               # 已送到 BEV 的帧:pose, xy, stamp
         self.seg_frame = None
         self.scan_hooks = []
-        # guard=True:和车上 road_car_node 一样按将要打的转角扫车身矩形,保险杠前净空 < GUARD_STOP 就算这局失败('guard')。
+        # guard=True:和车上 road_car_node 一样按将要打的转角扫车身矩形,保险杠前净空 < guard_stop(车速) 就算这局失败('guard')。
         # 车上截停后油门回中位、策略不出倒车,基本就卡死了;仿真里原来不管,模型在锥桶方角贴着开也算过(2026-10-16:
         # 无锥桶 r29 在 L6f 16 局里 12 局会触发截停,老师 1 局)
         self.guard = None
         if guard:
-            from vehicle.road_car_node import GUARD_STOP
+            from vehicle.road_car_node import guard_stop
             from vehicle.scan_guard import ScanGuard
-            self.guard, self.guard_stop = ScanGuard(), GUARD_STOP
+            self.guard, self.guard_stop = ScanGuard(), guard_stop       # 同车上:0.7 m/s 以上按车速放大
             self.scan_hooks.append(lambda pose: self._guard_scan())
         env, scan = self.env, self.env._scan
 
@@ -167,7 +167,7 @@ class BevEnv:
         if self.guard is not None:
             from common.pwm import action_to_steer
             steer = action_to_steer(float(np.clip(action[0], -1, 1)), self.env.cp)
-            if self.guard._clear(steer) < self.guard_stop:
+            if self.guard._clear(steer) < self.guard_stop(self.env.speed.v, self.env.cp):
                 return 'guard'
         why = self.env.step(action)
         self._camera()

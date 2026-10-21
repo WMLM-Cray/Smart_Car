@@ -10,7 +10,7 @@ from common.road_policy import Encoding, RoadPolicy
 from simulation.fastsim.road import LEVELS, generate
 from simulation.fastsim.road_env import Plant, RoadEnv
 from vehicle import road_car_node
-from vehicle.road_car_node import AVOID_CLEAR, GUARD_STOP, LAUNCH_FROM, STUCK_SECONDS, RoadCarController
+from vehicle.road_car_node import AVOID_CLEAR, GUARD_STOP, LAUNCH_FROM, STUCK_SECONDS, RoadCarController, guard_stop
 from vehicle.scan_guard import BUMPER_AHEAD, LIDAR_X
 from vehicle.speed_loop import PWM_HARD_MAX
 
@@ -63,6 +63,7 @@ def test_same_actions_as_training_env_on_a_fastsim_episode():
     env = RoadEnv(road, pl, seed=3, noise=False)
     ref = RoadPolicy(MODEL)
     ctl = RoadCarController(RoadPolicy(MODEL), pl.cap)
+    ctl.set_speed_cap(pl.cap)       # 开局是 Sloth 档(0.7);网页切档后才到 pl.cap
     ctl.on_enable(True, 0.0)
     for _ in range(120):
         t = env.t
@@ -247,11 +248,45 @@ def test_dead_band_contract_forward_after_brake_relaunches_by_jump():
     assert drive(ctl, 10.10, 0.0)[0] == LAUNCH_FROM
 
 
-def test_guard_still_sends_neutral_while_model_brakes():
-    """截停照旧回中位(和改之前一样),刹车不改截停路径。"""
+def test_guard_brakes_when_fast_and_sends_neutral_when_slow():
+    """截停:车速高于 brake_release_speed 发刹车(更快的模式要刹得住),低了回中位(防倒车)。"""
     wall = np.full(N, 5.0)
     ang = -math.pi + np.arange(N) * INC
     wall[np.abs(ang) < 1.2] = BUMPER_AHEAD + 0.10
     ctl = ready(DeadPolicy((0.0, -1.0)), ranges=wall)
     feed(ctl, 10.05, 1.0)
-    assert ctl.tick(10.05)[0] == P.pwm_mid and ctl.event == 'guard'
+    assert ctl.tick(10.05)[0] == P.brake_pwm and ctl.event == 'guard'
+    feed(ctl, 10.10, P.brake_release_speed)
+    assert ctl.tick(10.10)[0] == P.pwm_mid and ctl.event == 'guard'
+
+
+def test_guard_stop_unchanged_up_to_base_speed_and_grows_with_speed():
+    """0.7 m/s 及以下还是 0.25 m(实车验证过的);1.2 / 2.5 m/s 加上多出来的延迟 + 刹车距离。"""
+    for v in (0.0, 0.5, P.guard_base_speed):
+        assert guard_stop(v, P) == GUARD_STOP
+    assert guard_stop(1.2, P) == pytest.approx(GUARD_STOP + 0.2 * 0.5 + (1.44 - 0.49) / 2.6)
+    assert guard_stop(2.5, P) > 2.5
+
+
+def test_guard_trips_earlier_at_higher_speed():
+    """同一面墙在 0.6 m 外:0.7 m/s 不截停,1.2 m/s 截停并刹车。"""
+    wall = np.full(N, 5.0)
+    ang = -math.pi + np.arange(N) * INC
+    wall[np.abs(ang) < 1.2] = BUMPER_AHEAD + 0.60
+    ctl = ready(FakePolicy(action=(0.0, 1.0)), ranges=wall)
+    feed(ctl, 10.05, 0.7)
+    ctl.tick(10.05)
+    assert ctl.event not in ('guard', 'stuck')
+    feed(ctl, 10.10, 1.2)
+    assert ctl.tick(10.10)[0] == P.brake_pwm and ctl.event == 'guard'
+
+
+def test_speed_cap_starts_at_sloth_and_follows_web_mode_within_max():
+    """开局 Sloth(0.7);网页切档改限速,但不超过 --speed-cap,也不低于模型训练下限。"""
+    ctl = RoadCarController(DeadPolicy(), 2.5)
+    assert ctl.rt.speed_cap == P.policy_mode_caps[0]
+    assert ctl.set_speed_cap(1.2) == 1.2
+    assert ctl.set_speed_cap(2.5) == 2.5
+    assert RoadCarController(DeadPolicy(), 1.2).set_speed_cap(2.5) == 1.2
+    assert ctl.set_speed_cap(0.0) == DeadPolicy.enc.v_lo
+    assert RoadCarController(DeadPolicy(), 0.5).rt.speed_cap == 0.5

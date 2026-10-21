@@ -4,6 +4,7 @@
 浏览器协议沿用 Astra-Rover 的 preview.html:
   t <油门‰> <方向盘‰> <刹车‰>   油门 -1000..1000(R 档为负),方向盘 >0 = 左
   e <0|1> 急停   l <0|1|2> 排挡 P/D/R   y <0|1|2> 模式 Sloth/Roaming/MAD MAX
+策略模式下模式 = 策略限速(CarParams.policy_mode_caps),发 /policy_speed_cap 给 road_car_node。
 输出和 racecar_teleop.py 一样发 /teleop_cmd_vel:linear.x = 电调 PWM,angular.z = 舵机值。
 """
 import base64, hashlib, json, math, os, signal, socket, struct, sys, threading, time
@@ -18,7 +19,7 @@ from rclpy.signals import SignalHandlerOptions
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Imu, LaserScan
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, Float32
 
 from vehicle.scan_guard import ScanGuard
 from vehicle.scan_view import scan_payload
@@ -31,6 +32,10 @@ HTML = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'index.html')
 # ⚠️ 顶速上限放在服务端,不信任浏览器发来的数。数值偏保守,架空实测后再往上调。
 SPEED_MID, FWD_START, REV_START = CarParams().pwm_mid, 1600, 1500
 FWD_CAP = [1610, 1620, 1620]          # Sloth / Roaming / MAD MAX
+# 手动前进 PWM 每秒最多加这么多:摇杆一把推到底不再瞬间给满,2026-10-20 MAD MAX(当时车上 1700)直跳翘头。
+# 只限加油,松油/回中位不限。1600 -> 1620 用 0.5 s。
+FWD_SLEW = 40.0
+POLICY_CAPS = CarParams().policy_mode_caps
 # ⚠️ 倒车:厂家 teleop 用 1360 起步,实车上会窜出去(2026-09-17)。
 # 电调存在起转平台，平台速度随工况变化；手动 PWM 不保证目标车速。
 # 倒车仅保留 PWM 上限；不根据编码器速度截断输出，不能保证实际车速上限。
@@ -73,6 +78,7 @@ class State:
         self.last_dir = 0
         self.dir_change_t = 0.0
         self.pwm, self.turn = SPEED_MID, TURN_MID
+        self.fwd_pwm, self.fwd_t = FWD_START, 0.0   # 手动前进上一拍的 PWM 和时刻(FWD_SLEW 用)
         self.spd = 0.0; self.enc_t = 0.0
         self.x = self.y = self.th = 0.0
         self.wz = self.ax = self.ay = 0.0
@@ -135,6 +141,10 @@ def compute(now):
                     cap = FWD_CAP[0]
             S.blocked = 0
             pwm = creep_or_pwm(t, FWD_START, cap)
+            if now - S.fwd_t > 0.15:                  # 上一拍不在前进(回中位/倒车/截停):从起步 PWM 重新爬
+                S.fwd_pwm, S.fwd_t = FWD_START, now
+            pwm = min(pwm, S.fwd_pwm + FWD_SLEW * (now - S.fwd_t))
+            S.fwd_pwm, S.fwd_t = max(pwm, FWD_START), now
         else:
             fresh = now - S.enc_t < 0.3
             if not fresh:
@@ -152,6 +162,7 @@ class Bridge(Node):
         topic = self.declare_parameter('cmd_topic', '/teleop_cmd_vel').value
         self.pub = self.create_publisher(Twist, topic, 5)
         self.enable_pub = self.create_publisher(Bool, '/policy_enable', 1)
+        self.cap_pub = self.create_publisher(Float32, '/policy_speed_cap', 1)
         self.create_subscription(Odometry, '/encoder', self.on_enc, 10)
         # 策略模式下油门/转向是策略节点发的,这里不发;订阅回来给网页显示真实 PWM(2026-09-29)
         self.create_subscription(Twist, topic, self.on_cmd, 5)
@@ -215,6 +226,9 @@ class Bridge(Node):
                     age, thr, src = now - S.last_t, S.thr, S.t_src
                 log_event(f'放行 {"开" if held else "关"}(油门 {thr},摇杆 {age:.2f}s 前,来自 {src})')
                 self.last_held = held
+            with S.lock:
+                cap = POLICY_CAPS[S.mode]
+            self.cap_pub.publish(Float32(data=float(cap)))     # 先发限速再发放行
             self.enable_pub.publish(Bool(data=held))
             return
 

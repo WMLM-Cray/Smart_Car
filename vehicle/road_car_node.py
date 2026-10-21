@@ -5,7 +5,8 @@
 都走 common.road_runtime,和仿真节点 road_policy_node、训练环境是同一份代码。
 安全外壳照搬 v1 在车上验证过的做法:
   /policy_enable 是心跳(0.3s),松手立刻发中位;雷达/编码器/IMU 任一过期回中位;
-  沿当前转角扫掠路径的防撞截停(0.25m)+ 连续截停 3s 报卡死;
+  沿当前转角扫掠路径的防撞截停(0.7 m/s 以下 0.25m,更快按车速放大,见 guard_stop)+ 连续截停 3s 报卡死;
+  限速跟网页模式走(/policy_speed_cap,Sloth/Roaming/MAD MAX),不超过 --speed-cap;
   SpeedLoop 编码器闭环出 PWM(爬升 20 PWM/s、硬上限 1620);SIGINT/SIGTERM 时连发中位。
 模型给的目标速度每拍都在变(0.45 ~ 速度上限)。SpeedLoop 的 floor 自标定按"当前目标"判塌速,
 目标往下调(弯前减速)不会被当成塌速。按变化目标跟随的表现还没在车上测过,先架空再低速落地。
@@ -47,6 +48,14 @@ CONTROL_PERIOD = 0.05       # 20Hz,和训练的 CONTROL_DT 一致
 SENSOR_TIMEOUT = 0.3        # 实测 /encoder 34Hz、/scan 12Hz、/IMU_data 55Hz
 ENABLE_TIMEOUT = 0.3        # /policy_enable 是心跳不是开关
 GUARD_STOP = 0.25           # 同 steer_policy_node:保险杠前净空小于这个就回中位(米)
+CAP_TOPIC = '/policy_speed_cap'     # vehicle/server.py 按网页模式发的限速(Float32,m/s)
+
+
+def guard_stop(speed, p):
+    """截停距离:GUARD_STOP 在 guard_base_speed 下实车验证过;更快时加上多出来的延迟距离和刹车距离。"""
+    v0 = p.guard_base_speed
+    extra = p.guard_latency * (speed - v0) + (speed * speed - v0 * v0) / (2 * p.guard_brake_decel)
+    return GUARD_STOP + max(0.0, extra)
 STUCK_SECONDS = 3.0         # 同 steer_policy_node:连续截停这么久就当卡死
 # 转向避障:模型要走的路线 AVOID_CLEAR 内会碰到雷达障碍,就在 AVOID_STEERS 个候选转角里挑离模型最近、走得够远的;
 # 都不够远就挑走得最远的。模型没见过迎面的障碍(仿真的路中间不会立一块板),会直直开过去(2026-10-15 走廊实测)
@@ -77,10 +86,11 @@ class RoadCarController:
 
     def __init__(self, policy, speed_cap, params=None, loop=None, guard=None, book=None):
         self.p = params or CarParams()
+        self.cap_max = float(speed_cap)                 # --speed-cap:网页模式再快也不超过它
         self.book = book            # bev_logbook.Logbook;只在使能时记
         self.release_t = None
         rt = BevRuntime if isinstance(policy, BevPolicy) else RoadRuntime
-        self.rt = rt(policy, speed_cap, SENSOR_TIMEOUT, ENABLE_TIMEOUT, self.p)
+        self.rt = rt(policy, min(self.p.policy_mode_caps[0], self.cap_max), SENSOR_TIMEOUT, ENABLE_TIMEOUT, self.p)
         self.loop = loop or SpeedLoop(SpeedLoopConfig(launch_from=LAUNCH_FROM))
         self.guard = guard or ScanGuard()
         self.block_t = None         # 连续截停的起点
@@ -104,6 +114,11 @@ class RoadCarController:
             self.book.add_lidar(lidar_points(self.rt.scan, self.rt.angles, self.rt.scan_pose, self.p,
                                              self.rt.bev.lidar_yaw, 8.0),
                                 (sx + self.p.lidar_x * math.cos(yaw), sy + self.p.lidar_x * math.sin(yaw)))
+
+    def set_speed_cap(self, cap):
+        """网页模式给的限速;夹在模型训练下限和 --speed-cap 之间。返回实际用的值。"""
+        self.rt.speed_cap = min(max(float(cap), self.rt.enc.v_lo), self.cap_max)
+        return self.rt.speed_cap
 
     def on_encoder(self, speed, now):
         self.rt.on_odometry(speed, now)
@@ -163,16 +178,16 @@ class RoadCarController:
         model_steer, target = d
         steer = self.steer_cmd = self.avoid(model_steer)
         servo = steer_to_turn(steer, self.p)
-        # 防撞按**当前要打的转角**算扫掠路径。截停时方向照发、油门回中位;策略不出倒车,
-        # 所以只报卡死、不自动倒车(雷达在车头,背后看不见)
+        # 防撞按**当前要打的转角**算扫掠路径。截停时方向照发;车速高于 brake_release_speed 发刹车,低了回中位
+        # (防倒车)。策略不出倒车,所以只报卡死、不自动倒车(雷达在车头,背后看不见)
         gap = self.guard.gap(steer)
-        if gap is not None and gap < GUARD_STOP:
+        if gap is not None and gap < guard_stop(self.rt.speed, self.p):
             if self.block_t is None:
                 self.block_t = now
             self.event = 'stuck' if now - self.block_t > STUCK_SECONDS else 'guard'
             self.gap = gap
             self.loop.reset()
-            return self.p.pwm_mid, servo
+            return (self.p.brake_pwm if self.rt.speed > self.p.brake_release_speed else self.p.pwm_mid), servo
         self.event = 'avoid' if steer != model_steer else None
         self.block_t = None
         if target < 0:      # BRAKE_CMD:车速够高才会到这里(低了 RoadRuntime 已改中位,防倒车),下一拍起步走阶梯
@@ -210,7 +225,7 @@ def parser():
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('model', help='road_v2 / road_v2.5 / spica_v3_* / bev_v1_* / bev_v2_* / bev_v2.5_* .npz')
     p.add_argument('--speed-cap', type=float, required=True,
-                   help=f'速度上限 m/s,要在模型自己的训练范围内(见 schema);首次上车用 {V_LO}~0.5')
+                   help=f'速度上限 m/s,要在模型自己的训练范围内(见 schema);网页模式限速不超过它;首次上车用 {V_LO}~0.5')
     return p
 
 
@@ -221,7 +236,7 @@ def create_node_class():
     from nav_msgs.msg import Odometry
     from rclpy.node import Node
     from sensor_msgs.msg import CompressedImage, Imu, LaserScan, PointCloud2
-    from std_msgs.msg import Bool
+    from std_msgs.msg import Bool, Float32
 
     class RoadCarNode(Node):
         def __init__(self, model, speed_cap, log_root=None):
@@ -243,6 +258,7 @@ def create_node_class():
             self.create_subscription(Odometry, ENC_TOPIC, self.on_enc, 10)
             self.create_subscription(Imu, '/IMU_data', self.on_imu, 10)
             self.create_subscription(Bool, '/policy_enable', self.on_enable, 1)
+            self.create_subscription(Float32, CAP_TOPIC, self.on_cap, 1)
             if getattr(self.ctl.rt.policy, 'free', False):            # bev_v2:订阅地面分割
                 self.create_subscription(PointCloud2, FREE_TOPIC, self.on_free, 2)
                 self.create_subscription(CompressedImage, '/ground_debug', self.on_cam, 1)   # 逐帧回看配图
@@ -250,8 +266,8 @@ def create_node_class():
             self.last_floor = self.ctl.loop.floor
             self.create_timer(CONTROL_PERIOD, self.tick)
             self.get_logger().info(
-                f'已载入 {model},速度上限 {speed_cap:.2f} m/s,编码器闭环 -> {CMD_TOPIC},'
-                f'等 /policy_enable')
+                f'已载入 {model},速度上限 {self.ctl.rt.speed_cap:.2f} m/s(网页模式可调到 {speed_cap:.2f}),'
+                f'编码器闭环 -> {CMD_TOPIC},等 /policy_enable')
 
         def now(self):
             return self.get_clock().now().nanoseconds * 1e-9
@@ -288,6 +304,11 @@ def create_node_class():
 
         def on_cam(self, m):
             self.ctl.cam_jpg = bytes(m.data)
+
+        def on_cap(self, m):
+            old = self.ctl.rt.speed_cap
+            if self.ctl.set_speed_cap(m.data) != old:
+                self.get_logger().info(f'限速 {old:.2f} -> {self.ctl.rt.speed_cap:.2f} m/s')
 
         def on_enable(self, m):
             was = self.ctl.rt.enabled

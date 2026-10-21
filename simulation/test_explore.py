@@ -276,7 +276,8 @@ def test_shuttle_starts_inside_square_room_and_rewards_progress():
         assert np.hypot(gx - x, gy - y) > 2.0
     total, why = 0.0, None
     while why is None and env.reached == 0:
-        r, why = env.step(np.array([0.0, 0.8], np.float32))
+        # 0.3 ≈ 0.6 m/s:不超过 guard_base_speed。直冲贴墙的目标时,更快的车速截停距离会放大(guard_stop)
+        r, why = env.step(np.array([0.0, 0.3], np.float32))
         total += r
     assert env.reached == 1 and env.goal == 1, why
     assert total > SHUTTLE_BONUS
