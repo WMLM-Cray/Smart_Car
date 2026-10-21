@@ -31,7 +31,8 @@ HTML = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'index.html')
 # PWM 约定:中位和转向值从实测参数读取;前进/倒车起点仍按网页遥控设置。
 # ⚠️ 顶速上限放在服务端,不信任浏览器发来的数。数值偏保守,架空实测后再往上调。
 SPEED_MID, FWD_START, REV_START = CarParams().pwm_mid, 1600, 1500
-FWD_CAP = [1610, 1620, 1620]          # Sloth / Roaming / MAD MAX
+# Sloth 1600 = 平台 ~0.67 m/s(对应策略限速 0.7);Roaming 1620 ~1.1~1.2;MAD MAX 暂同 Roaming,等实测 1620 以上的曲线
+FWD_CAP = [1600, 1620, 1620]          # Sloth / Roaming / MAD MAX
 # 手动前进 PWM 每秒最多加这么多:摇杆一把推到底不再瞬间给满,2026-10-20 MAD MAX(当时车上 1700)直跳翘头。
 # 只限加油,松油/回中位不限。1600 -> 1620 用 0.5 s。
 FWD_SLEW = 40.0
