@@ -1,0 +1,40 @@
+{
+	"nodes":[
+		{"id":"roadmap","type":"group","x":10,"y":1100,"width":2080,"height":1800,"color":"2","label":"③ 我们的十项功能迁入｜Pxx 是计划编号，不是 GitHub PR 号"},
+		{"id":"review","type":"group","x":720,"y":360,"width":1370,"height":590,"color":"5","label":"② 旁侧待审 PR｜不计入 P01–P10"},
+		{"id":"merged","type":"group","x":10,"y":360,"width":630,"height":590,"color":"4","label":"① 已进入 main｜已有基础"},
+		{"id":"p01","type":"text","text":"## P01 · 纯算法包｜已提 PR，待审\n**PR #11 · CI 三项成功 · 0ab9e5b**\n12 运行文件，NumPy 安装包；原 96 项来源测试保留。\nBEV / 投影 / 推理已在候选中；真实接口尚待适配。\n[查看 PR #11](https://github.com/FZU-ZCC-ADS-Lab/RaceCar_Main/pull/11)","x":720,"y":1120,"width":660,"height":210,"color":"5"},
+		{"id":"p02","type":"text","text":"## P02 · 参数与模型包｜下一步\n前置：P01。来源资源已整理，校验/注入代码待做。\n统一 CarParams、schema、模型与标定版本。\n明确 A / B_alpha 选择、资源缺失拒绝和回退。\n后续模块共用同一参数和资源入口。","x":720,"y":1410,"width":660,"height":210,"color":"1"},
+		{"id":"p03","type":"text","text":"## P03 · 共享传感器｜待实施\n前置：P02。\n统一相机、雷达、编码器和 IMU 适配。\n补帧身份、源时间 / 接收时间及后轴坐标。\n验收：乱序、旧帧、重连、过期与唯一相机采集者。","x":30,"y":1720,"width":620,"height":210,"color":"1"},
+		{"id":"p06","type":"text","text":"## P06 · 安全与控制权｜待实施\n前置：P03 + P05。\n会话 / 租期、唯一写入者、扫描约束、手动请求。\n统一撤权、切模式、断流与故障停车。\n验收：中位已发与实测停稳分开记录。","x":1190,"y":2040,"width":620,"height":210,"color":"1"},
+		{"id":"p10","type":"text","text":"## P10 · 统一部署与验收｜最后接线\n前置：P04 + P06 + P07 + P08；P09 不阻塞。\n统一 bringup、设备/时钟/TF、资源检查及回退。\n**先 ROS / 无动力，再另行授权低速实车验收。**\n完成标志：全链路能运行，故障可定位和停车。","x":720,"y":2680,"width":660,"height":200,"color":"1"},
+		{"id":"sources","type":"text","text":"## 查看依据 / 更新位置\n[[合仓进度说明]]：快照、完整 SHA 与状态口径。\n[[合仓功能PR拆分]]：P01–P10 验收与依赖。\n[[整项目合仓冲突清单]]：剩余冲突与验证证据。\n[[项目时间线]]：历史与已完成事项。\n[GitHub PR 列表](https://github.com/FZU-ZCC-ADS-Lab/RaceCar_Main/pulls)","x":1080,"y":3000,"width":1020,"height":270,"color":"5"},
+		{"id":"p07","type":"text","text":"## P07 · MAP_ROUTE｜待主线协作\n前置：P03 + P06。\n接实际全局地图、定位、航点与路径跟踪。\n具体实现与主线负责人协作，BEV 无航点输入。\n验收：定位失效、取消、目标回执与到达边界。","x":290,"y":2360,"width":620,"height":210,"color":"1"},
+		{"id":"p08","type":"text","text":"## P08 · 记录与回放｜待实施\n前置：P04 + P06。\n关联 Journal、模型/参数、BEV 主图与 near。\n贯通请求 → 安全修改 → PWM → 实测速度。\n验收：身份可追溯；人工掉头事件保留。","x":1190,"y":2360,"width":620,"height":210,"color":"1"},
+		{"id":"reading","type":"text","text":"## 怎样读这张图\n上方：main 已有基础与两个旁侧 PR。\n下方：P01 → P02 → 并行迁入 → 统一部署。\n箭头展示主要依赖；每张卡列出完整前置。\n省略跨层传递线，P09 独立支线不阻塞部署。\n**这是固定时间的进度快照，不会自动跟随 GitHub 更新。**","x":0,"y":3000,"width":1000,"height":270,"color":"5"},
+		{"id":"p05","type":"text","text":"## P05 · 底盘执行内核｜待实施\n前置：P02；先用假输出端验证。\n唯一速度环、转向映射和显式停车状态。\n补参数注入、无效 dt、零目标与退出中位边界。\n验收：停车路径主动发中位，执行速度环仅一次。","x":740,"y":1720,"width":620,"height":210,"color":"1"},
+		{"id":"p09","type":"text","text":"## P09 · 研究工具｜待实施\n前置：P02；可与 P03 / P05 并行。\n接离线评估、标定、仿真及固定来源调用。\nP01 的测试辅助不等于研究工具已经接入。\n**此支线不阻塞 P10；训练继续在来源维护。**","x":1450,"y":1720,"width":620,"height":210,"color":"1"},
+		{"id":"p04","type":"text","text":"## P04 · BEV 驾驶适配｜待实施\n前置：P03。\n把已有算法接成 BEV 证据、双图和物理请求。\n保留 v2 / v2.5 / 白点修复回归，不直接发 PWM。\n验收：主图、near、标量、动作逐拍对照来源。","x":290,"y":2040,"width":620,"height":210,"color":"1"},
+		{"id":"overview","type":"text","text":"# 合仓进度｜Auto_Car → RaceCar_Main\n**2026-10-22 14:31（UTC+8）读回 · main：83393ff**\n仓库骨架、BEV 接口设计和首圈离线观察已合并；纯算法包 P01 已交付待审。\n**十项功能批次：0/10 已合并 · 1/10 已提 PR · 9/10 尚未交付。**\n这是批次数量，不是工时或驾驶性能百分比；整合仓库 ROS / 实车完整链尚未验收。\n绿色＝已合并　蓝色＝已交付待审　黄色＝下一步　橙色＝后续计划　红色＝已知问题","x":0,"y":0,"width":2100,"height":240,"color":"5"},
+		{"id":"foundation","type":"text","text":"## 仓库与协作基础｜已合并\nPR #1–#4：目录骨架、责任登记、中文说明、PR 模板和静态检查。\n人员归属仍以本人确认为准。","x":30,"y":380,"width":590,"height":150,"color":"4"},
+		{"id":"bev_contract","type":"text","text":"## BEV 接口设计｜已合并 #6\n主图/近场输入、模式边界与接入要求。\n14 项接口提案；运行算法与实际接线另行迁入。\n[查看 PR #6](https://github.com/FZU-ZCC-ADS-Lab/RaceCar_Main/pull/6)","x":30,"y":560,"width":590,"height":150,"color":"4"},
+		{"id":"observer","type":"text","text":"## 首圈离线观察｜已合并 #7\n任务状态、事件日志、合成演示与回放已有代码。\n114 项测试 + 30 子检查是该基线证据。\n真实定位、导航、ROS 和底盘尚未接通。\n[查看 PR #7](https://github.com/FZU-ZCC-ADS-Lab/RaceCar_Main/pull/7)","x":30,"y":740,"width":590,"height":190,"color":"4"},
+		{"id":"docs9","type":"text","text":"## 文档与交付材料｜待审 #9\n来源完整 SHA、盘点与引用说明。\n模型 / 参数 / 标定获取位置。\n正常零目标 → 中位 1540；制动单独说明。\n**CI 成功 · 7b1628c · 未合并**\n[查看 PR #9](https://github.com/FZU-ZCC-ADS-Lab/RaceCar_Main/pull/9)","x":740,"y":380,"width":630,"height":240,"color":"5"},
+		{"id":"fix8","type":"text","text":"## 任务与日志修复｜待审 #8\n结果、检查点、日志一致性及门禁修订。\n**已知 P2：合法 YAML 合并键被拒绝。**\nCI 成功；该反例仍需修复后复核。\n**ca81d40 · 未合并**\n[查看 PR #8](https://github.com/FZU-ZCC-ADS-Lab/RaceCar_Main/pull/8)","x":1410,"y":380,"width":660,"height":240,"color":"1"},
+		{"id":"evidence","type":"text","text":"## 已验证到哪一层？\nP01 候选：GCP 完整 **223 项 + 30 子检查**通过，GitHub 三项 CI 成功。\nP01 + #8 + #9 临时组合：**244 项 + 46 子检查**通过；无文本冲突。\n组合快照没有实际合并，也未覆盖上述 YAML 反例修复。\n**现有 Auto_Car 上车能力已有独立记录；本图只统计迁入整合仓库的进度。**\n当前主线能力：离线任务观察。ROS 接线、统一执行出口与完整实车链待验收。","x":740,"y":660,"width":1330,"height":270,"color":"5"}
+	],
+	"edges":[
+		{"id":"0000000000000001","fromNode":"p01","fromSide":"bottom","toNode":"p02","toSide":"top","color":"1","label":"基础包先审合"},
+		{"id":"0000000000000002","fromNode":"p02","fromSide":"left","toNode":"p03","toSide":"right","color":"1","label":"可并行"},
+		{"id":"0000000000000003","fromNode":"p02","fromSide":"bottom","toNode":"p05","toSide":"top","color":"1","label":"可并行"},
+		{"id":"0000000000000004","fromNode":"p02","fromSide":"right","toNode":"p09","toSide":"left","color":"1","label":"研究支线"},
+		{"id":"0000000000000005","fromNode":"p03","fromSide":"bottom","toNode":"p04","toSide":"top","color":"1","label":"传感器输入"},
+		{"id":"0000000000000006","fromNode":"p03","fromSide":"right","toNode":"p06","toSide":"left","color":"1","label":"时效与身份"},
+		{"id":"0000000000000007","fromNode":"p05","fromSide":"right","toNode":"p06","toSide":"left","color":"2","label":"执行内核"},
+		{"id":"0000000000000008","fromNode":"p06","fromSide":"left","toNode":"p07","toSide":"right","color":"1","label":"安全授权"},
+		{"id":"0000000000000009","fromNode":"p04","fromSide":"right","toNode":"p08","toSide":"left","color":"1","label":"BEV / 动作"},
+		{"id":"000000000000000a","fromNode":"p06","fromSide":"bottom","toNode":"p08","toSide":"top","color":"2","label":"安全 / 执行"},
+		{"id":"000000000000000b","fromNode":"p07","fromSide":"right","toNode":"p10","toSide":"left","color":"1","label":"地图导航"},
+		{"id":"000000000000000c","fromNode":"p08","fromSide":"left","toNode":"p10","toSide":"right","color":"2","label":"留证与回放"}
+	]
+}
