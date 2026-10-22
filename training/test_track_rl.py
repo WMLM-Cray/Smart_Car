@@ -50,4 +50,5 @@ def test_l5g_outer_gaps_wider_than_l5s():
     from simulation.fastsim.road import LEVELS
     lv = {l.name: l for l in LEVELS}
     assert lv['L5g'].outer_spacing[0] > lv['L5s'].outer_spacing[1]
-    assert [l.name for l in LEVELS][-1] == 'L5g'         # 追加在末尾,老关卡逐位不变
+    names = [l.name for l in LEVELS]
+    assert names.index('L5g') > names.index('LWT3c')     # 追加在老关卡之后,老关卡逐位不变

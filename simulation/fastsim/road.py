@@ -187,6 +187,11 @@ LEVELS = (
     # 弯外侧大空档的闭环锥桶赛道:实车 A 赛道原始布局外圈弯顶空档 2.16 m(maps/realA_1020.yaml,10-21),
     # L5s 弯外侧最多 1.5 m。追加在末尾,老关卡逐位不变。
     Level('L5g', loop=True, straight_spacing=(1.1, 1.5), outer_spacing=(1.6, 2.4)),
+    # 窄口袋弯:LWT3b/c 的 0.9-1.3 m 版。c027 在 0.9-1.2 m 宽的口袋弯只过 ~63%(1.2 m 以上 90%+,10-22),
+    # 原关卡按 0.9-2.0 均匀抽、再被可通性拒绝采样筛掉一部分,窄的偏少。追加在末尾,老关卡逐位不变。
+    *[Level(name, width=(0.9, 1.3), angles=(90.0,), sharp_chance=1.0, jog_chance=0.3, n_elems=(3, 5),
+            straight=(1.0, 3.0), wall_chance=1.0, pocket_chance=0.7, pocket_depth=d, cone_free=True)
+      for name, d in (('LWT3bn', (0.7, 1.4)), ('LWT3cn', (1.4, 2.5)))],
 )
 
 

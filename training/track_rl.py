@@ -47,13 +47,16 @@ FAIL = ('off_track', 'guard', 'collision', 'stall')
 
 
 def hard_corners(road, s_min, s_max):
-    """难弯的起点弧长:中心线 1.5 m 内转过 HARD_TURN 的位置;前面 MERGE_M 内已经在转的算同一个弯,只取开头。限在 [s_min, s_max]。"""
+    """难弯的起点弧长:中心线 1.5 m 内转过 HARD_TURN 的位置;前面 MERGE_M 内已经在同向转的算同一个弯,只取开头。限在 [s_min, s_max]。"""
     h = np.unwrap(road.heading)
     ds = float(np.median(np.diff(road.s)))
     k = max(1, int(round(1.5 / ds)))
-    on = np.abs(h[k:] - h[:-k]) > HARD_TURN
-    idx = np.where(on)[0]
-    starts = [i for n, i in enumerate(idx) if n == 0 or road.s[i] - road.s[idx[n - 1]] > MERGE_M]
+    dh = h[k:] - h[:-k]
+    idx = np.where(np.abs(dh) > HARD_TURN)[0]
+    sg = np.sign(dh[idx])
+    # 隔得远,或者转向反了(S 弯、口袋弯的连续直角)就算新的弯
+    starts = [i for n, i in enumerate(idx)
+              if n == 0 or road.s[i] - road.s[idx[n - 1]] > MERGE_M or sg[n] != sg[n - 1]]
     return [float(road.s[i]) for i in starts if s_min <= road.s[i] <= s_max]
 
 
@@ -70,11 +73,12 @@ class TrackEnv:
         self.why = None
         self.handed = 0.0
         if hard_start:
+            hand = HAND_BEFORE if hard_start is True else float(hard_start)     # 数字 = 弯前多少 m 交接
             s0 = float(road.s[self.env.idx])
-            cs = hard_corners(road, s0 + HAND_BEFORE + 2.0, s0 + 30.0)
+            cs = hard_corners(road, s0 + hand + 2.0, s0 + 30.0)
             if cs:
-                target = cs[np.random.default_rng(seed + 29).integers(len(cs))] - HAND_BEFORE
-                teacher = SeenTeacher(self.b, P, A_LAT)
+                target = cs[np.random.default_rng(seed + 29).integers(len(cs))] - hand
+                teacher = SeenTeacher(self.b, P, A_LAT, guard_aware=True)       # 交接前别被截停
                 while self.why is None and road.s[self.env.idx] < target:
                     self.why = self.b.step(teacher())       # 建图在 step 里;不裁图,省时间
                 self.handed = float(road.s[self.env.idx] - s0)
@@ -306,7 +310,7 @@ def train(a):
             w = params_of(actor)
             ls_np = log_std.detach().cpu().numpy().copy()
             jobs = [(TRAIN_SEED0 + int(rng.integers(10**7)), int(rng.integers(2**31)), w, ls_np, enc,
-                     names[rng.choice(len(names), p=probs)], cap_of(), bool(rng.random() < a.hard_frac))
+                     names[rng.choice(len(names), p=probs)], cap_of(), a.hand_before if rng.random() < a.hard_frac else 0.0)
                     for _ in range(a.episodes)]
             eps = [e for e in ex.map(rollout, jobs) if e is not None]
             t_roll = time.time() - t0
@@ -404,6 +408,7 @@ def main():
     ap.add_argument('--episodes', type=int, default=64, help='每轮局数')
     ap.add_argument('--mix', default=MIX)
     ap.add_argument('--hard-frac', type=float, default=0.5, help='老师先开到难弯前再交给策略的局的比例')
+    ap.add_argument('--hand-before', type=float, default=HAND_BEFORE, help='难弯前多少 m 交给策略')
     ap.add_argument('--workers', type=int, default=7)
     ap.add_argument('--torch-threads', type=int, default=4)
     ap.add_argument('--device', default='cpu')
