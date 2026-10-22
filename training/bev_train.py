@@ -46,7 +46,7 @@ def run_episode(seed, level, weights=None, beta=0.0, collect=False, enc=None, a_
         pl = replace(pl, lag=int(np.random.default_rng(seed + 17).integers(0, lag_max + 1)))
     benv = BevEnv(road, pl, seed, start, noise=True, free=free, seg_period=seg[0], seg_lag=seg[1], aug=aug,
                   yolo=yolo, guard=guard, seg_lut=seg_lut, seg_fill=seg_fill, near=near, no_seg=no_seg)
-    teacher = SeenTeacher(benv, P, a_lat, guard_aware=teacher_guard)
+    teacher = SeenTeacher(benv, P, a_lat, guard_aware=bool(teacher_guard), steady=teacher_guard == 'steady')
     rng = np.random.default_rng(seed + 1)
     imgs, near_imgs, scs, ys, imgs2, near_imgs2 = [], [], [], [], [], []
     why, n = None, 0
@@ -197,8 +197,9 @@ def main():
     ap.add_argument('--no-yolo', action='store_true',
                     help='锥桶/胶带/区域层恒空(车上没跑 YOLO);路上的锥桶照样在,雷达照样扫得到。采集和每轮评估都这样')
     ap.add_argument('--no-seg', action='store_true', help='纯雷达:不跑地面分割,FREE 通道恒空(采集和评估都这样;10-22 加)')
-    ap.add_argument('--teacher-guard', action='store_true',
-                    help='配 --guard:老师按车上截停规则限速 / 刹车(SeenTeacher guard_aware;10-21 加)')
+    ap.add_argument('--teacher-guard', nargs='?', const='on', default=None, choices=['on', 'steady'],
+                    help='配 --guard:老师按车上截停规则限速 / 刹车(SeenTeacher guard_aware;10-21 加);'
+                         '=steady 用自洽限速,不来回刹(10-22 加)')
     ap.add_argument('--guard', action='store_true',
                     help='按车上的截停规则(扫车身矩形、保险杠前 < 0.25 m)判失败,采集和每轮评估都这样')
     ap.add_argument('--seg-lut', action='store_true',
