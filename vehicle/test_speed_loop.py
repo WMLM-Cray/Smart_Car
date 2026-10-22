@@ -510,3 +510,28 @@ def test_staircase_also_restarts_a_car_that_stalls_mid_run():
     plant.stall, plant.brk = Plant.TRUE_STALL, 1598
     trace = run(loop, plant, 0.7, 6)
     assert max(v for _, v in trace) > 0.5
+
+
+def test_brake_while_rolling_resumes_previous_throttle():
+    """策略刹一拍、车还在滚:松刹后接回刹车前的油门,不从起步点按 up_rate 重爬(10-22 实车每刹一次掉 0.5~0.7 m/s)。"""
+    loop = SpeedLoop(SpeedLoopConfig(launch_from=1593, up_rate=30.0, pwm_max=1640))
+    for _ in range(80):                           # 跑起来:车速低于目标,PWM 爬上去
+        before = loop.update(1.5, 1.0, 0.1)
+    assert before > 1610
+    loop.brake()
+    loop.brake()                                  # 连刹两拍,记的还是第一拍之前的
+    after = loop.update(1.5, 1.0, 0.1)
+    assert after >= before - 1.0
+
+
+def test_brake_to_standstill_relaunches_normally():
+    """刹停了(编码器 0)就丢掉记忆,走正常起步;回中位(目标 0)也丢掉。"""
+    cfg = SpeedLoopConfig(launch_from=1593, up_rate=30.0, pwm_max=1640)
+    loop = SpeedLoop(cfg)
+    loop.stalled, loop.launching, loop.last_pwm = False, False, 1630.0
+    loop.brake()
+    assert loop.update(1.5, 0.0, 0.1) == cfg.launch_from
+    loop.stalled, loop.launching, loop.last_pwm = False, False, 1630.0
+    loop.brake()
+    assert loop.update(0.0, 1.2, 0.1) == cfg.pwm_mid
+    assert loop.update(1.5, 1.2, 0.1) < 1600

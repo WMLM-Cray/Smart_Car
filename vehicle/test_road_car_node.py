@@ -310,3 +310,16 @@ def test_pwm_ceiling_follows_web_mode():
     ctl2 = ready(cap=1.2)                                     # --speed-cap 1.2 时网页给 2.5 也放不开
     ctl2.set_speed_cap(2.5)
     assert ctl2.loop.cfg.pwm_max == PWM_HARD_MAX
+
+def test_dead_band_contract_forward_after_brake_while_rolling_keeps_throttle():
+    """刹一拍车还在滚:松刹第一拍接回刹车前的油门,不掉回起步跳点(10-22 实车锯齿)。"""
+    pol = DeadPolicy((0.0, 1.0))
+    ctl = ready(pol)
+    t, pwm = 10.1, None
+    for k in range(20):                            # 车速低于目标,PWM 往上爬
+        pwm = drive(ctl, t + 0.1 * k, 0.4)[0]
+    assert pwm > LAUNCH_FROM + 5
+    pol.action = np.asarray((0.0, -1.0), np.float32)
+    assert drive(ctl, t + 2.0, 1.2)[0] == P.brake_pwm
+    pol.action = np.asarray((0.0, 1.0), np.float32)
+    assert drive(ctl, t + 2.1, 0.5)[0] >= pwm - 2

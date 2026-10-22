@@ -164,7 +164,19 @@ class SpeedLoop:
         self.reached = False        # 本轮有没有跑到过目标附近(自标定的武装条件)
         self.launching = True       # 还没确认起步(没学破静点)
         self.moving_n = 0           # 连续几拍在动
+        self._resume = None         # brake() 记下的刹车前油门状态
         self._clear_steps()
+
+    def brake(self):
+        """策略刹车这一拍:同 reset 清状态,但记下刹车前的油门(PWM、积分)。松刹时车还在动,update 就从这里接着走,
+        不从起步点按 up_rate 重爬 —— 原来每次 0.1 s 的刹车之后要爬 1 s 多才回到 1620~1640,这段贴着维持点,
+        车一路掉到平台 0.6~0.7(2026-10-22 实车 MAD MAX:每次刹车 0.7 s 内掉 0.5~0.7 m/s,直道弯里都在锯齿)。
+        连续几拍刹车记的是第一拍之前的。"""
+        snap = self._resume
+        if snap is None and not self.stalled and self.last_pwm > self.cfg.pwm_mid:
+            snap = (self.last_pwm, self.integral, self.launching, self.reached)
+        self.reset()
+        self._resume = snap
 
     def _clear_steps(self):
         self.step_pwm = None        # 阶梯起步当前台阶
@@ -228,6 +240,11 @@ class SpeedLoop:
         if target <= 0:
             self.reset()
             return float(c.pwm_mid)
+        if self._resume is not None:
+            snap, self._resume = self._resume, None
+            if measured >= c.stall_speed:           # 刹完还在滚:接回刹车前的油门(刹停了就走正常起步)
+                self.last_pwm, self.integral, self.launching, self.reached = snap
+                self.stalled = False
 
         # 起步爬升:输出还在 pwm_floor 以下时,只许连续往上爬,不许一步跳到
         # breakaway。原来这里是 max(pwm_breakaway, last_pwm),从中位直接跳 54 个
