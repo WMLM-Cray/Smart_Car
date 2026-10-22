@@ -42,7 +42,7 @@ class BevEnv:
 
     def __init__(self, road, pl, seed, start=(0, 0.0, 0.0), noise=True, robust=False,
                  yolo_period=YOLO_PERIOD, free=False, seg_period=SEG_PERIOD, seg_lag=0.0, aug=(0.0, 0.0),
-                 yolo=True, guard=False, seg_lut=False, seg_fill=False, world=None, near=False):
+                 yolo=True, guard=False, seg_lut=False, seg_fill=False, world=None, near=False, no_seg=False):
         # world(RealMap):在车上建的实景地图里开,road 不用,start = (x, y, yaw);没有 YOLO,地面分割按车上的投影 + 补缝
         if world is None:
             self.env = RoadEnv(road, pl, seed, start, noise=noise, robust=robust)
@@ -72,6 +72,8 @@ class BevEnv:
         if world is not None and free:
             from simulation.fastsim.real_map_env import MapFloorSeg
             self.seg = MapFloorSeg(world, seed=seed + 11)
+        if no_seg:                 # 纯雷达(10-22):不跑地面分割,FREE 层永远空,通道照留(和 bev_v2.5 网络兼容)
+            self.seg = None
         self.seg_period, self.seg_lag, self.next_seg = seg_period, seg_lag, 0.0
         self.seg_queue = []                                               # (到达时刻, 拍摄位姿, 点)
         self.seg_hooks = []                                               # 已送到 BEV 的帧:pose, xy, stamp
