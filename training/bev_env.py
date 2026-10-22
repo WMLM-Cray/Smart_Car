@@ -245,9 +245,8 @@ class SeenTeacher(Teacher):
     def _steady(self, a, P):
         """guard_aware 的修正版(2026-10-22,实车 MAD MAX 弯里直道都来回刹)。原版把路线上后面各点的曲率当转角,
         从**车现在的位姿**画圆弧扫:老师正打 +20° 绕桶时,"按路线前面的 0° 从现在直着开"0.6 m 就撞到正在绕开的桶 ->
-        刹,弯里几乎每拍都这样(L5g 每 100 m 70~100 次)。这里改成:当前转角的圆弧(车上截停真正扫的)+ 车身矩形
-        沿计划路线本身扫到的第一个雷达点,取近的;目标车速取自洽的最大 v(v <= v_ok(v),lead 随 v 变),
-        只有车速已经超过 v_ok(当前车速)才刹。"""
+        刹,弯里几乎每拍都这样(L5g 每 100 m 70~100 次)。这里改成在路线上的未来位姿按那里的转角模拟截停(见下),
+        目标车速走滑行曲线、刹车走刹车曲线,两者同源;另外目标车速不高于基础老师的 v_coast。"""
         from common.pwm import action_to_steer
         from common.road_policy import BRAKE_CMD, speed_to_action
         env, car, pl = self.env, self.env.car, self.pl
