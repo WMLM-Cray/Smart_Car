@@ -43,6 +43,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 PWM_HARD_MAX = 1620     # 和 steer_policy_node.py 同一个硬上限,别单独放宽
+# 策略 MAD MAX 档(网页限速 > 1.2)才放到这里,= 网页手动 MAD MAX 的上限(2026-10-22 用户定:1640 实测 ~2.2 m/s)。
+# 默认 pwm_max 仍是 PWM_HARD_MAX,只有 road_car_node 按网页档位切换。
+PWM_FAST_MAX = 1640
 
 
 @dataclass
@@ -127,8 +130,8 @@ class SpeedLoopConfig:
                 f'要满足 pwm_mid < pwm_floor <= pwm_breakaway <= pwm_max,'
                 f'给的是 {self.pwm_mid}/{self.pwm_floor}/'
                 f'{self.pwm_breakaway}/{self.pwm_max}')
-        if self.pwm_max > PWM_HARD_MAX:
-            raise ValueError(f'pwm_max 不能超过硬上限 {PWM_HARD_MAX}')
+        if self.pwm_max > PWM_FAST_MAX:
+            raise ValueError(f'pwm_max 不能超过硬上限 {PWM_FAST_MAX}')
         if not 10.0 <= self.up_rate <= 40.0:
             raise ValueError(
                 f'up_rate {self.up_rate} 超出实测可用区间 [10, 40] PWM/s:'

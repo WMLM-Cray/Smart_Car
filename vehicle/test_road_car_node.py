@@ -12,7 +12,7 @@ from simulation.fastsim.road_env import Plant, RoadEnv
 from vehicle import road_car_node
 from vehicle.road_car_node import AVOID_CLEAR, GUARD_STOP, LAUNCH_FROM, STUCK_SECONDS, RoadCarController, guard_speed, guard_stop
 from vehicle.scan_guard import BUMPER_AHEAD, LIDAR_X
-from vehicle.speed_loop import PWM_HARD_MAX
+from vehicle.speed_loop import PWM_FAST_MAX, PWM_HARD_MAX
 
 MODEL = 'models/road_v2/candidate_167.npz'
 P = CarParams()
@@ -297,3 +297,16 @@ def test_guard_speed_inverts_guard_stop():
     for v in (0.8, 1.2, 1.8, 2.5):
         assert guard_speed(guard_stop(v, p), p) == pytest.approx(v)
     assert guard_speed(GUARD_STOP - 0.01, p) == 0.0 and guard_speed(GUARD_STOP, p) == pytest.approx(p.guard_base_speed)
+
+
+def test_pwm_ceiling_follows_web_mode():
+    """MAD MAX(限速 > 1.2)才放到 1640;切回 Roaming / Sloth 立刻回到 1620。"""
+    ctl = ready(cap=2.5)
+    assert ctl.loop.cfg.pwm_max == PWM_HARD_MAX                # 开机限速 min(0.7, 2.5)
+    ctl.set_speed_cap(2.5)
+    assert ctl.loop.cfg.pwm_max == PWM_FAST_MAX
+    ctl.set_speed_cap(1.2)
+    assert ctl.loop.cfg.pwm_max == PWM_HARD_MAX
+    ctl2 = ready(cap=1.2)                                     # --speed-cap 1.2 时网页给 2.5 也放不开
+    ctl2.set_speed_cap(2.5)
+    assert ctl2.loop.cfg.pwm_max == PWM_HARD_MAX

@@ -7,7 +7,7 @@
   /policy_enable 是心跳(0.3s),松手立刻发中位;雷达/编码器/IMU 任一过期回中位;
   沿当前转角扫掠路径的防撞截停(0.7 m/s 以下 0.25m,更快按车速放大,见 guard_stop)+ 连续截停 3s 报卡死;
   限速跟网页模式走(/policy_speed_cap,Sloth/Roaming/MAD MAX),不超过 --speed-cap;
-  SpeedLoop 编码器闭环出 PWM(爬升 20 PWM/s、硬上限 1620);SIGINT/SIGTERM 时连发中位。
+  SpeedLoop 编码器闭环出 PWM(爬升 40 PWM/s;硬上限 1620,网页 MAD MAX 档 1640);SIGINT/SIGTERM 时连发中位。
 模型给的目标速度每拍都在变(0.45 ~ 速度上限)。SpeedLoop 的 floor 自标定按"当前目标"判塌速,
 目标往下调(弯前减速)不会被当成塌速。按变化目标跟随的表现还没在车上测过,先架空再低速落地。
 
@@ -39,7 +39,9 @@ from common.bev_runtime import BevRuntime
 from common.road_policy import V_LO, RoadPolicy
 from common.road_runtime import STOP, RoadRuntime
 from vehicle.scan_guard import ScanGuard
-from vehicle.speed_loop import SpeedLoop, SpeedLoopConfig
+from dataclasses import replace
+
+from vehicle.speed_loop import PWM_FAST_MAX, PWM_HARD_MAX, SpeedLoop, SpeedLoopConfig
 
 CMD_TOPIC = '/teleop_cmd_vel'
 ENC_TOPIC = '/encoder'
@@ -81,6 +83,8 @@ AVOID_KEEP = 0.05           # 上一拍往哪边绕,这一拍同侧候选少算�
 # 电调)会锁成低位,整条曲线下移 ~40(09-30:破静 1552,1575 已是 ~0.8 m/s),那时跳到 1593 等于直接
 # ~1.5 m/s 冲出去。09-29 就是这么撤回的跳点。操作规程:车上服务起来、持续发 1540 之后再开电调。
 LAUNCH_FROM = 1593
+UP_RATE = 40.0              # 车在动时往上爬的速率 PWM/s;2026-10-22 用户嫌 20 保守,改成和网页手动 FWD_SLEW 一样
+FAST_CAP = 1.2              # 网页限速超过它(MAD MAX)才把 PWM 上限放到 PWM_FAST_MAX
 # bev 模型开车时记全局地图(vehicle/bev_logbook.py,和影子模式同一份):一次放行开一段,
 # 松手超过 SEG_GAP 才收尾存盘(网页松手/手机抖的短暂断开接着记;搬车回起点总要几秒)。
 SEG_GAP = 5.0
@@ -100,7 +104,7 @@ class RoadCarController:
         self.release_t = None
         rt = BevRuntime if isinstance(policy, BevPolicy) else RoadRuntime
         self.rt = rt(policy, min(self.p.policy_mode_caps[0], self.cap_max), SENSOR_TIMEOUT, ENABLE_TIMEOUT, self.p)
-        self.loop = loop or SpeedLoop(SpeedLoopConfig(launch_from=LAUNCH_FROM))
+        self.loop = loop or SpeedLoop(SpeedLoopConfig(launch_from=LAUNCH_FROM, up_rate=UP_RATE))
         self.guard = guard or ScanGuard()
         self.block_t = None         # 连续截停的起点
         self.seg_saved = None
@@ -127,6 +131,9 @@ class RoadCarController:
     def set_speed_cap(self, cap):
         """网页模式给的限速;夹在模型训练下限和 --speed-cap 之间。返回实际用的值。"""
         self.rt.speed_cap = min(max(float(cap), self.rt.enc.v_lo), self.cap_max)
+        top = PWM_FAST_MAX if self.rt.speed_cap > FAST_CAP else PWM_HARD_MAX
+        if self.loop.cfg.pwm_max != top:
+            self.loop.cfg = replace(self.loop.cfg, pwm_max=top)
         return self.rt.speed_cap
 
     def on_encoder(self, speed, now):
