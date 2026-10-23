@@ -295,7 +295,7 @@ class SeenTeacher(Teacher):
         """计划路线上每 step m 一个点(第 0 个是车现在、转角 steer_now):在那里按路线曲率的转角做一次截停检查
         (这一帧前方雷达点,ScanGuard 同款车身扫掠),返回 (离现在的路程, 那里允许的最高车速)。"""
         from vehicle.road_car_node import guard_speed
-        from vehicle.scan_guard import FRONT_HALF_ANGLE, LIDAR_X, ScanGuard
+        from vehicle.scan_guard import ESCAPE_WINDOW, FRONT_HALF_ANGLE, LIDAR_X, ScanGuard
         g = self.benv.guard
         if not g.points:
             return np.zeros(0), np.zeros(0)
@@ -306,7 +306,13 @@ class SeenTeacher(Teacher):
         s0 = P.s[self.j]
         ks = np.searchsorted(P.s, s0 + np.arange(step, look, step))
         ks = ks[ks < len(P.s) - 1]
-        out_d, out_u = [0.0], [guard_speed(g._clear(steer_now) - GUARD_MARGIN, cp)]
+        # 截停带逃生转角(benv guard='escape')时,一处的净空 = 转角左右 ±ESCAPE_WINDOW 里最好的那个(粗取 5 个)
+        offs = np.linspace(-ESCAPE_WINDOW, ESCAPE_WINDOW, 5) if self.benv.guard_escape else np.zeros(1)
+
+        def clear(gd, st):
+            return max(gd._clear(st + o) for o in offs if abs(st + o) <= cp.max_steer or o == 0)
+
+        out_d, out_u = [0.0], [guard_speed(clear(g, steer_now) - GUARD_MARGIN, cp)]
         probe = ScanGuard()
         for k in ks:
             dx, dy = P.pts[k + 1] - P.pts[k - 1] if k > 0 else P.pts[1] - P.pts[0]
@@ -317,7 +323,7 @@ class SeenTeacher(Teacher):
             keep = (bx > 0) & (np.abs(np.arctan2(by, bx - LIDAR_X)) <= FRONT_HALF_ANGLE)
             probe.points = list(zip(bx[keep], by[keep]))
             out_d.append(float(P.s[k] - s0))
-            out_u.append(guard_speed(probe._clear(math.atan(cp.wheelbase * P.kappa[k])) - GUARD_MARGIN, cp))
+            out_u.append(guard_speed(clear(probe, math.atan(cp.wheelbase * P.kappa[k])) - GUARD_MARGIN, cp))
         return np.array(out_d), np.array(out_u)
 
     def known_ahead(self, i):

@@ -205,6 +205,8 @@ def main():
                          '=steady 用自洽限速,不来回刹(10-22 加)')
     ap.add_argument('--guard', action='store_true',
                     help='按车上的截停规则(扫车身矩形、保险杠前 < 0.25 m)判失败,采集和每轮评估都这样')
+    ap.add_argument('--guard-escape', action='store_true',
+                    help="配 --guard:截停先找逃生转角(BevEnv guard='escape',ScanGuard.escape),steady 老师按同样规则限速;采集和评估都这样(10-23 加)")
     ap.add_argument('--seg-lut', action='store_true',
                     help='假地面分割按车上的像素投影出点(72x96 像素中心,远处条纹;一半帧只到 2 m),采集和评估都这样')
     ap.add_argument('--seg-fill', action='store_true', help='配 --seg-lut:补行间的缝(车上 ground_seg_node --fill)')
@@ -250,6 +252,7 @@ def main():
     pair = a.consist > 0
     if pair and tuple(a.aug) == (0.0, 0.0):
         raise SystemExit('--consist 要配 --aug(两张图一样,一致性损失恒为 0)')
+    guard = ('escape' if a.guard_escape else True) if a.guard else False
     replay = Replay(a.replay, c_in, pair, near, a.replay_disk)
     brng = np.random.default_rng(a.seed + 1)
     wy = torch.tensor([1.0, 0.5], device=dev)
@@ -263,7 +266,7 @@ def main():
                 seg = (float(rng.uniform(*a.seg_period)), float(rng.uniform(*a.seg_lag)))
                 jobs.append((seed, mix[int(rng.choice(len(mix), p=probs))][0], wts, beta, True, enc,
                              a.a_lat, a.cap_max, free, seg, (a.aug[0], math.radians(a.aug[1])), pair, a.lag_max,
-                             not a.no_yolo, a.guard, a.seg_lut, a.seg_fill, a.cap_min, near, a.teacher_guard, a.no_seg))
+                             not a.no_yolo, guard, a.seg_lut, a.seg_fill, a.cap_min, near, a.teacher_guard, a.no_seg))
                 seed += 1
             t0 = time.time()
             got = [g for g in ex.map(_job, jobs, chunksize=2) if g is not None]
@@ -306,7 +309,7 @@ def main():
             wts = weights_of(ema)
             ev = [e for e in ex.map(_job, [(SELECT_SEED0 + i, ev_levels[i % len(ev_levels)], wts, 0.0, False,
                                              enc, a.a_lat, a.cap_max, free, tuple(a.eval_seg), (0.0, 0.0), False,
-                                             None, not a.no_yolo, a.guard, a.seg_lut, a.seg_fill, a.cap_min, near,
+                                             None, not a.no_yolo, guard, a.seg_lut, a.seg_fill, a.cap_min, near,
                                              False, a.no_seg)
                                             for i in range(a.eval_count)],
                                     chunksize=2) if e is not None]
