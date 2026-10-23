@@ -323,3 +323,40 @@ def test_dead_band_contract_forward_after_brake_while_rolling_keeps_throttle():
     assert drive(ctl, t + 2.0, 1.2)[0] == P.brake_pwm
     pol.action = np.asarray((0.0, 1.0), np.float32)
     assert drive(ctl, t + 2.1, 0.5)[0] >= pwm - 2
+
+
+def _cone_ahead(x, y, r=0.07):
+    """雷达系 (x, y) 处一个半径 r 的桶,其余方向 5 m 外空。"""
+    ranges = np.full(N, 5.0)
+    ang = -math.pi + np.arange(N) * INC
+    a0, d = math.atan2(y, x), math.hypot(x, y)
+    ranges[np.abs(((ang - a0) + math.pi) % (2 * math.pi) - math.pi) < r / d] = d - r
+    return ranges
+
+
+def test_guard_escape_nudges_steer_instead_of_braking():
+    """1.8 m/s,1.6 m 外桶偏在直行路径边上:原规则截停刹车;--guard-escape 微调转角照常开,不刹。"""
+    scan = _cone_ahead(1.6, 0.15)
+    for escape in (False, True):
+        ctl = RoadCarController(FakePolicy(action=(0.0, 1.0)), 1.8, escape=escape)
+        ctl.on_scan(FakeScan(scan), 10.0)
+        ctl.on_encoder(0.0, 10.0); ctl.on_imu(0.0, 10.0); ctl.on_enable(True, 10.0)
+        feed(ctl, 10.05, 1.8)
+        pwm, servo = ctl.tick(10.05)
+        if escape:
+            assert ctl.event == 'escape' and pwm != P.brake_pwm
+            assert 0 < abs(ctl.steer_cmd) <= 0.15 + 1e-9
+        else:
+            assert ctl.event == 'guard' and pwm == P.brake_pwm
+
+
+def test_guard_escape_still_stops_for_a_wall():
+    """正前方 0.6 m 一堵墙:有逃生转角也躲不开,照样截停。"""
+    wall = np.full(N, 5.0)
+    ang = -math.pi + np.arange(N) * INC
+    wall[np.abs(ang) < 1.2] = BUMPER_AHEAD + 0.60
+    ctl = RoadCarController(FakePolicy(action=(0.0, 1.0)), 1.8, escape=True)
+    ctl.on_scan(FakeScan(wall), 10.0)
+    ctl.on_encoder(0.0, 10.0); ctl.on_imu(0.0, 10.0); ctl.on_enable(True, 10.0)
+    feed(ctl, 10.05, 1.2)
+    assert ctl.tick(10.05)[0] == P.brake_pwm and ctl.event == 'guard'
