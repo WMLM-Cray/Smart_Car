@@ -103,7 +103,11 @@ def sample_episode(seed: int, level: str, max_tries: int = 200, enc=DEFAULT_ENC,
     lv = next(l for l in LEVELS if l.name == level)
     rejects = collections.Counter()
     for _ in range(max_tries):
-        road = generate_loop(rng, lv) if lv.loop else generate(rng, lv)
+        if lv.real:
+            from evaluation.road_track import real_track
+            road = real_track(lv.real)[0]
+        else:
+            road = generate_loop(rng, lv) if lv.loop else generate(rng, lv)
         pl = Plant.sample(rng, enc, cap_max, cap_min)
         start = sample_start(rng, road, recovery=rng.random() < 0.5)
         ok, why, P = check(road, pl, start, a_lat)

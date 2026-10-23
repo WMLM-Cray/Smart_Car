@@ -85,6 +85,14 @@ def curvature(pts: np.ndarray, gap: int = 3) -> np.ndarray:
     return k
 
 
+def set_decel(a_dec: float | None = None, a_brk: float | None = None):
+    """改老师的计划滑行 / 刹车减速度(bev_train --teacher-dec/--teacher-brk,进程池 initializer 里调)。
+    plan()、Teacher、SeenTeacher 都在调用时读模块里的值。"""
+    global A_DEC, A_BRK
+    A_DEC = A_DEC if a_dec is None else a_dec
+    A_BRK = A_BRK if a_brk is None else a_brk
+
+
 def plan(road: Road, i0: int, d0: float, car_width: float, pl,
          horizon: float | None = None, r_min: float = R_MIN,
          a_lat: float = A_LAT, v_end: float | None = None, brake: float | None = None) -> Plan | str:

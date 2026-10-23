@@ -28,6 +28,7 @@ from common.road_policy import V_LO, Encoding, spec_of
 from simulation.fastsim.road import LEVELS
 from training.bev_env import BevEnv, SeenTeacher
 from training.road_check import sample_episode
+from training.road_teacher import set_decel
 
 TRAIN_SEED0, SELECT_SEED0 = 30_000_000, 60_000_000     # 和 road_train(10M/50M)、测试(90M+)都不重叠
 
@@ -173,6 +174,8 @@ def main():
     ap.add_argument('--v-hi', type=float, default=3.0)
     ap.add_argument('--a-lat', type=float, default=0.45)
     ap.add_argument('--cap-max', type=float, default=1.8)
+    ap.add_argument('--teacher-dec', type=float, default=None, help='老师计划滑行减速度(默认 road_teacher.A_DEC 0.45;实测 0.68~0.78)')
+    ap.add_argument('--teacher-brk', type=float, default=None, help='老师计划刹车减速度(默认 road_teacher.A_BRK 0.85;实测 1.3~1.45)')
     ap.add_argument('--cap-min', type=float, default=None, help='速度上限抽取下限(默认契约的 v_lo)')
     ap.add_argument('--contract', default=None,
                     help='完整速度契约后缀,比如 _s5_v0.45-5_d0.2_log(带停车 / 刹车死区、对数刻度);'
@@ -251,7 +254,7 @@ def main():
     brng = np.random.default_rng(a.seed + 1)
     wy = torch.tensor([1.0, 0.5], device=dev)
     seed = TRAIN_SEED0
-    with ProcessPoolExecutor(a.workers) as ex:
+    with ProcessPoolExecutor(a.workers, initializer=set_decel, initargs=(a.teacher_dec, a.teacher_brk)) as ex:
         for r in range(a.rounds):
             beta = max(0.0, a.beta0 - r / 4)
             wts = None if (r == 0 and a.init is None) else weights_of(ema)

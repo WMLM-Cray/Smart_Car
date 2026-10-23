@@ -90,6 +90,9 @@ class Level:
     # 无锥桶(v4 bev,2026-10-16):车上没有 YOLO,锥桶层永远是空的;实车走廊/大厅只有墙和地面换材质。
     # True 时每侧在 墙 / EDGE 里抽(wall_chance 是墙的概率),元素之间换的也是墙 <-> EDGE,不出锥桶
     cone_free: bool = False
+    # 实车赛道(2026-10-23):非空 = 不生成,直接用 maps/<real>.yaml 的锥桶图(evaluation.road_track.real_track),
+    # 起点 / 车辆参数照常随机
+    real: str = ''
 
 
 LEVELS = (
@@ -192,6 +195,9 @@ LEVELS = (
     *[Level(name, width=(0.9, 1.3), angles=(90.0,), sharp_chance=1.0, jog_chance=0.3, n_elems=(3, 5),
             straight=(1.0, 3.0), wall_chance=1.0, pocket_chance=0.7, pocket_depth=d, cone_free=True)
       for name, d in (('LWT3bn', (0.7, 1.4)), ('LWT3cn', (1.4, 2.5)))],
+    # 实车 A 赛道锥桶图(10-20 原始布局 / 10-23 纯雷达 8 圈录包抠的),针对训练用。追加在末尾,老关卡逐位不变。
+    Level('LRA20', real='realA_1020'),
+    Level('LRA23', real='realA_1023'),
 )
 
 

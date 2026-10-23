@@ -26,7 +26,8 @@ from common.bev_policy import bev_image, bev_images, scalars
 from simulation.fastsim.camera import FakeFloorSeg, FakeYolo
 from simulation.fastsim.road import DS, EDGE
 from simulation.fastsim.road_env import CONTROL_DT, RoadEnv
-from training.road_teacher import A_DEC, BRAKE_MARGIN, HORIZON, R_MIN, R_REPLAN, SPEED_MARGIN, Teacher, plan
+import training.road_teacher as RT
+from training.road_teacher import BRAKE_MARGIN, HORIZON, R_MIN, R_REPLAN, SPEED_MARGIN, Teacher, plan
 
 GUARD_MARGIN = 0.1             # SeenTeacher(guard_aware) 净空额外留的余量 m
 
@@ -273,11 +274,11 @@ class SeenTeacher(Teacher):
         if car.v > max(v_ok(car.v, env.cp.guard_brake_decel), self.release) + BRAKE_MARGIN:
             return np.array([a[0], speed_to_action(BRAKE_CMD, env.pl.enc)], np.float32)
         lo, hi = 0.0, max(env.pl.cap, car.v)            # v_ok 随 v 单调不增:二分找 v <= v_ok(v) 的最大 v
-        if hi <= v_ok(hi, A_DEC):
+        if hi <= v_ok(hi, RT.A_DEC):
             return a
         for _ in range(10):
             mid = (lo + hi) / 2
-            lo, hi = (mid, hi) if mid <= v_ok(mid, A_DEC) else (lo, mid)
+            lo, hi = (mid, hi) if mid <= v_ok(mid, RT.A_DEC) else (lo, mid)
         if a[1] > speed_to_action(lo, env.pl.enc):
             a = np.array([a[0], speed_to_action(lo, env.pl.enc)], np.float32)
         return a
