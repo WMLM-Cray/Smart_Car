@@ -47,6 +47,7 @@ class Plant:
     accel_up: float = 0.6           # 平台以上的加速 m/s²
     decel: float = 0.73             # 滑行减速 m/s²
     brake_decel: float = 1.9        # 高速刹车减速上限 m/s²;低速按 BRAKE_A0 + BRAKE_K·v 变小(10-23 直道实测,见 SpeedPlant)
+    v_over: float = 0.0             # 速度环超调 m/s:平台以上的目标实际跑到 目标 + v_over(10-24 加)
     relaunch_delay: float = 0.1     # 停稳后再给油,回中位直跳破静点要等的时间 s(不含 dead_time)
     dead_time: float = 0.28         # 速度环纯滞后 s
     launch_delay: float = 1.5       # 起步在死区里空等 s(sample 抽 0~0.2:2026-10-18 实车 6 段放行后 0.3 s 内车速都已到 0.4~0.5;
@@ -59,18 +60,22 @@ class Plant:
     def sample(rng: np.random.Generator, enc: Encoding = DEFAULT_ENC,
                cap_max: float | None = None, cap_min: float | None = None) -> 'Plant':
         """cap_max / cap_min:速度上限的抽取范围(默认契约的 v_hi / v_lo)。抽取顺序不变。"""
-        return Plant(steer_rate=rng.uniform(3.5, 7.0), steer_gain=rng.uniform(0.9, 1.1),
-                     servo_offset=rng.uniform(-1.0, 1.0), lag=int(rng.integers(0, 2)),
+        # 转向 10-24 按实测标定(runs/steer_cal:IMU 偏航角速度拟合延迟 0.14 s、转角速率 1.5 rad/s、增益 0.95);
+        # 原 3.5~7.0 rad/s、延迟 0~1 拍
+        return Plant(steer_rate=rng.uniform(1.2, 1.8), steer_gain=rng.uniform(0.9, 1.1),
+                     servo_offset=rng.uniform(-1.0, 1.0), lag=int(rng.integers(2, 4)),
                      v_plateau=rng.uniform(0.45, 0.70), v_top=rng.uniform(0.85, 1.1) * enc.v_hi,
                      # 10-23 夜直道实测(runs/accel_1023):滑行 0.85~1.0、平台以上加速 ~1.5(跟着油门爬升);原 0.68~0.78 / 0.4~1.0
-                     accel_up=rng.uniform(1.2, 1.6), decel=rng.uniform(0.85, 1.0),
+                     accel_up=rng.uniform(1.2, 2.5), decel=rng.uniform(0.85, 1.0),      # 加速放宽到 2.5:爬升率 45~50 PWM/s 留余量
                      dead_time=rng.uniform(0.2, 0.35), launch_delay=rng.uniform(0.0, 0.2),
                      lidar_yaw=math.radians(rng.uniform(-1.0, 1.0)),
                      cap=rng.uniform(cap_min or enc.v_lo, cap_max or enc.v_hi), enc=enc,
                      # 2026-10-19 加停车 / 刹车,新参数抽在最后,前面的参数和以前同种子一样
                      # 再起步:实测从中位直跳 0.2~0.45 s 动,其中 ~0.2 s 是指令延迟(dead_time 已经算了)
                      # 刹车上限 10-23 实测 1.9~2.0(1.5~2.5 m/s 段);原 1.3~2.6 不分车速
-                     brake_decel=rng.uniform(1.8, 2.1), relaunch_delay=rng.uniform(0.0, 0.25))
+                     brake_decel=rng.uniform(1.8, 2.1), relaunch_delay=rng.uniform(0.0, 0.25),
+                     # 速度环超调:10-23 夜策略 2.2 档直道跑到 2.39;平台以上的目标车速实际多跑这么多(新参数抽在最后)
+                     v_over=rng.uniform(0.0, 0.2))
 
 
 # 刹车 1470 的减速度随车速变大(10-23 直道 7 次实测:0.5 m/s 1.35、1.0 1.6、1.5 1.85、2.0 以上 ~2.0)
@@ -116,7 +121,7 @@ class SpeedPlant:
             if self.t < self.hold:
                 return self.v
             self.stopped, self.hold = False, None
-        target = min(max(cmd, pl.v_plateau), pl.v_top)
+        target = min(max(cmd, pl.v_plateau) + (pl.v_over if cmd > pl.v_plateau else 0.0), pl.v_top)
         if self.v < pl.v_plateau - 0.01:                # 过了破静点一跳到平台
             self.v += (pl.v_plateau - self.v) * min(1.0, dt / 0.1)
         elif target > self.v:

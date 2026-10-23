@@ -44,7 +44,7 @@ def run_episode(seed, level, weights=None, beta=0.0, collect=False, enc=None, a_
         return None
     if lag_max is not None:
         from dataclasses import replace
-        pl = replace(pl, lag=int(np.random.default_rng(seed + 17).integers(0, lag_max + 1)))
+        pl = replace(pl, lag=int(np.random.default_rng(seed + 17).integers(LAG_MIN, lag_max + 1)))
     benv = BevEnv(road, pl, seed, start, noise=True, free=free, seg_period=seg[0], seg_lag=seg[1], aug=aug,
                   yolo=yolo, guard=guard, seg_lut=seg_lut, seg_fill=seg_fill, near=near, no_seg=no_seg)
     teacher = SeenTeacher(benv, P, a_lat, guard_aware=bool(teacher_guard), steady=teacher_guard == 'steady')
@@ -93,6 +93,15 @@ def run_episode(seed, level, weights=None, beta=0.0, collect=False, enc=None, a_
             return common + (np.asarray(near_imgs), np.asarray(near_imgs2) if pair else None)
         return common
     return row
+
+
+LAG_MIN = 0     # --lag-min,进程池 initializer 里设(_init)
+
+
+def _init(a_dec, a_brk, lag_min):
+    global LAG_MIN
+    set_decel(a_dec, a_brk)
+    LAG_MIN = lag_min
 
 
 def _job(args):
@@ -195,6 +204,7 @@ def main():
                     help='采集时每拍裁图位姿抖动(±平移 m、±转角 °),治 BEV 格子量化敏感;评估不抖。v4 用 0.05 1')
     ap.add_argument('--consist', type=float, default=0.0,
                     help='一致性损失权重:同一帧两种亚格偏移的输出差的平方(要配 --aug);v4 用 1')
+    ap.add_argument('--lag-min', type=int, default=0, help='配 --lag-max:每局延迟从 LAG_MIN..LAG_MAX 抽(实测转向延迟 ~0.14 s = 3 拍,10-24 加)')
     ap.add_argument('--lag-max', type=int, default=None,
                     help='采集时指令延迟每局 0..N 拍均匀抽(默认按 Plant.sample 的 0..1);实车打方向延迟没量过,v4 用 3')
     ap.add_argument('--no-yolo', action='store_true',
@@ -257,7 +267,7 @@ def main():
     brng = np.random.default_rng(a.seed + 1)
     wy = torch.tensor([1.0, 0.5], device=dev)
     seed = TRAIN_SEED0
-    with ProcessPoolExecutor(a.workers, initializer=set_decel, initargs=(a.teacher_dec, a.teacher_brk)) as ex:
+    with ProcessPoolExecutor(a.workers, initializer=_init, initargs=(a.teacher_dec, a.teacher_brk, a.lag_min)) as ex:
         for r in range(a.rounds):
             beta = max(0.0, a.beta0 - r / 4)
             wts = None if (r == 0 and a.init is None) else weights_of(ema)
