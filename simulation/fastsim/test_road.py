@@ -7,7 +7,7 @@ from common.params import CarParams
 from common.pwm import action_to_steer
 from simulation.fastsim.road import CONE, LEVELS, WALL, build, generate, self_overlaps
 from training.road_check import check
-from simulation.fastsim.road_env import BRAKE, STOP, Plant, RoadEnv, SpeedPlant, footprint_clearance
+from simulation.fastsim.road_env import BRAKE, BRAKE_A0, BRAKE_K, STOP, Plant, RoadEnv, SpeedPlant, footprint_clearance
 from common.road_policy import DIM, FRAMES, V_HI, V_LO, action_to_speed, speed_to_action
 from training.road_teacher import R_MIN, Teacher, plan
 
@@ -130,10 +130,12 @@ def test_plant_brakes_literally_and_counts_low_speed_braking():
     sp = SpeedPlant(pl)
     _run_to(sp, 0.9)
     assert sp.reverse_s == 0.0
-    v = [sp.step(BRAKE) for _ in range(100)]
+    v = [sp.step(BRAKE) for _ in range(150)]
     assert min(v) == 0.0 and all(x >= 0.0 for x in v)                  # 仿真里不倒车
     drops = -np.diff(v)
-    assert drops[np.array(v[1:]) > 0].max() == pytest.approx(2.0 * 0.01, rel=1e-6)
+    want = np.minimum(2.0, BRAKE_A0 + BRAKE_K * np.array(v[:-1])) * 0.01      # 刹车减速度随车速变小(10-23 实测)
+    live = (np.array(v[1:]) > 0) & (drops > 0)                                # 前 dead_time 拍刹车还没起效
+    assert drops[live] == pytest.approx(want[live], rel=1e-6)
     assert sp.reverse_s > 0.3
 
 
