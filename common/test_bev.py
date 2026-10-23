@@ -114,6 +114,23 @@ def test_camera_detections_register_with_their_class_and_priority():
         bev.update_camera([CellType.OBSTACLE], [cone_body], pose, 0.2)      # 摄像头不登记"障碍"
 
 
+def test_far_cone_landmark_is_absorbed_once_seen_up_close():
+    """5 m 外两次检测偏了 0.28 m(> merge_r)另立了地标;走近看准以后并成一个,落在真桶上。
+    两个都在近处看准、相距 0.4 m(最密桶距)的桶仍是两个地标。"""
+    bev = Bev()
+    cone = np.array([6.0, 0.0])
+    far, near = (0.0, 0.0, 0.0), (6.0 - P.camera_x - 1.0, 0.0, 0.0)
+    for t in (0.0, 0.1):
+        bev.update_camera([CellType.CONE], [cone - far[:2] + (0.0, 0.28)], far, t)
+    for t in np.arange(1.0, 1.5, 0.1):
+        bev.update_camera([CellType.CONE], [cone - near[:2]], near, t)
+    assert len(bev.cones()) == 1 and np.hypot(*(bev.cones()[0] - cone)) < 0.1
+    bev = Bev()
+    for t in np.arange(0.0, 0.5, 0.1):
+        bev.update_camera([CellType.CONE] * 2, [cone - near[:2], cone - near[:2] + (0.0, 0.4)], near, t)
+    assert len(bev.cones()) == 2
+
+
 def test_old_cells_are_forgotten():
     bev = Bev(BevConfig(max_age=2.0))
     pose = (0.0, 0.0, 0.0)

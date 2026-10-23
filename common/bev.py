@@ -77,6 +77,8 @@ class BevConfig:
     max_age: float = 20.0       # 多久没再更新就忘掉 s
     merge_r: float = 0.25       # 锥桶检测离已有地标这么近就并进去 m(最密桶距 0.4,留余量)
     min_hits: int = 2           # 地标至少被检到这么多次才画
+    cone_sigma0: float = 0.02   # [假设] 锥桶检测位置误差 m:cone_sigma0 + cone_sigma_per_m × 离光心距离
+    cone_sigma_per_m: float = 0.02  # [假设] (与 FakeYolo 默认一致;实车未标定)
 
     @property
     def shape(self) -> tuple[int, int]:
@@ -128,6 +130,7 @@ class Bev:
         self.last = np.full((0, len(LAYERS)), -np.inf, np.float64)
         self.lm_xy = np.zeros((0, 2))           # 锥桶地标:位置(所有检测的平均)
         self.lm_n = np.zeros(0, np.int32)       # 被检到的次数
+        self.lm_s2 = np.zeros(0, np.float64)    # 各次检测误差方差之和;平均位置的误差 = sqrt(lm_s2) / lm_n
         self.lm_last = np.zeros(0, np.float64)  # 最后一次被检到的时间
 
     def __len__(self):
@@ -165,17 +168,18 @@ class Bev:
         胶带这类线状目标给沿线的一串点。"""
         kinds = np.asarray(kinds, dtype=int).reshape(-1)
         pts = body_to_odom(xy_body, pose)
+        rng = np.hypot(*(np.asarray(xy_body, float).reshape(-1, 2) - (self.params.camera_x, 0.0)).T)
         for kind in np.unique(kinds):
             if CellType(kind) not in CAMERA_LAYER:
                 raise ValueError(f'摄像头不登记 {CellType(kind).name}')
             if kind == CellType.CONE:
-                self._merge_cones(pts[kinds == kind], t)
+                self._merge_cones(pts[kinds == kind], rng[kinds == kind], t)
             else:
                 self._add(pts[kinds == kind], CAMERA_LAYER[CellType(kind)], t)
 
-    def _merge_cones(self, pts: np.ndarray, t: float):
+    def _merge_cones(self, pts: np.ndarray, rng: np.ndarray, t: float):
         r2 = self.cfg.merge_r ** 2
-        for p in pts:
+        for p, s2 in zip(pts, (self.cfg.cone_sigma0 + self.cfg.cone_sigma_per_m * rng) ** 2):
             if len(self.lm_xy):
                 d2 = np.einsum('ij,ij->i', self.lm_xy - p, self.lm_xy - p)
                 k = int(np.argmin(d2))
@@ -183,30 +187,37 @@ class Bev:
                     n = self.lm_n[k]
                     self.lm_xy[k] = (self.lm_xy[k] * n + p) / (n + 1)
                     self.lm_n[k] = n + 1
+                    self.lm_s2[k] += s2
                     self.lm_last[k] = t
                     continue
             self.lm_xy = np.vstack([self.lm_xy, p])
             self.lm_n = np.append(self.lm_n, 1).astype(np.int32)
+            self.lm_s2 = np.append(self.lm_s2, s2)
             self.lm_last = np.append(self.lm_last, float(t))
         self._consolidate()
 
     def _consolidate(self):
-        """两个地标的平均位置靠到 merge_r 以内就并成一个。远处第一次检测误差大,会先另立一个
-        地标;等近处的检测把两边都拉向真桶,再在这里合并。"""
-        r2 = self.cfg.merge_r ** 2
+        """两个地标靠到 merge_r + 两者平均位置的误差以内就并成一个。远处的检测
+        误差大(5 m 处每轴 ~12 cm),几次远处检测可能另立一个偏了 ~0.28 m 的地标;之后近处的检测
+        都并到更近的真地标上,它再也不会被拉回来。按误差放宽合并距离,这种只有几次远处检测的
+        地标就能并进去;两个都被近处看准了的地标仍按 merge_r(最密桶距 0.4)分开。"""
         while len(self.lm_xy) > 1:
             d = self.lm_xy[:, None] - self.lm_xy[None]
             d2 = np.einsum('ijk,ijk->ij', d, d)
-            np.fill_diagonal(d2, np.inf)
-            i, j = np.unravel_index(int(np.argmin(d2)), d2.shape)
-            if d2[i, j] > r2:
+            s2 = self.lm_s2 / self.lm_n.astype(float) ** 2
+            over = d2 - (self.cfg.merge_r + np.sqrt(s2[:, None] + s2[None])) ** 2
+            np.fill_diagonal(over, np.inf)
+            i, j = np.unravel_index(int(np.argmin(over)), over.shape)
+            if over[i, j] > 0:
                 return
             ni, nj = self.lm_n[i], self.lm_n[j]
             self.lm_xy[i] = (self.lm_xy[i] * ni + self.lm_xy[j] * nj) / (ni + nj)
             self.lm_n[i] = ni + nj
+            self.lm_s2[i] += self.lm_s2[j]
             self.lm_last[i] = max(self.lm_last[i], self.lm_last[j])
             keep = np.arange(len(self.lm_xy)) != j
-            self.lm_xy, self.lm_n, self.lm_last = self.lm_xy[keep], self.lm_n[keep], self.lm_last[keep]
+            self.lm_xy, self.lm_n, self.lm_s2, self.lm_last = (
+                self.lm_xy[keep], self.lm_n[keep], self.lm_s2[keep], self.lm_last[keep])
 
     def cones(self, t: float | None = None) -> np.ndarray:
         """画得出来的锥桶地标(odom 系),(n, 2):被检到至少 min_hits 次,t 给了还要在 max_age 内。"""
@@ -220,7 +231,8 @@ class Bev:
         keep = self.count.any(axis=1)
         self.keys, self.count, self.last = self.keys[keep], self.count[keep], self.last[keep]
         keep = t - self.lm_last <= self.cfg.max_age
-        self.lm_xy, self.lm_n, self.lm_last = self.lm_xy[keep], self.lm_n[keep], self.lm_last[keep]
+        self.lm_xy, self.lm_n, self.lm_s2, self.lm_last = (
+            self.lm_xy[keep], self.lm_n[keep], self.lm_s2[keep], self.lm_last[keep])
 
     def points(self, kind: CellType | None = None) -> np.ndarray:
         """格子中心(odom 系),(n, 2)。kind 给了就只要类型图里是这一类的格子;锥桶请用 cones()。"""
