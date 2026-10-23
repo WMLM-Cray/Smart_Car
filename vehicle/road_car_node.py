@@ -242,6 +242,8 @@ def parser():
     p.add_argument('model', help='road_v2 / road_v2.5 / spica_v3_* / bev_v1_* / bev_v2_* / bev_v2.5_* .npz')
     p.add_argument('--speed-cap', type=float, required=True,
                    help=f'速度上限 m/s,要在模型自己的训练范围内(见 schema);网页模式限速不超过它;首次上车用 {V_LO}~0.5')
+    p.add_argument('--no-seg', action='store_true',
+                   help='纯雷达模型(bev_train --no-seg 训的):不订阅地面分割、不因它过期停车,FREE 层保持空(2026-10-23)')
     return p
 
 
@@ -255,27 +257,28 @@ def create_node_class():
     from std_msgs.msg import Bool, Float32
 
     class RoadCarNode(Node):
-        def __init__(self, model, speed_cap, log_root=None):
+        def __init__(self, model, speed_cap, log_root=None, no_seg=False):
             super().__init__('road_car_node')
             pol = load_policy(model)
             book = None
             if isinstance(pol, BevPolicy):
                 from vehicle.bev_logbook import Logbook
                 fov = None
-                if pol.free:                                    # 摄像头视野里的全部地面格,让"没分成地面"的格减分
+                if pol.free and not no_seg:                                    # 摄像头视野里的全部地面格,让"没分成地面"的格减分
                     from common.ground_proj import GroundLut
                     lut = GroundLut(512 // 4, 512 // 4, CarParams(), 3.0)     # 和 ground_seg_node 默认输入一致
                     fov = lut.points(np.ones(lut.valid.shape, bool))
                 book = Logbook(log_root or os.path.expanduser(time.strftime('~/drives/logbook_%m%d_%H%M%S')),
                                fov_body=fov)
             self.ctl = RoadCarController(pol, speed_cap, book=book)
+            self.ctl.rt.no_seg = no_seg
             self.pub = self.create_publisher(Twist, CMD_TOPIC, 5)
             self.create_subscription(LaserScan, '/scan', self.on_scan, 1)
             self.create_subscription(Odometry, ENC_TOPIC, self.on_enc, 10)
             self.create_subscription(Imu, '/IMU_data', self.on_imu, 10)
             self.create_subscription(Bool, '/policy_enable', self.on_enable, 1)
             self.create_subscription(Float32, CAP_TOPIC, self.on_cap, 1)
-            if getattr(self.ctl.rt.policy, 'free', False):            # bev_v2:订阅地面分割
+            if getattr(self.ctl.rt.policy, 'free', False) and not no_seg:            # bev_v2:订阅地面分割
                 self.create_subscription(PointCloud2, FREE_TOPIC, self.on_free, 2)
                 self.create_subscription(CompressedImage, '/ground_debug', self.on_cam, 1)   # 逐帧回看配图
             self.last_event = None
@@ -382,7 +385,7 @@ def main(argv=None):
     # 自己接信号:rclpy 默认处理器会先关掉 context,finally 里再发中位时 publisher 已失效,
     # systemctl stop 时车收不到中位(steer_policy_node 2026-09-21 实测)。
     rclpy.init(args=[], signal_handler_options=SignalHandlerOptions.NO)
-    node = create_node_class()(args.model, args.speed_cap)
+    node = create_node_class()(args.model, args.speed_cap, no_seg=args.no_seg)
 
     def stop(*_):
         for _ in range(5):

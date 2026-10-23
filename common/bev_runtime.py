@@ -87,7 +87,7 @@ class BevRuntime(RoadRuntime):
 
     def stale_sensors(self, now):
         stale = super().stale_sensors(now)
-        if self.policy.free and not (self.free_t is not None and 0.0 <= float(now) - self.free_t <= FREE_TIMEOUT):
+        if self.policy.free and not getattr(self, 'no_seg', False) and                 not (self.free_t is not None and 0.0 <= float(now) - self.free_t <= FREE_TIMEOUT):
             stale.append('free')
         return stale
 
