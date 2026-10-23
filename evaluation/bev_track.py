@@ -39,19 +39,20 @@ def perturb(road, rng, jitter, drop):
 
 
 def run(args):
-    model, name, seed, cap, car, fill_v, jitter, drop = args
+    model, name, seed, cap, car, fill_v, jitter, drop, escape = (*args, False)[:9]
     road, lap_len = official(name, fill_v) if name in 'ABCD' else real_track(name)    # 其他名字 = maps/<name>.yaml 实车赛道
     road = perturb(road, np.random.default_rng(seed + 7), jitter, drop)
     pol = BevPolicy(model)
     pl = replace(Plant.sample(np.random.default_rng(seed), pol.enc), cap=cap)
-    benv = BevEnv(road, pl, seed, noise=True, free=pol.free, near=pol.near, **(CAR if car else {}))
+    kw = ({**CAR, 'guard': 'escape'} if escape else CAR) if car else {}
+    benv = BevEnv(road, pl, seed, noise=True, free=pol.free, near=pol.near, **kw)
     laps, why = [], None
     while why is None:
         why = benv.step(pol(*benv.observation()))
         if road.s[benv.env.idx] >= lap_len * (len(laps) + 1) and len(laps) < LAPS:
             laps.append(benv.env.t)
     car_ = benv.env.car
-    return dict(track=name, seed=seed, cap=cap, reason=why,
+    return dict(track=name, seed=seed, cap=cap, reason=why, n_escape=benv.n_escape,
                 laps=[laps[0]] + list(np.diff(laps)) if laps else [], time=benv.env.t,
                 s_end=float(road.s[benv.env.idx] % lap_len), xy_end=(float(car_.x), float(car_.y)))
 
@@ -66,11 +67,12 @@ def main():
     ap.add_argument('--tracks', nargs='+', default=['A', 'B', 'C', 'D'])
     ap.add_argument('--out', default=None)
     ap.add_argument('--car', action='store_true', help='按车上条件跑(见 CAR)')
+    ap.add_argument('--guard-escape', action='store_true', help="配 --car:截停先找逃生转角(BevEnv guard='escape')")
     ap.add_argument('--no-fill-v', action='store_true', help='黄 V 不补桶(按规则只有胶带)')
     ap.add_argument('--cone-jitter', type=float, default=0.0, help='每局桶位置高斯抖动 m')
     ap.add_argument('--cone-drop', type=float, default=0.0, help='每局每个桶被拿掉的概率')
     a = ap.parse_args()
-    jobs = [(a.model, t, a.seed_start + i, cap, a.car, not a.no_fill_v, a.cone_jitter, a.cone_drop)
+    jobs = [(a.model, t, a.seed_start + i, cap, a.car, not a.no_fill_v, a.cone_jitter, a.cone_drop, a.guard_escape)
             for t in a.tracks for cap in a.caps for i in range(a.count)]
     with ProcessPoolExecutor(a.workers) as ex:
         rows = list(ex.map(run, jobs))
@@ -83,7 +85,8 @@ def main():
                 student=len(ok) / len(rs),
                 reasons={k: sum(r['reason'] == k for r in rs) for k in {r['reason'] for r in rs}},
                 lap1=float(np.mean([r['laps'][0] for r in ok])) if ok else None,
-                lap2=float(np.mean([r['laps'][1] for r in ok])) if ok else None)
+                lap2=float(np.mean([r['laps'][1] for r in ok])) if ok else None,
+                escapes_per_ep=float(np.mean([r['n_escape'] for r in rs])))
     print(json.dumps(dict(model=a.model, summary=summary), ensure_ascii=False, indent=1))
     if a.out:
         Path(a.out).write_text(json.dumps(dict(model=a.model, summary=summary, episodes=rows),

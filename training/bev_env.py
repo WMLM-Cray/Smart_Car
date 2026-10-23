@@ -80,10 +80,12 @@ class BevEnv:
         self.seg_hooks = []                                               # 已送到 BEV 的帧:pose, xy, stamp
         self.seg_frame = None
         self.scan_hooks = []
+        # guard='escape':指令转角净空不够时先找逃生转角(ScanGuard.escape),有就把转角换过去照常开,都没有才算失败。
         # guard=True:和车上 road_car_node 一样按将要打的转角扫车身矩形,保险杠前净空 < guard_stop(车速) 就算这局失败('guard')。
         # 车上截停后油门回中位、策略不出倒车,基本就卡死了;仿真里原来不管,模型在锥桶方角贴着开也算过(2026-10-16:
         # 无锥桶 r29 在 L6f 16 局里 12 局会触发截停,老师 1 局)
         self.guard = None
+        self.guard_escape, self.n_escape = guard == 'escape', 0
         if guard:
             from vehicle.road_car_node import guard_stop
             from vehicle.scan_guard import ScanGuard
@@ -172,8 +174,14 @@ class BevEnv:
         if self.guard is not None:
             from common.pwm import action_to_steer
             steer = action_to_steer(float(np.clip(action[0], -1, 1)), self.env.cp)
-            if self.guard._clear(steer) < self.guard_stop(self.env.speed.v, self.env.cp):
-                return 'guard'
+            need = self.guard_stop(self.env.speed.v, self.env.cp)
+            if self.guard._clear(steer) < need:
+                alt = self.guard.escape(steer, need, self.env.cp.max_steer) if self.guard_escape else None
+                if alt is None:
+                    return 'guard'
+                from common.pwm import steer_to_action
+                action = np.array([steer_to_action(alt, self.env.cp), action[1]], np.float32)
+                self.n_escape += 1
         why = self.env.step(action)
         self._camera()
         return why

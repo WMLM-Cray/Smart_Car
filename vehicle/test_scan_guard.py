@@ -153,3 +153,21 @@ def test_turning_into_a_side_wall_stops_before_the_corner_hits():
     toward = g.gap(0.37)
     assert 0.0 < toward < 0.4
     assert math.isinf(g.gap(-0.37))
+
+
+def test_escape_nudges_past_a_cone_far_out_on_the_arc():
+    """2.5 m 外一个桶刚好落在指令圆弧边上:微调一点转角就让开,escape 给出最近的那个转角。"""
+    steer = 0.05
+    radius = WHEELBASE / math.tan(steer)
+    d = 2.5
+    x, y = radius * math.sin(d / radius), radius * (1 - math.cos(d / radius)) + 0.15
+    g = guard_with([(x - LIDAR_X, y)])
+    assert g._clear(steer) < 2.5
+    alt = g.escape(steer, 2.5, 0.379)
+    assert alt is not None and alt < steer and steer - alt <= 0.15 and g._clear(alt) >= 2.5
+
+
+def test_escape_finds_nothing_with_a_wall_ahead():
+    """正前方 1.5 m 一堵墙(横 ±1.5 m):±0.15 rad 以内哪个转角都躲不开,照样截停。"""
+    g = guard_with([(1.5 - LIDAR_X, y / 20) for y in range(-30, 31)])
+    assert g.escape(0.0, 2.0, 0.379) is None

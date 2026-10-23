@@ -47,6 +47,11 @@ WHEELBASE = 0.35           # [实测 2026-09-30] 轴距(前轴雷达前 0.205 + 
 STRAIGHT_STEER = 0.02      # 转角小于这个就按直行算(R > 15m,和直线没区别)
 MAX_LOOKAHEAD = 4.0        # 沿弧最多看这么远,免得绕一圈把身后的东西算进来
 SWEEP_STEP = 0.02          # 转弯时车身每推进这么多 m 查一次
+# 逃生转角(2026-10-23):指令转角的圆弧净空不够刹停时,在它左右 ESCAPE_WINDOW 内找净空够的转角,有就微调过去不截停。
+# 恒定转角的圆弧外推两三米很不准(差 0.03 rad、2.8 m 外横向就差 0.34 m),高速下锥桶路几乎每圈都误截停;
+# 10-23 纯雷达 8 圈回算:2.5 m/s 原规则 28% 帧截停,加逃生转角后 0.2%,微调中位 0.03 rad、最大 0.12 rad
+ESCAPE_WINDOW = 0.15
+ESCAPE_STEP = 0.01
 
 
 class ScanGuard:
@@ -102,6 +107,15 @@ class ScanGuard:
         hit = ((x >= -REAR_OVERHANG) & (x <= NOSE_AHEAD) & (np.abs(y) <= HALF_CORRIDOR)).any(1)
         k = np.flatnonzero(hit)
         return float(d[k[0]]) if len(k) else float('inf')
+
+    def escape(self, steer, need, max_steer):
+        """离 steer 最近、圆弧净空 >= need 的转角(在 ±ESCAPE_WINDOW、±max_steer 以内);没有返回 None。"""
+        n = int(round(ESCAPE_WINDOW / ESCAPE_STEP))
+        for k in range(1, n + 1):
+            for s in (steer - k * ESCAPE_STEP, steer + k * ESCAPE_STEP):
+                if abs(s) <= max_steer and self._clear(s) >= need:
+                    return s
+        return None
 
     def gap(self, steer=0.0, now=None):
         """沿行驶路径还能走多远(米)车身才碰到障碍;雷达没数据或数据过期返回 None。
