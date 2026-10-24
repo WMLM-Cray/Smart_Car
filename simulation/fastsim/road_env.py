@@ -48,6 +48,8 @@ class Plant:
     decel: float = 0.73             # 滑行减速 m/s²
     brake_decel: float = 1.9        # 高速刹车减速上限 m/s²;低速按 BRAKE_A0 + BRAKE_K·v 变小(10-23 直道实测,见 SpeedPlant)
     v_over: float = 0.0             # 速度环超调 m/s:平台以上的目标实际跑到 目标 + v_over(10-24 加)
+    turn_drag: float = 0.0          # 弯里掉速:平台以上的目标实际只跑到 目标 × (1 − turn_drag·δ²),δ = 前轮实际转角 rad
+                                    # (10-24 加;runs/drive_1024:c005 |δ|~0.3 时 0.8 倍、c009 0.88 倍 → 1.3~2.2)
     relaunch_delay: float = 0.1     # 停稳后再给油,回中位直跳破静点要等的时间 s(不含 dead_time)
     dead_time: float = 0.28         # 速度环纯滞后 s
     launch_delay: float = 1.5       # 起步在死区里空等 s(sample 抽 0~0.2:2026-10-18 实车 6 段放行后 0.3 s 内车速都已到 0.4~0.5;
@@ -75,7 +77,8 @@ class Plant:
                      # 刹车上限 10-23 实测 1.9~2.0(1.5~2.5 m/s 段);原 1.3~2.6 不分车速
                      brake_decel=rng.uniform(1.8, 2.1), relaunch_delay=rng.uniform(0.0, 0.25),
                      # 速度环超调:10-23 夜策略 2.2 档直道跑到 2.39;平台以上的目标车速实际多跑这么多(新参数抽在最后)
-                     v_over=rng.uniform(0.0, 0.2))
+                     v_over=rng.uniform(0.0, 0.2),
+                     turn_drag=rng.uniform(1.0, 3.0))     # 弯里掉速(10-24 加,抽在最后)
 
 
 # 刹车 1470 的减速度随车速变大(10-23 直道 7 次实测:0.5 m/s 1.35、1.0 1.6、1.5 1.85、2.0 以上 ~2.0)
@@ -100,7 +103,7 @@ class SpeedPlant:
         self.hold = None        # 再起步要等到的时刻
         self.reverse_s = 0.0    # 车速低于 REVERSE_RISK_V 时还在执行刹车的累计时间 s
 
-    def step(self, cmd: float, dt: float = PHYSICS_DT) -> float:
+    def step(self, cmd: float, dt: float = PHYSICS_DT, steer: float = 0.0) -> float:
         pl = self.pl
         self.queue.append(cmd)
         cmd = self.queue.pop(0)
@@ -122,6 +125,8 @@ class SpeedPlant:
                 return self.v
             self.stopped, self.hold = False, None
         target = min(max(cmd, pl.v_plateau) + (pl.v_over if cmd > pl.v_plateau else 0.0), pl.v_top)
+        if cmd > pl.v_plateau:                          # 弯里掉速(turn_drag),不低于平台
+            target = max(pl.v_plateau, target * (1.0 - pl.turn_drag * steer * steer))
         if self.v < pl.v_plateau - 0.01:                # 过了破静点一跳到平台
             self.v += (pl.v_plateau - self.v) * min(1.0, dt / 0.1)
         elif target > self.v:
@@ -219,7 +224,7 @@ class RoadEnv:
         steer = turn_to_steer(servo, self.cp)
         v_cmd = min(v_cmd, pl.cap)
         for _ in range(int(round(CONTROL_DT / PHYSICS_DT))):
-            v = self.speed.step(v_cmd)
+            v = self.speed.step(v_cmd, steer=self.car.steer)
             self.car.step(v, steer, PHYSICS_DT)
             self.t += PHYSICS_DT
             why = self._check()

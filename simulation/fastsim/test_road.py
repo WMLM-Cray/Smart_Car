@@ -97,6 +97,21 @@ def _run_to(sp, v0, dt=0.01):
     return n
 
 
+def test_turn_drag_lowers_the_speed_reached_in_a_turn():
+    """runs/drive_1024:实车 |δ|~0.3 rad 时车速只有目标的 0.8~0.88。turn_drag 只打折平台以上的目标,直行不变。"""
+    pl = Plant(v_plateau=0.6, v_top=4.0, launch_delay=0.0, accel_up=5.0, decel=0.9, dead_time=0.2, turn_drag=2.0)
+    straight, turn = SpeedPlant(pl), SpeedPlant(pl)
+    for _ in range(400):
+        straight.step(2.0)
+        turn.step(2.0, steer=0.3)
+    assert straight.v == pytest.approx(2.0)
+    assert turn.v == pytest.approx(2.0 * (1 - 2.0 * 0.09))
+    low = SpeedPlant(pl)
+    for _ in range(400):
+        low.step(0.8, steer=0.38)
+    assert low.v >= pl.v_plateau                   # 打折不低于平台(电调不能慢爬)
+
+
 def test_stop_coasts_to_zero_and_never_reverses():
     pl = Plant(v_plateau=0.6, v_top=1.0, launch_delay=0.0, accel_up=5.0, decel=0.73, dead_time=0.2)
     sp = SpeedPlant(pl)
