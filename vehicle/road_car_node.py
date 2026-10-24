@@ -90,7 +90,7 @@ class RoadCarController:
     escape=True:转角圆弧净空不够刹停时先在 ±ESCAPE_WINDOW 内找净空够的转角(ScanGuard.escape)微调过去,都没有才截停。
     """
 
-    def __init__(self, policy, speed_cap, params=None, loop=None, guard=None, book=None, escape=False):
+    def __init__(self, policy, speed_cap, params=None, loop=None, guard=None, book=None, escape=False, guard_on=True):
         self.p = params or CarParams()
         self.cap_max = float(speed_cap)                 # --speed-cap:网页模式再快也不超过它
         self.book = book            # bev_logbook.Logbook;只在使能时记
@@ -100,6 +100,7 @@ class RoadCarController:
         self.loop = loop or SpeedLoop(SpeedLoopConfig(launch_from=LAUNCH_FROM, up_rate=UP_RATE))
         self.guard = guard or ScanGuard()
         self.escape = escape
+        self.guard_on = guard_on    # --no-guard:不截停、不找逃生转角(2026-10-24 用户定;碰撞靠模型自己 + 训练里撞了就算失败)
         self.block_t = None         # 连续截停的起点
         self.seg_saved = None
         self.event = None
@@ -193,13 +194,13 @@ class RoadCarController:
         gap = self.guard.gap(steer)
         need = guard_stop(self.rt.speed, self.p)
         escaped = False
-        if self.escape and gap is not None and gap < need:
+        if self.guard_on and self.escape and gap is not None and gap < need:
             alt = self.guard.escape(steer, need, self.p.max_steer)
             if alt is not None:
                 steer = self.steer_cmd = alt
                 servo = steer_to_turn(steer, self.p)
                 gap, escaped = need, True
-        if gap is not None and gap < need:
+        if self.guard_on and gap is not None and gap < need:
             if self.block_t is None:
                 self.block_t = now
             self.event = 'stuck' if now - self.block_t > STUCK_SECONDS else 'guard'
@@ -246,6 +247,8 @@ def parser():
                    help=f'速度上限 m/s,要在模型自己的训练范围内(见 schema);网页模式限速不超过它;首次上车用 {V_LO}~0.5')
     p.add_argument('--guard-escape', action='store_true',
                    help='截停先找逃生转角(转角 ±0.15 rad 内净空够刹停就微调过去,都没有才截停;bev_train --guard-escape 训的模型配它,2026-10-23)')
+    p.add_argument('--no-guard', action='store_true',
+                   help='不截停:雷达净空不够也照开(2026-10-24 用户定;配不带 --guard 训的模型)')
     p.add_argument('--no-seg', action='store_true',
                    help='纯雷达模型(bev_train --no-seg 训的):不订阅地面分割、不因它过期停车,FREE 层保持空(2026-10-23)')
     return p
@@ -261,7 +264,7 @@ def create_node_class():
     from std_msgs.msg import Bool, Float32
 
     class RoadCarNode(Node):
-        def __init__(self, model, speed_cap, log_root=None, no_seg=False, escape=False):
+        def __init__(self, model, speed_cap, log_root=None, no_seg=False, escape=False, guard_on=True):
             super().__init__('road_car_node')
             pol = load_policy(model)
             book = None
@@ -274,7 +277,7 @@ def create_node_class():
                     fov = lut.points(np.ones(lut.valid.shape, bool))
                 book = Logbook(log_root or os.path.expanduser(time.strftime('~/drives/logbook_%m%d_%H%M%S')),
                                fov_body=fov)
-            self.ctl = RoadCarController(pol, speed_cap, book=book, escape=escape)
+            self.ctl = RoadCarController(pol, speed_cap, book=book, escape=escape, guard_on=guard_on)
             self.ctl.rt.no_seg = no_seg
             self.pub = self.create_publisher(Twist, CMD_TOPIC, 5)
             self.create_subscription(LaserScan, '/scan', self.on_scan, 1)
@@ -393,7 +396,7 @@ def main(argv=None):
     # 自己接信号:rclpy 默认处理器会先关掉 context,finally 里再发中位时 publisher 已失效,
     # systemctl stop 时车收不到中位(steer_policy_node 2026-09-21 实测)。
     rclpy.init(args=[], signal_handler_options=SignalHandlerOptions.NO)
-    node = create_node_class()(args.model, args.speed_cap, no_seg=args.no_seg, escape=args.guard_escape)
+    node = create_node_class()(args.model, args.speed_cap, no_seg=args.no_seg, escape=args.guard_escape, guard_on=not args.no_guard)
 
     def stop(*_):
         for _ in range(5):

@@ -360,3 +360,18 @@ def test_guard_escape_still_stops_for_a_wall():
     ctl.on_encoder(0.0, 10.0); ctl.on_imu(0.0, 10.0); ctl.on_enable(True, 10.0)
     feed(ctl, 10.05, 1.2)
     assert ctl.tick(10.05)[0] == P.brake_pwm and ctl.event == 'guard'
+
+
+def test_no_guard_drives_on_where_the_guard_would_stop():
+    """--no-guard(2026-10-24 用户定):正前方 0.6 m 一堵墙,截停版刹车;关了照常按模型给油。"""
+    wall = np.full(N, 5.0)
+    ang = -math.pi + np.arange(N) * INC
+    wall[np.abs(ang) < 1.2] = BUMPER_AHEAD + 0.60
+    pwms = []
+    for on in (True, False):
+        ctl = RoadCarController(FakePolicy(action=(0.0, 1.0)), 1.8, escape=True, guard_on=on)
+        ctl.on_scan(FakeScan(wall), 10.0)
+        ctl.on_encoder(0.0, 10.0); ctl.on_imu(0.0, 10.0); ctl.on_enable(True, 10.0)
+        feed(ctl, 10.05, 1.2)
+        pwms.append(ctl.tick(10.05)[0])
+    assert pwms[0] == P.brake_pwm and pwms[1] > P.pwm_mid

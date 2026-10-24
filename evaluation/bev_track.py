@@ -39,13 +39,14 @@ def perturb(road, rng, jitter, drop):
 
 
 def run(args):
-    model, name, seed, cap, car, fill_v, jitter, drop, escape, no_seg = (*args, False, False)[:10]
+    model, name, seed, cap, car, fill_v, jitter, drop, escape, no_seg, no_guard = (*args, False, False, False)[:11]
     road, lap_len = official(name, fill_v) if name in 'ABCD' else real_track(name)    # 其他名字 = maps/<name>.yaml 实车赛道
     road = perturb(road, np.random.default_rng(seed + 7), jitter, drop)
     pol = BevPolicy(model)
     pl = replace(Plant.sample(np.random.default_rng(seed), pol.enc), cap=cap)
     kw = ({**CAR, 'guard': 'escape'} if escape else CAR) if car else {}
     kw = {**kw, 'no_seg': True} if no_seg else kw
+    kw = {**kw, 'guard': False} if no_guard else kw            # 车上 road_car_node --no-guard
     benv = BevEnv(road, pl, seed, noise=True, free=pol.free, near=pol.near, **kw)
     laps, why = [], None
     while why is None:
@@ -69,12 +70,13 @@ def main():
     ap.add_argument('--out', default=None)
     ap.add_argument('--car', action='store_true', help='按车上条件跑(见 CAR)')
     ap.add_argument('--guard-escape', action='store_true', help="配 --car:截停先找逃生转角(BevEnv guard='escape')")
+    ap.add_argument('--no-guard', action='store_true', help='配 --car:不截停(同车上 road_car_node --no-guard,2026-10-24);撞桶 / 出界照样算失败')
     ap.add_argument('--no-seg', action='store_true', help='纯雷达模型(bev_train --no-seg 训的):FREE 层恒空,同车上 road_car_node --no-seg')
     ap.add_argument('--no-fill-v', action='store_true', help='黄 V 不补桶(按规则只有胶带)')
     ap.add_argument('--cone-jitter', type=float, default=0.0, help='每局桶位置高斯抖动 m')
     ap.add_argument('--cone-drop', type=float, default=0.0, help='每局每个桶被拿掉的概率')
     a = ap.parse_args()
-    jobs = [(a.model, t, a.seed_start + i, cap, a.car, not a.no_fill_v, a.cone_jitter, a.cone_drop, a.guard_escape, a.no_seg)
+    jobs = [(a.model, t, a.seed_start + i, cap, a.car, not a.no_fill_v, a.cone_jitter, a.cone_drop, a.guard_escape, a.no_seg, a.no_guard)
             for t in a.tracks for cap in a.caps for i in range(a.count)]
     with ProcessPoolExecutor(a.workers) as ex:
         rows = list(ex.map(run, jobs))
