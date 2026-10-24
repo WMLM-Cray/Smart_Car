@@ -19,6 +19,10 @@ Mirrored behaviour:
 * **there is no reverse**: the policy never commands reverse and the lidar
   cannot see behind the car (``road_car_node.py:102-103``, ``:197-198``).
 
+2026-10-24 跟上部署(feat/ground-seg-node):截停距离随车速加长(``vehicle.scan_guard.guard_stop``,
+``guard_base_speed`` 以下就是 GUARD_STOP);截停时车速高于 ``brake_release_speed`` 发 ``brake_pwm``
+刹车,低了中位;``steer`` 传部署实际要打的转角(转向避障 ``avoid`` / 逃生转角在截停之前,不归这里)。
+
 Scope: this module only states the guard. The deployed node does not import it,
 and it deliberately does not model the throttle on unblocked ticks (that value
 comes from ``vehicle/speed_loop.py``); ``GuardDecision.throttle`` is ``None``
@@ -32,6 +36,7 @@ import math
 
 from common.params import CarParams
 from common.pwm import steer_to_turn
+from vehicle.scan_guard import guard_stop
 
 GUARD_STOP = 0.25           # 同 vehicle/road_car_node.py:44
 STUCK_SECONDS = 3.0         # 同 vehicle/road_car_node.py:45
@@ -43,7 +48,7 @@ class GuardDecision:
 
     event: None = 放行；'guard' = 截停；'stuck' = 连续截停超过 STUCK_SECONDS。
     blocked_s: now - block_t；未截停时为 None。
-    throttle: 截停时为 CarParams.pwm_mid（中位）；放行时为 None（油门由 SpeedLoop 出）。
+    throttle: 截停时为 CarParams.pwm_mid（中位;车速 > brake_release_speed 时 brake_pwm）；放行时为 None（油门由 SpeedLoop 出）。
     steer: 实发舵机刻度；截停时方向照发。
     """
 
@@ -78,17 +83,19 @@ class DeploymentGuardContract:
         """
         self.block_t = None
 
-    def step(self, now, gap, steer=0.0):
+    def step(self, now, gap, steer=0.0, speed=0.0):
         now = float(now)
         if not math.isfinite(now):
             raise ValueError('now must be finite')
         servo = steer_to_turn(float(steer), self.p)
-        if gap is not None and gap < self.threshold:
+        need = self.threshold + guard_stop(speed, self.p) - GUARD_STOP
+        if gap is not None and gap < need:
             if self.block_t is None:
                 self.block_t = now
             self.event = 'stuck' if now - self.block_t > self.stuck_seconds else 'guard'
             self.gap = float(gap)
-            return GuardDecision(self.event, now - self.block_t, self.p.pwm_mid, servo)
+            throttle = self.p.brake_pwm if speed > self.p.brake_release_speed else self.p.pwm_mid
+            return GuardDecision(self.event, now - self.block_t, throttle, servo)
         self.block_t = None
         self.event = None
         return GuardDecision(None, None, None, servo)
