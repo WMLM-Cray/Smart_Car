@@ -375,3 +375,34 @@ def test_no_guard_drives_on_where_the_guard_would_stop():
         feed(ctl, 10.05, 1.2)
         pwms.append(ctl.tick(10.05)[0])
     assert pwms[0] == P.brake_pwm and pwms[1] > P.pwm_mid
+
+
+def _release_at(speed, t=10.2):
+    ctl = ready(FakePolicy((0.5, 1.0)), cap=1.8)
+    feed(ctl, 10.1, speed)
+    ctl.tick(10.1)
+    ctl.on_scan(FakeScan(np.full(N, 5.0)), t)
+    ctl.on_encoder(speed, t); ctl.on_imu(0.0, t)
+    assert ctl.on_enable(False, t)                         # 刚松手:节点马上发 release_cmd
+    return ctl
+
+
+def test_release_at_speed_cuts_power_but_keeps_model_steering():
+    """松手(2026-10-24 用户定):车速 > COAST_STEER_V 时油门中位、转向仍跟模型;降到它以下回正结束。"""
+    from vehicle.road_car_node import COAST_STEER_V
+    ctl = _release_at(2.0)
+    model_servo = steer_to_turn(action_to_steer(0.5, P), P)
+    assert ctl.release_cmd(10.2) == (P.pwm_mid, model_servo)
+    t = 10.25
+    ctl.on_scan(FakeScan(np.full(N, 5.0)), t); ctl.on_encoder(1.5, t); ctl.on_imu(0.0, t); ctl.on_enable(False, t)
+    assert ctl.tick(t) == (P.pwm_mid, model_servo) and ctl.event == 'coast'
+    t = 10.3
+    ctl.on_scan(FakeScan(np.full(N, 5.0)), t); ctl.on_encoder(COAST_STEER_V - 0.1, t); ctl.on_imu(0.0, t); ctl.on_enable(False, t)
+    assert ctl.tick(t) == (P.pwm_mid, steer_to_turn(0.0, P)) and ctl.event == 'coast_end'
+    ctl.on_enable(False, 10.35)
+    assert ctl.tick(10.35) is None                         # 结束后照旧不发
+
+
+def test_release_when_slow_is_plain_neutral():
+    ctl = _release_at(0.5)
+    assert ctl.release_cmd(10.2) == (P.pwm_mid, steer_to_turn(0.0, P)) and not ctl.coast

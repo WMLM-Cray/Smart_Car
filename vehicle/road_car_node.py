@@ -59,6 +59,7 @@ def guard_speed(clear, p):
     L, D, v0 = p.guard_latency, p.guard_brake_decel, p.guard_base_speed
     c = clear - GUARD_STOP + L * v0 + v0 * v0 / (2 * D)
     return max(v0, D * (-L + math.sqrt(L * L + 2 * c / D)))
+COAST_STEER_V = 0.8         # 松手后断动力(中位),车速高于它时转向仍按模型打,低了回正(2026-10-24 用户定)
 STUCK_SECONDS = 3.0         # 同 steer_policy_node:连续截停这么久就当卡死
 # 转向避障:模型要走的路线 AVOID_CLEAR 内会碰到雷达障碍,就在 AVOID_STEERS 个候选转角里挑离模型最近、走得够远的;
 # 都不够远就挑走得最远的。模型没见过迎面的障碍(仿真的路中间不会立一块板),会直直开过去(2026-10-15 走廊实测)
@@ -101,6 +102,7 @@ class RoadCarController:
         self.guard = guard or ScanGuard()
         self.escape = escape
         self.guard_on = guard_on    # --no-guard:不截停、不找逃生转角(2026-10-24 用户定;碰撞靠模型自己 + 训练里撞了就算失败)
+        self.coast = False          # 松手滑行中:中位 + 模型转向,车速 < COAST_STEER_V 结束
         self.block_t = None         # 连续截停的起点
         self.seg_saved = None
         self.event = None
@@ -108,6 +110,21 @@ class RoadCarController:
         self.cam_jpg = None         # 最新一张地面分割调试图(JPEG 字节),逐帧回看用
         self.avoid_side = 0.0       # 上一拍绕行的方向(+1 左 / -1 右 / 0 没绕)
         self.steer_cmd = None       # 这一拍实际打的转角(避障后)
+
+    def coast_tick(self, now):
+        """松手滑行:油门中位,转向照模型;车速降到 COAST_STEER_V 以下或传感器过期就回正、清历史、结束。"""
+        steer = self.rt.coast_steer(now) if self.rt.speed > COAST_STEER_V else None
+        if steer is None:
+            self.coast, self.event = False, 'coast_end'
+            self.rt._reset_history()
+            return self.neutral()
+        self.event = 'coast'
+        self.loop.reset()
+        return self.p.pwm_mid, steer_to_turn(steer, self.p)
+
+    def release_cmd(self, now):
+        """刚松手马上发的那一条:滑行就中位 + 模型转向,否则中位回正。"""
+        return self.coast_tick(now) if self.coast else self.neutral()
 
     def neutral(self):
         """中位:油门回 1540、方向回正,速度环从中位重新爬(学到的 floor 保留)。"""
@@ -146,7 +163,8 @@ class RoadCarController:
     def on_enable(self, enabled, now):
         """返回 True = 刚松手,要马上发一次中位(不靠看门狗补,2026-09-24 松手失控的教训)。"""
         was = self.rt.enabled
-        release = self.rt.set_enabled(enabled, now)
+        self.coast = (not enabled and was and self.rt.speed > COAST_STEER_V) or (self.coast and not enabled)
+        release = self.rt.set_enabled(enabled, now, keep_history=self.coast)
         if enabled and not was:
             self.loop.reset()       # 重新使能不沿用上一次的油门状态
             self.block_t = None
@@ -178,6 +196,8 @@ class RoadCarController:
         return cmd
 
     def _tick(self, now):
+        if self.coast and not self.rt.enabled:
+            return self.coast_tick(now)
         d = self.d = self.rt.decide(now)
         self.seg_saved = self.book_tick(now, d) if self.book is not None else None
         if d is None:
@@ -339,8 +359,8 @@ def create_node_class():
         def on_enable(self, m):
             was = self.ctl.rt.enabled
             if self.ctl.on_enable(m.data, self.now()):
-                self.neutral()
-                self.get_logger().info('松手,已发中位')
+                self.send(self.ctl.release_cmd(self.now()))
+                self.get_logger().info('松手,已发中位' + (f'(车速 {self.ctl.rt.speed:.1f},转向跟模型滑行到 {COAST_STEER_V})' if self.ctl.coast else ''))
             elif m.data and not was:
                 self.get_logger().info('使能')
 
@@ -363,6 +383,8 @@ def create_node_class():
             if ev == 'stale':
                 log.warn(f'{self.ctl.rt.stale_sensors(now) or ["心跳"]} 过期,回中位',
                          throttle_duration_sec=1.0)
+            elif ev == 'coast_end' and self.last_event == 'coast':
+                log.info('滑行结束,回正')
             elif ev == 'guard':
                 log.warn(f'前方 {self.ctl.gap:.2f}m,截停', throttle_duration_sec=1.0)
             elif ev == 'stuck' and self.last_event != 'stuck':

@@ -49,13 +49,15 @@ class RoadRuntime:
         self.yaw_rate = float(yaw_rate)
         self.imu_t = float(now)
 
-    def set_enabled(self, enabled, now):
-        """Update enable heartbeat; return True when an immediate neutral is needed."""
+    def set_enabled(self, enabled, now, keep_history=False):
+        """Update enable heartbeat; return True when an immediate neutral is needed.
+        keep_history:松手后还要按模型转向滑行(coast_steer),先不清 BEV / 上一拍动作。"""
         now = float(now)
         if not enabled:
             changed = self.enabled
             self.enabled, self.enable_t = False, None
-            self._reset_history()
+            if not keep_history:
+                self._reset_history()
             return changed
         if not self.enabled:
             self._reset_history()
@@ -100,6 +102,14 @@ class RoadRuntime:
         target_speed = min(release_brake(action_to_speed(float(action[1]), self.enc), self.speed,
                                          self.params.brake_release_speed), self.speed_cap)
         return steer, target_speed
+
+    def coast_steer(self, now):
+        """松手滑行(2026-10-24):只要模型这一拍的转角,油门由节点给中位;传感器过期返回 None。"""
+        if self.stale_sensors(now):
+            return None
+        action = np.clip(np.asarray(self._act(now), dtype=np.float32).reshape(2), -1.0, 1.0)
+        self.last_action[:] = action
+        return action_to_steer(float(action[0]), self.params)
 
     def _act(self, now):
         """模型这一拍的原始动作;BevRuntime 换成 BEV 输入。"""
