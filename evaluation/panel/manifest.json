@@ -1,0 +1,34 @@
+﻿[
+  {
+    "track": "A",
+    "cones": 90,
+    "lap_len": 35.6610616146251,
+    "half_min": 0.48327742805266727,
+    "half_max": 0.7631438204523168,
+    "dir": "evaluation/panel/track_A"
+  },
+  {
+    "track": "B",
+    "cones": 138,
+    "lap_len": 35.46732726467527,
+    "half_min": 0.6110275922256687,
+    "half_max": 0.756183315782944,
+    "dir": "evaluation/panel/track_B"
+  },
+  {
+    "track": "C",
+    "cones": 144,
+    "lap_len": 36.236958212664135,
+    "half_min": 0.59740839840028,
+    "half_max": 0.7958929805420314,
+    "dir": "evaluation/panel/track_C"
+  },
+  {
+    "track": "D",
+    "cones": 140,
+    "lap_len": 35.57612836504093,
+    "half_min": 0.5974111621680798,
+    "half_max": 0.7539056893506055,
+    "dir": "evaluation/panel/track_D"
+  }
+]
