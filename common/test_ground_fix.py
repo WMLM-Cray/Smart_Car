@@ -112,3 +112,25 @@ def test_floor_islands_not_touching_the_bottom_are_dropped():
     m[10:15, 40:50] = True                                       # 墙上的反光
     keep = bottom_connected(m)
     assert keep[50:].all() and not keep[:50].any()
+
+
+def test_fill_rows_closes_far_stripes_but_not_real_gaps():
+    lut = GroundLut(ROWS, COLS, P, 3.0)
+    full = lut.valid.reshape(ROWS, COLS).copy()
+    pts = np.vstack([lut.xy[lut.valid], lut.fill_rows(full)])
+    ahead = pts[(np.abs(pts[:, 1]) < 0.05) & (pts[:, 0] > 1.5) & (pts[:, 0] < 3.0)]
+    assert np.diff(np.sort(ahead[:, 0])).max() < 0.08            # 正前方 1.5~3 m 不再有大缝
+    cut = full.copy()
+    cut[30, :] = False                                             # 一整行不是地面(真边界):两边不连
+    extra = lut.fill_rows(cut)
+    r30 = lut.xy.reshape(ROWS, COLS, 2)[29:32, 48, 0]              # 这一行附近的投影距离
+    lo, hi = min(r30[0], r30[2]), max(r30[0], r30[2])
+    near_col = extra[np.abs(extra[:, 1] - lut.xy.reshape(ROWS, COLS, 2)[30, 48, 1]) < 0.02]
+    assert not ((near_col[:, 0] > lo + 0.01) & (near_col[:, 0] < hi - 0.01)).any()
+
+
+def test_fixer_fill_switch():
+    mask, scan = scene(wall_x=9.0)
+    a, _ = GroundFixer(ROWS, COLS, P).process(mask, now=0.0, scan=None)
+    b, _ = GroundFixer(ROWS, COLS, P, fill=True).process(mask, now=0.0, scan=None)
+    assert len(b) > len(a)

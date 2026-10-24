@@ -148,6 +148,30 @@ def _boundaries(name):
 def official(name: str, fill_v: bool = False, laps: int = LAPS) -> tuple[Road, float]:
     """返回 (Road, 一圈长度)。Road 的中心线是 laps 圈再多 1.5m,锥桶只有一圈的。"""
     outer, inner, cones, start = _boundaries(name)
+    cen, od, idn, dl, dr = _ring_centre(outer, inner)
+    half = np.minimum(dl, dr)
+
+    def dist(pts, edge):
+        return np.min(np.hypot(pts[:, None, 0] - edge[None, :, 0], pts[:, None, 1] - edge[None, :, 1]), axis=1)
+    # 黄 V(没桶的边界段)
+    bare = [e[dist(e, cones) > GAP] for e in (od, idn)]
+    if fill_v:
+        extra = [b[::int(round(FILL_SPACING / DS))] for b in bare]
+        cones = np.vstack([cones] + [e for e in extra if len(e)])
+        mat = np.full(len(cen), CONE)
+    else:
+        allbare = np.vstack([b for b in bare if len(b)]) if any(len(b) for b in bare) else np.zeros((0, 2))
+        mat = np.where(len(allbare) and dist(cen, allbare) < half + 0.3, NONE, CONE)             if len(allbare) else np.full(len(cen), CONE)
+    # 起点:START 框中间、底边直道
+    xm = sum(start) / 2
+    lowband = cen[:, 1] < cen[:, 1].min() + 0.5
+    i0 = int(np.argmin(np.where(lowband, np.abs(cen[:, 0] - xm), np.inf)))
+    return _ring_road(cen, dl, dr, np.asarray(mat), cones, outer, inner, i0, laps,
+                      dict(kind=f'track{name}', fill_v=fill_v))
+
+
+def _ring_centre(outer, inner):
+    """闭合内外边界 -> (平滑中心线(逆时针), 外边界加密, 内边界加密, 左余量, 右余量)。"""
     od, idn = _closed_dense(outer), _closed_dense(inner)
     if len(outer) == len(inner):                    # B-D:一一配对
         mid = (outer + inner) / 2
@@ -175,24 +199,12 @@ def official(name: str, fill_v: bool = False, laps: int = LAPS) -> tuple[Road, f
     # B-D 内外边界同点数、一一配对,本来就没偏心(中位修正 0.02m),射线法只把保守的
     # 半宽还原成真实值(min 0.611->0.615 / 0.597->0.598),路宽基本不变。
     dl, dr, _ = _ray_measure(cen, od, idn)
-    half = np.minimum(dl, dr)
+    return cen, od, idn, dl, dr
 
-    def dist(pts, edge):
-        return np.min(np.hypot(pts[:, None, 0] - edge[None, :, 0], pts[:, None, 1] - edge[None, :, 1]), axis=1)
-    # 黄 V(没桶的边界段)
-    bare = [e[dist(e, cones) > GAP] for e in (od, idn)]
-    if fill_v:
-        extra = [b[::int(round(FILL_SPACING / DS))] for b in bare]
-        cones = np.vstack([cones] + [e for e in extra if len(e)])
-        mat = np.full(len(cen), CONE)
-    else:
-        allbare = np.vstack([b for b in bare if len(b)]) if any(len(b) for b in bare) else np.zeros((0, 2))
-        mat = np.where(len(allbare) and dist(cen, allbare) < half + 0.3, NONE, CONE)             if len(allbare) else np.full(len(cen), CONE)
-    # 起点:START 框中间、底边直道
-    xm = sum(start) / 2
-    lowband = cen[:, 1] < cen[:, 1].min() + 0.5
-    i0 = int(np.argmin(np.where(lowband, np.abs(cen[:, 0] - xm), np.inf)))
-    cen, dl, dr, mat = (np.roll(x, -i0, axis=0) for x in (cen, dl, dr, np.asarray(mat)))
+
+def _ring_road(cen, dl, dr, mat, cones, outer, inner, i0, laps, elem):
+    """把闭合中心线从 i0 起转 laps 圈(再多 1.5m)拼成 Road,返回 (Road, 一圈长度)。"""
+    cen, dl, dr, mat = (np.roll(x, -i0, axis=0) for x in (cen, dl, dr, mat))
     half = np.minimum(dl, dr)
     lap_len = float(np.hypot(*np.diff(np.vstack([cen, cen[:1]]), axis=0).T).sum())
     reps = np.r_[np.tile(np.arange(len(cen)), laps), np.arange(int(1.5 / DS))]
@@ -200,8 +212,7 @@ def official(name: str, fill_v: bool = False, laps: int = LAPS) -> tuple[Road, f
     s = np.concatenate([[0.0], np.cumsum(np.hypot(*np.diff(c, axis=0).T))])
     d = np.gradient(c, axis=0)
     heading = np.unwrap(np.arctan2(d[:, 1], d[:, 0]))
-    road = Road(c, heading, s, half[reps], mat[reps], mat[reps].copy(),
-                elems=[dict(kind=f'track{name}', fill_v=fill_v)])
+    road = Road(c, heading, s, half[reps], mat[reps], mat[reps].copy(), elems=[elem])
     # 左右各自的余量。A 的走廊不对称,规划要用两侧各自的宽度,不能用 min。
     road.half_left = dl[reps]
     road.half_right = dr[reps]
@@ -210,6 +221,16 @@ def official(name: str, fill_v: bool = False, laps: int = LAPS) -> tuple[Road, f
     road.region = (np.asarray(outer, float), np.asarray(inner, float))
     return road, lap_len
 
+
+@lru_cache(maxsize=4)
+def real_track(name: str = 'realA_1020', laps: int = LAPS) -> tuple[Road, float]:
+    """实车赛道(maps/<name>.yaml:Logbook 雷达图抠出的内外圈锥桶)。只有桶,从实车起点开,逆时针。"""
+    lay = yaml.safe_load((MAPS / f'{name}.yaml').read_text(encoding='utf-8'))
+    inner, outer = np.array(lay['inner'], float), np.array(lay['outer'], float)
+    cen, _, _, dl, dr = _ring_centre(outer, inner)
+    i0 = int(np.argmin(np.hypot(*(cen - np.array(lay['start'], float)).T)))
+    return _ring_road(cen, dl, dr, np.full(len(cen), CONE), np.vstack([inner, outer]), outer, inner, i0, laps,
+                      dict(kind=name))
 
 def _schema(path):
     with np.load(path) as z:

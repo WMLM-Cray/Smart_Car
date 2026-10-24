@@ -5,8 +5,9 @@
 都走 common.road_runtime,和仿真节点 road_policy_node、训练环境是同一份代码。
 安全外壳照搬 v1 在车上验证过的做法:
   /policy_enable 是心跳(0.3s),松手立刻发中位;雷达/编码器/IMU 任一过期回中位;
-  沿当前转角扫掠路径的防撞截停(0.25m)+ 连续截停 3s 报卡死;
-  SpeedLoop 编码器闭环出 PWM(爬升 20 PWM/s、硬上限 1620);SIGINT/SIGTERM 时连发中位。
+  沿当前转角扫掠路径的防撞截停(0.7 m/s 以下 0.25m,更快按车速放大,见 guard_stop)+ 连续截停 3s 报卡死;
+  限速跟网页模式走(/policy_speed_cap,Sloth/Roaming/MAD MAX),不超过 --speed-cap;
+  SpeedLoop 编码器闭环出 PWM(爬升 30 PWM/s;硬上限 1620,网页 MAD MAX 档 1640);SIGINT/SIGTERM 时连发中位。
 模型给的目标速度每拍都在变(0.45 ~ 速度上限)。SpeedLoop 的 floor 自标定按"当前目标"判塌速,
 目标往下调(弯前减速)不会被当成塌速。按变化目标跟随的表现还没在车上测过,先架空再低速落地。
 
@@ -37,8 +38,10 @@ from common.bev_policy import BevPolicy
 from common.bev_runtime import BevRuntime
 from common.road_policy import V_LO, RoadPolicy
 from common.road_runtime import STOP, RoadRuntime
-from vehicle.scan_guard import ScanGuard
-from vehicle.speed_loop import SpeedLoop, SpeedLoopConfig
+from vehicle.scan_guard import GUARD_STOP, ScanGuard, guard_stop
+from dataclasses import replace
+
+from vehicle.speed_loop import PWM_FAST_MAX, PWM_HARD_MAX, SpeedLoop, SpeedLoopConfig
 
 CMD_TOPIC = '/teleop_cmd_vel'
 ENC_TOPIC = '/encoder'
@@ -46,7 +49,17 @@ FREE_TOPIC = '/ground_free'     # vehicle/ground_seg_node.py:车体系地面点,
 CONTROL_PERIOD = 0.05       # 20Hz,和训练的 CONTROL_DT 一致
 SENSOR_TIMEOUT = 0.3        # 实测 /encoder 34Hz、/scan 12Hz、/IMU_data 55Hz
 ENABLE_TIMEOUT = 0.3        # /policy_enable 是心跳不是开关
-GUARD_STOP = 0.25           # 同 steer_policy_node:保险杠前净空小于这个就回中位(米)
+CAP_TOPIC = '/policy_speed_cap'     # vehicle/server.py 按网页模式发的限速(Float32,m/s)
+
+
+def guard_speed(clear, p):
+    """guard_stop 的反函数:净空 clear 下不截停的最高车速;clear < GUARD_STOP 返回 0。"""
+    if clear < GUARD_STOP:
+        return 0.0
+    L, D, v0 = p.guard_latency, p.guard_brake_decel, p.guard_base_speed
+    c = clear - GUARD_STOP + L * v0 + v0 * v0 / (2 * D)
+    return max(v0, D * (-L + math.sqrt(L * L + 2 * c / D)))
+COAST_STEER_V = 0.8         # 松手后断动力(中位),车速高于它时转向仍按模型打,低了回正(2026-10-24 用户定)
 STUCK_SECONDS = 3.0         # 同 steer_policy_node:连续截停这么久就当卡死
 # 转向避障:模型要走的路线 AVOID_CLEAR 内会碰到雷达障碍,就在 AVOID_STEERS 个候选转角里挑离模型最近、走得够远的;
 # 都不够远就挑走得最远的。模型没见过迎面的障碍(仿真的路中间不会立一块板),会直直开过去(2026-10-15 走廊实测)
@@ -63,6 +76,8 @@ AVOID_KEEP = 0.05           # 上一拍往哪边绕,这一拍同侧候选少算�
 # 电调)会锁成低位,整条曲线下移 ~40(09-30:破静 1552,1575 已是 ~0.8 m/s),那时跳到 1593 等于直接
 # ~1.5 m/s 冲出去。09-29 就是这么撤回的跳点。操作规程:车上服务起来、持续发 1540 之后再开电调。
 LAUNCH_FROM = 1593
+UP_RATE = 60.0              # 车在动时往上爬的速率 PWM/s;2026-10-22 用户定 30(原 20 偏保守),10-23 夜 40,10-24 45 -> 60(车上实测起步 0.5->1.6 m/s 加速 ~1.0)
+FAST_CAP = 1.2              # 网页限速超过它(MAD MAX)才把 PWM 上限放到 PWM_FAST_MAX
 # bev 模型开车时记全局地图(vehicle/bev_logbook.py,和影子模式同一份):一次放行开一段,
 # 松手超过 SEG_GAP 才收尾存盘(网页松手/手机抖的短暂断开接着记;搬车回起点总要几秒)。
 SEG_GAP = 5.0
@@ -72,17 +87,22 @@ class RoadCarController:
     """纯逻辑,不依赖 ROS;节点只管收发。
 
     tick() 返回 None(没使能,一个字都不发,不跟网页遥控抢)或 (PWM, 舵机刻度)。
-    event 给节点打日志:None / 'stale'(心跳或传感器过期)/ 'guard'(截停)/ 'stuck'(截停超过 3s)。
+    event 给节点打日志:None / 'stale'(心跳或传感器过期)/ 'guard'(截停)/ 'stuck'(截停超过 3s)/ 'escape'(逃生转角放行)。
+    escape=True:转角圆弧净空不够刹停时先在 ±ESCAPE_WINDOW 内找净空够的转角(ScanGuard.escape)微调过去,都没有才截停。
     """
 
-    def __init__(self, policy, speed_cap, params=None, loop=None, guard=None, book=None):
+    def __init__(self, policy, speed_cap, params=None, loop=None, guard=None, book=None, escape=False, guard_on=True):
         self.p = params or CarParams()
+        self.cap_max = float(speed_cap)                 # --speed-cap:网页模式再快也不超过它
         self.book = book            # bev_logbook.Logbook;只在使能时记
         self.release_t = None
         rt = BevRuntime if isinstance(policy, BevPolicy) else RoadRuntime
-        self.rt = rt(policy, speed_cap, SENSOR_TIMEOUT, ENABLE_TIMEOUT, self.p)
-        self.loop = loop or SpeedLoop(SpeedLoopConfig(launch_from=LAUNCH_FROM))
+        self.rt = rt(policy, min(self.p.policy_mode_caps[0], self.cap_max), SENSOR_TIMEOUT, ENABLE_TIMEOUT, self.p)
+        self.loop = loop or SpeedLoop(SpeedLoopConfig(launch_from=LAUNCH_FROM, up_rate=UP_RATE))
         self.guard = guard or ScanGuard()
+        self.escape = escape
+        self.guard_on = guard_on    # --no-guard:不截停、不找逃生转角(2026-10-24 用户定;碰撞靠模型自己 + 训练里撞了就算失败)
+        self.coast = False          # 松手滑行中:中位 + 模型转向,车速 < COAST_STEER_V 结束
         self.block_t = None         # 连续截停的起点
         self.seg_saved = None
         self.event = None
@@ -90,6 +110,21 @@ class RoadCarController:
         self.cam_jpg = None         # 最新一张地面分割调试图(JPEG 字节),逐帧回看用
         self.avoid_side = 0.0       # 上一拍绕行的方向(+1 左 / -1 右 / 0 没绕)
         self.steer_cmd = None       # 这一拍实际打的转角(避障后)
+
+    def coast_tick(self, now):
+        """松手滑行:油门中位,转向照模型;车速降到 COAST_STEER_V 以下或传感器过期就回正、清历史、结束。"""
+        steer = self.rt.coast_steer(now) if self.rt.speed > COAST_STEER_V else None
+        if steer is None:
+            self.coast, self.event = False, 'coast_end'
+            self.rt._reset_history()
+            return self.neutral()
+        self.event = 'coast'
+        self.loop.reset()
+        return self.p.pwm_mid, steer_to_turn(steer, self.p)
+
+    def release_cmd(self, now):
+        """刚松手马上发的那一条:滑行就中位 + 模型转向,否则中位回正。"""
+        return self.coast_tick(now) if self.coast else self.neutral()
 
     def neutral(self):
         """中位:油门回 1540、方向回正,速度环从中位重新爬(学到的 floor 保留)。"""
@@ -104,6 +139,14 @@ class RoadCarController:
             self.book.add_lidar(lidar_points(self.rt.scan, self.rt.angles, self.rt.scan_pose, self.p,
                                              self.rt.bev.lidar_yaw, 8.0),
                                 (sx + self.p.lidar_x * math.cos(yaw), sy + self.p.lidar_x * math.sin(yaw)))
+
+    def set_speed_cap(self, cap):
+        """网页模式给的限速;夹在模型训练下限和 --speed-cap 之间。返回实际用的值。"""
+        self.rt.speed_cap = min(max(float(cap), self.rt.enc.v_lo), self.cap_max)
+        top = PWM_FAST_MAX if self.rt.speed_cap > FAST_CAP else PWM_HARD_MAX
+        if self.loop.cfg.pwm_max != top:
+            self.loop.cfg = replace(self.loop.cfg, pwm_max=top)
+        return self.rt.speed_cap
 
     def on_encoder(self, speed, now):
         self.rt.on_odometry(speed, now)
@@ -120,7 +163,8 @@ class RoadCarController:
     def on_enable(self, enabled, now):
         """返回 True = 刚松手,要马上发一次中位(不靠看门狗补,2026-09-24 松手失控的教训)。"""
         was = self.rt.enabled
-        release = self.rt.set_enabled(enabled, now)
+        self.coast = (not enabled and was and self.rt.speed > COAST_STEER_V) or (self.coast and not enabled)
+        release = self.rt.set_enabled(enabled, now, keep_history=self.coast)
         if enabled and not was:
             self.loop.reset()       # 重新使能不沿用上一次的油门状态
             self.block_t = None
@@ -152,6 +196,8 @@ class RoadCarController:
         return cmd
 
     def _tick(self, now):
+        if self.coast and not self.rt.enabled:
+            return self.coast_tick(now)
         d = self.d = self.rt.decide(now)
         self.seg_saved = self.book_tick(now, d) if self.book is not None else None
         if d is None:
@@ -163,18 +209,29 @@ class RoadCarController:
         model_steer, target = d
         steer = self.steer_cmd = self.avoid(model_steer)
         servo = steer_to_turn(steer, self.p)
-        # 防撞按**当前要打的转角**算扫掠路径。截停时方向照发、油门回中位;策略不出倒车,
-        # 所以只报卡死、不自动倒车(雷达在车头,背后看不见)
+        # 防撞按**当前要打的转角**算扫掠路径。截停时方向照发;车速高于 brake_release_speed 发刹车,低了回中位
+        # (防倒车)。策略不出倒车,所以只报卡死、不自动倒车(雷达在车头,背后看不见)
         gap = self.guard.gap(steer)
-        if gap is not None and gap < GUARD_STOP:
+        need = guard_stop(self.rt.speed, self.p)
+        escaped = False
+        if self.guard_on and self.escape and gap is not None and gap < need:
+            alt = self.guard.escape(steer, need, self.p.max_steer)
+            if alt is not None:
+                steer = self.steer_cmd = alt
+                servo = steer_to_turn(steer, self.p)
+                gap, escaped = need, True
+        if self.guard_on and gap is not None and gap < need:
             if self.block_t is None:
                 self.block_t = now
             self.event = 'stuck' if now - self.block_t > STUCK_SECONDS else 'guard'
             self.gap = gap
             self.loop.reset()
-            return self.p.pwm_mid, servo
-        self.event = 'avoid' if steer != model_steer else None
+            return (self.p.brake_pwm if self.rt.speed > self.p.brake_release_speed else self.p.pwm_mid), servo
+        self.event = 'escape' if escaped else 'avoid' if steer != model_steer else None
         self.block_t = None
+        if target < 0:      # BRAKE_CMD:车速够高才会到这里(低了 RoadRuntime 已改中位,防倒车);松刹还在滚就接回原油门,停了走阶梯
+            self.loop.brake()
+            return self.p.brake_pwm, servo
         return round(self.loop.update(target, self.rt.speed, CONTROL_PERIOD)), servo
 
     def avoid(self, steer):
@@ -196,7 +253,7 @@ class RoadCarController:
 
 
 def load_policy(path):
-    """bev_v1_* / bev_v2_* 走 BevPolicy(BEV 输入),其余(road_v2 / road_v2.5 / spica_v3_*)走 RoadPolicy。"""
+    """bev_v1_* / bev_v2_* / bev_v2.5_* 走 BevPolicy(BEV 输入),其余(road_v2 / road_v2.5 / spica_v3_*)走 RoadPolicy。"""
     with np.load(path) as z:
         schema = str(z['schema'])
     return BevPolicy(path) if schema.startswith('bev_') else RoadPolicy(path)
@@ -205,9 +262,15 @@ def load_policy(path):
 def parser():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument('model', help='road_v2 / road_v2.5 / spica_v3_* / bev_v1_* / bev_v2_* .npz')
+    p.add_argument('model', help='road_v2 / road_v2.5 / spica_v3_* / bev_v1_* / bev_v2_* / bev_v2.5_* .npz')
     p.add_argument('--speed-cap', type=float, required=True,
-                   help=f'速度上限 m/s,要在模型自己的训练范围内(见 schema);首次上车用 {V_LO}~0.5')
+                   help=f'速度上限 m/s,要在模型自己的训练范围内(见 schema);网页模式限速不超过它;首次上车用 {V_LO}~0.5')
+    p.add_argument('--guard-escape', action='store_true',
+                   help='截停先找逃生转角(转角 ±0.15 rad 内净空够刹停就微调过去,都没有才截停;bev_train --guard-escape 训的模型配它,2026-10-23)')
+    p.add_argument('--no-guard', action='store_true',
+                   help='不截停:雷达净空不够也照开(2026-10-24 用户定;配不带 --guard 训的模型)')
+    p.add_argument('--no-seg', action='store_true',
+                   help='纯雷达模型(bev_train --no-seg 训的):不订阅地面分割、不因它过期停车,FREE 层保持空(2026-10-23)')
     return p
 
 
@@ -218,37 +281,39 @@ def create_node_class():
     from nav_msgs.msg import Odometry
     from rclpy.node import Node
     from sensor_msgs.msg import CompressedImage, Imu, LaserScan, PointCloud2
-    from std_msgs.msg import Bool
+    from std_msgs.msg import Bool, Float32
 
     class RoadCarNode(Node):
-        def __init__(self, model, speed_cap, log_root=None):
+        def __init__(self, model, speed_cap, log_root=None, no_seg=False, escape=False, guard_on=True):
             super().__init__('road_car_node')
             pol = load_policy(model)
             book = None
             if isinstance(pol, BevPolicy):
                 from vehicle.bev_logbook import Logbook
                 fov = None
-                if pol.free:                                    # 摄像头视野里的全部地面格,让"没分成地面"的格减分
+                if pol.free and not no_seg:                                    # 摄像头视野里的全部地面格,让"没分成地面"的格减分
                     from common.ground_proj import GroundLut
                     lut = GroundLut(512 // 4, 512 // 4, CarParams(), 3.0)     # 和 ground_seg_node 默认输入一致
                     fov = lut.points(np.ones(lut.valid.shape, bool))
                 book = Logbook(log_root or os.path.expanduser(time.strftime('~/drives/logbook_%m%d_%H%M%S')),
                                fov_body=fov)
-            self.ctl = RoadCarController(pol, speed_cap, book=book)
+            self.ctl = RoadCarController(pol, speed_cap, book=book, escape=escape, guard_on=guard_on)
+            self.ctl.rt.no_seg = no_seg
             self.pub = self.create_publisher(Twist, CMD_TOPIC, 5)
             self.create_subscription(LaserScan, '/scan', self.on_scan, 1)
             self.create_subscription(Odometry, ENC_TOPIC, self.on_enc, 10)
             self.create_subscription(Imu, '/IMU_data', self.on_imu, 10)
             self.create_subscription(Bool, '/policy_enable', self.on_enable, 1)
-            if getattr(self.ctl.rt.policy, 'free', False):            # bev_v2:订阅地面分割
+            self.create_subscription(Float32, CAP_TOPIC, self.on_cap, 1)
+            if getattr(self.ctl.rt.policy, 'free', False) and not no_seg:            # bev_v2:订阅地面分割
                 self.create_subscription(PointCloud2, FREE_TOPIC, self.on_free, 2)
                 self.create_subscription(CompressedImage, '/ground_debug', self.on_cam, 1)   # 逐帧回看配图
             self.last_event = None
             self.last_floor = self.ctl.loop.floor
             self.create_timer(CONTROL_PERIOD, self.tick)
             self.get_logger().info(
-                f'已载入 {model},速度上限 {speed_cap:.2f} m/s,编码器闭环 -> {CMD_TOPIC},'
-                f'等 /policy_enable')
+                f'已载入 {model},速度上限 {self.ctl.rt.speed_cap:.2f} m/s(网页模式可调到 {speed_cap:.2f}),'
+                f'编码器闭环 -> {CMD_TOPIC},等 /policy_enable')
 
         def now(self):
             return self.get_clock().now().nanoseconds * 1e-9
@@ -286,11 +351,16 @@ def create_node_class():
         def on_cam(self, m):
             self.ctl.cam_jpg = bytes(m.data)
 
+        def on_cap(self, m):
+            old = self.ctl.rt.speed_cap
+            if self.ctl.set_speed_cap(m.data) != old:
+                self.get_logger().info(f'限速 {old:.2f} -> {self.ctl.rt.speed_cap:.2f} m/s')
+
         def on_enable(self, m):
             was = self.ctl.rt.enabled
             if self.ctl.on_enable(m.data, self.now()):
-                self.neutral()
-                self.get_logger().info('松手,已发中位')
+                self.send(self.ctl.release_cmd(self.now()))
+                self.get_logger().info('松手,已发中位' + (f'(车速 {self.ctl.rt.speed:.1f},转向跟模型滑行到 {COAST_STEER_V})' if self.ctl.coast else ''))
             elif m.data and not was:
                 self.get_logger().info('使能')
 
@@ -313,6 +383,8 @@ def create_node_class():
             if ev == 'stale':
                 log.warn(f'{self.ctl.rt.stale_sensors(now) or ["心跳"]} 过期,回中位',
                          throttle_duration_sec=1.0)
+            elif ev == 'coast_end' and self.last_event == 'coast':
+                log.info('滑行结束,回正')
             elif ev == 'guard':
                 log.warn(f'前方 {self.ctl.gap:.2f}m,截停', throttle_duration_sec=1.0)
             elif ev == 'stuck' and self.last_event != 'stuck':
@@ -321,7 +393,11 @@ def create_node_class():
             elif ev == 'avoid' and self.last_event != 'avoid':
                 d = self.ctl.d
                 log.info(f'避障:模型 {math.degrees(d[0]):+.0f}° -> {math.degrees(self.ctl.steer_cmd):+.0f}°')
-            elif ev in (None, 'avoid') and self.last_event in ('guard', 'stuck'):
+            elif ev == 'escape':
+                d = self.ctl.d
+                log.info(f'逃生转角:{math.degrees(d[0]):+.1f}° -> {math.degrees(self.ctl.steer_cmd):+.1f}°',
+                         throttle_duration_sec=1.0)
+            elif ev in (None, 'avoid', 'escape') and self.last_event in ('guard', 'stuck'):
                 log.info('脱困,恢复行驶')
             self.last_event = ev
 
@@ -342,7 +418,7 @@ def main(argv=None):
     # 自己接信号:rclpy 默认处理器会先关掉 context,finally 里再发中位时 publisher 已失效,
     # systemctl stop 时车收不到中位(steer_policy_node 2026-09-21 实测)。
     rclpy.init(args=[], signal_handler_options=SignalHandlerOptions.NO)
-    node = create_node_class()(args.model, args.speed_cap)
+    node = create_node_class()(args.model, args.speed_cap, no_seg=args.no_seg, escape=args.guard_escape, guard_on=not args.no_guard)
 
     def stop(*_):
         for _ in range(5):

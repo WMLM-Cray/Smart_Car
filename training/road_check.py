@@ -91,20 +91,24 @@ def check(road, pl, start, a_lat: float = A_LAT, r_min: float = R_MIN) -> tuple[
 
 
 def sample_episode(seed: int, level: str, max_tries: int = 200, enc=DEFAULT_ENC,
-                   a_lat: float = A_LAT, cap_max: float | None = None):
+                   a_lat: float = A_LAT, cap_max: float | None = None, cap_min: float | None = None):
     """抽一局能通过三层检查的 (路, 车辆参数, 起点, 规划)。返回值附带作废原因计数。
 
     enc 是这一局的速度契约(观测尺度 + 动作解码区间);三层检查里老师就是按它开车的,
     所以标签存在的速度范围和学生能表达的范围一致。
     a_lat 透传给老师(见 road_teacher.A_LAT):默认值下 v_hi<=1 的契约里老师恒速。
-    cap_max 课程分档:速度上限只抽到这里(见 Plant.sample)。
+    cap_max / cap_min 课程分档:速度上限的抽取范围(见 Plant.sample)。
     """
     rng = np.random.default_rng(seed)
     lv = next(l for l in LEVELS if l.name == level)
     rejects = collections.Counter()
     for _ in range(max_tries):
-        road = generate_loop(rng, lv) if lv.loop else generate(rng, lv)
-        pl = Plant.sample(rng, enc, cap_max)
+        if lv.real:
+            from evaluation.road_track import real_track
+            road = real_track(lv.real)[0]
+        else:
+            road = generate_loop(rng, lv) if lv.loop else generate(rng, lv)
+        pl = Plant.sample(rng, enc, cap_max, cap_min)
         start = sample_start(rng, road, recovery=rng.random() < 0.5)
         ok, why, P = check(road, pl, start, a_lat)
         if ok:

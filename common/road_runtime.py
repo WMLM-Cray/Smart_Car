@@ -6,7 +6,7 @@ import numpy as np
 from common.control import to_cmd_vel
 from common.params import CarParams
 from common.pwm import action_to_steer
-from common.road_policy import DEFAULT_ENC, RoadPolicy, action_to_speed, observe
+from common.road_policy import DEFAULT_ENC, RoadPolicy, action_to_speed, observe, release_brake
 
 
 STOP = 'stop'
@@ -49,13 +49,15 @@ class RoadRuntime:
         self.yaw_rate = float(yaw_rate)
         self.imu_t = float(now)
 
-    def set_enabled(self, enabled, now):
-        """Update enable heartbeat; return True when an immediate neutral is needed."""
+    def set_enabled(self, enabled, now, keep_history=False):
+        """Update enable heartbeat; return True when an immediate neutral is needed.
+        keep_history:松手后还要按模型转向滑行(coast_steer),先不清 BEV / 上一拍动作。"""
         now = float(now)
         if not enabled:
             changed = self.enabled
             self.enabled, self.enable_t = False, None
-            self._reset_history()
+            if not keep_history:
+                self._reset_history()
             return changed
         if not self.enabled:
             self._reset_history()
@@ -80,7 +82,8 @@ class RoadRuntime:
         """One control step shared by the sim and car nodes.
 
         None = disabled, send nothing; STOP = heartbeat or a sensor went stale, send neutral;
-        otherwise (steer rad, target speed m/s).
+        otherwise (steer rad, target speed m/s);带 _d 的契约 target 还可能是 STOP_CMD(0,中位滑行)
+        或 BRAKE_CMD(负数,刹车;测得车速不高于 brake_release_speed 时已改成 STOP_CMD,和仿真 RoadEnv.step 一样)。
         """
         now = float(now)
         if not self.enabled:
@@ -96,8 +99,17 @@ class RoadRuntime:
         action = np.clip(np.asarray(self._act(now), dtype=np.float32).reshape(2), -1.0, 1.0)
         self.last_action[:] = action
         steer = action_to_steer(float(action[0]), self.params)
-        target_speed = min(action_to_speed(float(action[1]), self.enc), self.speed_cap)
+        target_speed = min(release_brake(action_to_speed(float(action[1]), self.enc), self.speed,
+                                         self.params.brake_release_speed), self.speed_cap)
         return steer, target_speed
+
+    def coast_steer(self, now):
+        """松手滑行(2026-10-24):只要模型这一拍的转角,油门由节点给中位;传感器过期返回 None。"""
+        if self.stale_sensors(now):
+            return None
+        action = np.clip(np.asarray(self._act(now), dtype=np.float32).reshape(2), -1.0, 1.0)
+        self.last_action[:] = action
+        return action_to_steer(float(action[0]), self.params)
 
     def _act(self, now):
         """模型这一拍的原始动作;BevRuntime 换成 BEV 输入。"""
@@ -111,4 +123,4 @@ class RoadRuntime:
         if d is None or d is STOP:
             return None if d is None else (0.0, 0.0)
         steer, target_speed = d
-        return to_cmd_vel(target_speed, steer, self.params)
+        return to_cmd_vel(max(0.0, target_speed), steer, self.params)

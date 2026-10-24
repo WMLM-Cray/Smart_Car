@@ -431,7 +431,9 @@ function beat(ts){
   if(ts-beatT<100) return;
   beatT=ts;
   if(!ws||ws.readyState!=1||!active) return;
-  send('t '+thr()+' '+steer()+' '+Math.round(brake*1000));
+  /* 刹车:手柄 LT;屏幕摇杆往下拉 / 键盘 S、↓ 按往回的量算(原来只有手柄能刹,别的只能松油滑行) */
+  const brk = src==='pad' ? brake : (ny < STICK_BACK ? -ny : 0);
+  send('t '+thr()+' '+steer()+' '+Math.round(brk*1000));
 }
 requestAnimationFrame(beat);
 

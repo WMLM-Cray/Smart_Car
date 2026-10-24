@@ -43,6 +43,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 PWM_HARD_MAX = 1620     # 和 steer_policy_node.py 同一个硬上限,别单独放宽
+# 策略 MAD MAX 档(网页限速 > 1.2)才放到这里,= 网页手动 MAD MAX 的上限(2026-10-22 用户定 1640 ~2.2 m/s;
+# 10-23 夜 1660 稳态 2.89、10-24 手动 3.2;10-24 再加到 1680,手动实测 2~3 s 加到 4.2~4.4 还没到顶)。
+# 默认 pwm_max 仍是 PWM_HARD_MAX,只有 road_car_node 按网页档位切换。
+PWM_FAST_MAX = 1680
 
 
 @dataclass
@@ -127,11 +131,11 @@ class SpeedLoopConfig:
                 f'要满足 pwm_mid < pwm_floor <= pwm_breakaway <= pwm_max,'
                 f'给的是 {self.pwm_mid}/{self.pwm_floor}/'
                 f'{self.pwm_breakaway}/{self.pwm_max}')
-        if self.pwm_max > PWM_HARD_MAX:
-            raise ValueError(f'pwm_max 不能超过硬上限 {PWM_HARD_MAX}')
-        if not 10.0 <= self.up_rate <= 40.0:
+        if self.pwm_max > PWM_FAST_MAX:
+            raise ValueError(f'pwm_max 不能超过硬上限 {PWM_FAST_MAX}')
+        if not 10.0 <= self.up_rate <= 70.0:     # 10-24 车上用 60(原上限 40)
             raise ValueError(
-                f'up_rate {self.up_rate} 超出实测可用区间 [10, 40] PWM/s:'
+                f'up_rate {self.up_rate} 超出可用区间 [10, 70] PWM/s:'
                 f'太慢电调不起转,太快等于跳变')
         if not 0.0 < self.collapse_frac < 1.0:
             raise ValueError('要满足 0 < collapse_frac < 1')
@@ -161,7 +165,19 @@ class SpeedLoop:
         self.reached = False        # 本轮有没有跑到过目标附近(自标定的武装条件)
         self.launching = True       # 还没确认起步(没学破静点)
         self.moving_n = 0           # 连续几拍在动
+        self._resume = None         # brake() 记下的刹车前油门状态
         self._clear_steps()
+
+    def brake(self):
+        """策略刹车这一拍:同 reset 清状态,但记下刹车前的油门(PWM、积分)。松刹时车还在动,update 就从这里接着走,
+        不从起步点按 up_rate 重爬 —— 原来每次 0.1 s 的刹车之后要爬 1 s 多才回到 1620~1640,这段贴着维持点,
+        车一路掉到平台 0.6~0.7(2026-10-22 实车 MAD MAX:每次刹车 0.7 s 内掉 0.5~0.7 m/s,直道弯里都在锯齿)。
+        连续几拍刹车记的是第一拍之前的。"""
+        snap = self._resume
+        if snap is None and not self.stalled and self.last_pwm > self.cfg.pwm_mid:
+            snap = (self.last_pwm, self.integral, self.launching, self.reached)
+        self.reset()
+        self._resume = snap
 
     def _clear_steps(self):
         self.step_pwm = None        # 阶梯起步当前台阶
@@ -225,6 +241,11 @@ class SpeedLoop:
         if target <= 0:
             self.reset()
             return float(c.pwm_mid)
+        if self._resume is not None:
+            snap, self._resume = self._resume, None
+            if measured >= c.stall_speed:           # 刹完还在滚:接回刹车前的油门(刹停了就走正常起步)
+                self.last_pwm, self.integral, self.launching, self.reached = snap
+                self.stalled = False
 
         # 起步爬升:输出还在 pwm_floor 以下时,只许连续往上爬,不许一步跳到
         # breakaway。原来这里是 max(pwm_breakaway, last_pwm),从中位直接跳 54 个

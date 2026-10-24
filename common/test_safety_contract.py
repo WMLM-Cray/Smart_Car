@@ -76,6 +76,11 @@ def refresh(controller, now):
     controller.on_scan(SimpleNamespace(**SCAN), now)
 
 
+def guard_event(controller):
+    """部署 event 里只取截停那部分;'avoid' / 'escape' 是截停之前的转向事件,契约不管。"""
+    return controller.event if controller.event in ('guard', 'stuck') else None
+
+
 def run_both(sequence, cap=1.5):
     """Drive deployment and contract with the same (now, gap) sequence."""
     controller, contract, params, steer = rig(cap)
@@ -84,13 +89,13 @@ def run_both(sequence, cap=1.5):
         refresh(controller, now)
         controller.guard.gap_m = gap
         command = controller.tick(now)
-        decision = contract.step(now, gap, steer)
+        decision = contract.step(now, gap, controller.steer_cmd, controller.rt.speed)   # 避障在截停之前,契约吃实打转角
         assert command is not None, 'controller must publish while enabled and fresh'
         assert command[1] == decision.steer, 'steering is published on every tick'
-        assert decision.event == controller.event
+        assert decision.event == guard_event(controller)
         assert contract.block_t == controller.block_t
         assert contract.gap == controller.gap
-        if controller.event is None:
+        if guard_event(controller) is None:
             assert decision.throttle is None, 'throttle on a free tick belongs to SpeedLoop'
         else:
             assert command[0] == params.pwm_mid == decision.throttle
@@ -111,7 +116,7 @@ def run_both(sequence, cap=1.5):
 ])
 def test_contract_matches_deployment_tick(sequence):
     controller, contract, _params, decisions, commands = run_both(sequence)
-    assert decisions[-1].event == controller.event
+    assert decisions[-1].event == guard_event(controller)
     assert commands  # every tick published something
 
 

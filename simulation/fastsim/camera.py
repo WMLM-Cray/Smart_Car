@@ -24,7 +24,7 @@ import numpy as np
 
 from common.bev import CellType
 from common.params import CarParams, TrackParams
-from simulation.fastsim.road import EDGE, NONE, WALL
+from simulation.fastsim.road import EDGE, NONE, WALL, inside_many
 
 TAPE_STEP = 0.10                # 胶带沿线取点间距 m
 
@@ -134,7 +134,15 @@ class FloorSegConfig:
     step: float = 0.05          # 采样间距 m(= BEV 栅格)
     edge_sigma: float = 0.05    # 每帧边界整体偏移(外扩为正)m
     jitter: float = 0.03        # 逐点边界抖动 m
+    edge_bias: float = 0.0      # 边界固定外扩 m:正 = 墙脚被当成地面(点落到墙后),负 = 离墙还有一截就不认了
     miss: float = 0.05          # 整帧失败(什么都不给)的概率
+    # 按车上的投影方式出点(2026-10-16):车上是分割输出每个像素中心经 GroundLut 投到地面的一个点,远处行距
+    # ~ d²/h·0.85°(3 m 处 ~0.5 m),BEV 里是一道道条纹;姿态没被雷达确认时只要 2 m(common/ground_fix)。
+    # 原来按 5 cm 密网铺满 3 m,实车正前方 2~2.5 / 2.5~3 m 的地面格填充率 0.48 / 0.16,仿真 1.0 / 1.0。
+    # None = 老的密网;(rows, cols) = 分割输出尺寸(M2F-T 288x384 -> 72x96)
+    lut: tuple | None = None
+    fill: bool = False          # lut 模式下补行间的缝(和车上 ground_seg_node --fill 同一个 GroundLut.fill_rows)
+    sure: float = 0.3           # lut 模式下每帧姿态被雷达确认(取 3 m,否则 2 m)的概率;0.3 时各距离段填充率对上实车
 
 
 class FakeFloorSeg:
@@ -163,17 +171,34 @@ class FakeFloorSeg:
         g = np.stack([gx.ravel(), gy.ravel()], axis=1)
         keep = (np.hypot(g[:, 0], g[:, 1]) <= cfg.range) & (np.abs(np.arctan2(g[:, 1], g[:, 0])) <= params.camera_hfov / 2)
         self.grid_cam = g[keep]
+        if cfg.lut is not None:                 # 车上的像素中心投影点
+            from common.ground_proj import GroundLut
+            self.lut = GroundLut(*cfg.lut, params, cfg.range)
+            self.lut_idx = np.flatnonzero(self.lut.valid)
+            self.grid_cam = self.lut.xy[self.lut_idx] - (params.camera_x, 0.0)
         self.grid_body = self.grid_cam + (params.camera_x, 0.0)
         self.grid_r = np.hypot(self.grid_cam[:, 0], self.grid_cam[:, 1])
         self.grid_a = np.arctan2(self.grid_cam[:, 1], self.grid_cam[:, 0])
 
-    def in_view(self, world, pose) -> np.ndarray:
-        """世界系点 (n, 2) 是否落在地面分割的视场里(和 detect 的采样范围一致)。"""
+    def in_view(self, world, pose, reach=None) -> np.ndarray:
+        """几何投影有效域(不表示该帧已识别/送达);reach 可指定该帧 2 m/3 m 距离。"""
         x, y, yaw = pose
         c, s = math.cos(yaw), math.sin(yaw)
         dx, dy = world[:, 0] - x, world[:, 1] - y
         bx, by = c * dx + s * dy - self.p.camera_x, -s * dx + c * dy
-        return ((bx >= self.near) & (np.hypot(bx, by) <= self.cfg.range)
+        reach = self.cfg.range if reach is None else min(reach, self.cfg.range)
+        if self.cfg.lut is not None:
+            from common.ground_proj import ground_to_pixel
+            uv = ground_to_pixel(np.c_[bx + self.p.camera_x, by], self.p)
+            width, height = self.p.camera_size
+            valid = (np.isfinite(uv).all(axis=1) & (uv[:, 0] >= 0) & (uv[:, 0] < width)
+                     & (uv[:, 1] >= 0) & (uv[:, 1] < height)
+                     & (np.hypot(bx, by) <= reach + 1e-9))
+            rows, cols = self.lut.shape
+            ij = (uv[valid] * (cols / width, rows / height)).astype(int)
+            valid[valid] &= self.lut.valid.reshape(rows, cols)[ij[:, 1], ij[:, 0]]
+            return valid
+        return ((bx >= self.near) & (np.hypot(bx, by) <= reach)
                 & (np.abs(np.arctan2(by, bx)) <= self.p.camera_hfov / 2))
 
     def detect(self, pose) -> np.ndarray:
@@ -181,6 +206,10 @@ class FakeFloorSeg:
         cfg, rng, road = self.cfg, self.rng, self.road
         if rng.random() < cfg.miss:
             return np.zeros((0, 2))
+        reach = cfg.range
+        if cfg.lut is not None:
+            from common.ground_fix import RANGE_UNSURE
+            reach = cfg.range if rng.random() < cfg.sure else RANGE_UNSURE
         x, y, yaw = pose
         c, s = math.cos(yaw), math.sin(yaw)
         b = self.grid_body
@@ -188,16 +217,43 @@ class FakeFloorSeg:
         _, i = self.centre_tree.query(w)
         n = road.normal[i]
         d = np.einsum('ij,ij->i', w - road.centre[i], n)               # 左正
-        m = rng.normal(0, cfg.edge_sigma) + rng.normal(0, cfg.jitter, len(d))
+        m = cfg.edge_bias + rng.normal(0, cfg.edge_sigma) + rng.normal(0, cfg.jitter, len(d))
         hl, hr = road.half_l[i] + m, road.half_r[i] + m
         ml, mr = np.asarray(road.mat_left)[i], np.asarray(road.mat_right)[i]
         stop = (WALL, EDGE)                                            # 墙挡住地面;EDGE 外是别的材质
         free = ~(((d > hl) & np.isin(ml, stop)) | ((d < -hr) & np.isin(mr, stop)))
+        for poly in getattr(road, 'pockets', ()):                      # 直角口袋也是地面(旧 pickle 没有这个字段)
+            free |= inside_many(poly, w)
         if self.cone_tree is not None:
             dc, _ = self.cone_tree.query(w)
             free &= dc > road.cone_radius
             free &= ~self._shadow(x + c * self.p.camera_x, y + s * self.p.camera_x, yaw)
+        if len(getattr(road, 'obstacles', ())):         # 旧测试集 pickle 里的 Road 没有这个字段
+            free &= ~self._obstacle_shadow(x + c * self.p.camera_x, y + s * self.p.camera_x, yaw)
+        if cfg.lut is not None and cfg.fill:   # 上下相邻都是地面的像素之间补点(被挡 / 边界外的格是 False,自然不补)
+            full = np.zeros(self.lut.valid.size, bool)
+            full[self.lut_idx] = free
+            pts = np.vstack([b[free], self.lut.fill_rows(full.reshape(self.lut.shape))])
+            return pts[np.hypot(pts[:, 0] - self.p.camera_x, pts[:, 1]) <= reach]
+        if reach < cfg.range:
+            free &= self.grid_r <= reach
         return b[free]
+
+    def _obstacle_shadow(self, cx, cy, yaw) -> np.ndarray:
+        """路中障碍(箱子/板子)本身和它挡住的那一扇地面(grid_cam 上的布尔):按相机看到的四个角张成的角度范围,
+        比最近的角远的都算看不到(当障碍比相机 24 cm 高)。"""
+        out = np.zeros(len(self.grid_cam), bool)
+        for box in self.road.obstacles:
+            d = box - (cx, cy)
+            dist = np.hypot(d[:, 0], d[:, 1])
+            if dist.min() > self.cfg.range:
+                continue
+            ang = np.arctan2(d[:, 1], d[:, 0]) - yaw
+            mid = math.atan2(d[:, 1].mean(), d[:, 0].mean()) - yaw
+            rel = (ang - mid + np.pi) % (2 * np.pi) - np.pi              # 以箱子中心方向为零,免得跨 ±π
+            da = (self.grid_a - mid + np.pi) % (2 * np.pi) - np.pi
+            out |= (da >= rel.min()) & (da <= rel.max()) & (self.grid_r > dist.min())
+        return out
 
     def _shadow(self, cx, cy, yaw) -> np.ndarray:
         """被锥桶挡住、相机看不到的地面格(grid_cam 上的布尔)。桶高 70 cm > 相机高 24 cm,桶后面那一扇

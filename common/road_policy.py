@@ -13,9 +13,17 @@
 `road_v2.5` 这种前缀能匹配、剩下的 `.5` 认不出的名字,静默按默认契约跑会拿错尺度
 观测、拿错区间解码,而且全程不报错;打错一个字母的后缀同理。
 scale 是**训练时**观测里速度通道的归一化尺度,不是部署速度(同 v1 的 SPEED_SCALE)。
+    ..._s3_v0.45-1_d0.2              加 _d<死区>:速度动作分三段(2026-10-19,能停车 / 刹车):
+        a >= d 前进,线性映射到 [v_lo, v_hi];|a| < d 中位 STOP_CMD(滑行到停);a <= -d 刹车 BRAKE_CMD。
+        前进段最低仍是 v_lo,不出慢爬的速度(电调死区:停在中位以上、破静以下再加油不认)。
+        车上:STOP_CMD 发中位;BRAKE_CMD 发 CarParams.brake_pwm,车速不高于 brake_release_speed 时改中位(road_car_node)。
+    ..._s5_v0.45-5_d0.2_log          前进段按对数刻度:v = v_lo·(v_hi/v_lo)^((a-d)/(1-d))(2026-10-19,比赛车速
+        没定、要留到 5 m/s):动作仍是绝对车速(限速只截断,调高限速不会让学过的动作变快),
+        低速段不被压扁 —— 0.45~0.7 占前进段 18%(线性 5%),0.7 附近动作差 0.01 ≈ 0.02 m/s。
 V_HI 是动作空间能表达的最高目标速度 —— 它设小了,策略物理上就快不起来。
 见 docs/spica方案.md §3.2。
 """
+import math
 import re
 from typing import NamedTuple
 
@@ -47,11 +55,17 @@ def drop_last_action(schema) -> bool:
     return str(schema).endswith(NOLA)
 
 
+STOP_CMD = 0.0      # 速度指令:中位,滑行到停(只有带 _d 的契约会出)
+BRAKE_CMD = -1.0    # 速度指令:刹车(发指令时测得车速不高于 CarParams.brake_release_speed 就改中位,见 release_brake)
+
+
 class Encoding(NamedTuple):
-    """一局/一个模型的速度契约:观测里速度通道的归一化尺度 + 动作解码出的速度区间。"""
+    """一局/一个模型的速度契约:观测里速度通道的归一化尺度 + 动作解码出的速度区间 + 停车死区(0 = 老的线性契约)。"""
     scale: float = SPEED_SCALE
     v_lo: float = V_LO
     v_hi: float = V_HI
+    dead: float = 0.0
+    log: bool = False               # 前进段对数刻度(只和 dead 一起用)
 
 
 DEFAULT_ENC = Encoding()
@@ -59,7 +73,7 @@ DEFAULT_ENC = Encoding()
 # road_v2.5 是 2026-09 的 v2.5 模型线(车上在用 road_v2.5/candidate_b036),和 spica_v3_s3_v0.45-3
 # 是同一个契约:观测速度按 3.0 归一化、动作速度 0.45~3.0、265 列输入。新模型一律用后缀导出。
 ALIASES = {'road_v2.5': Encoding(3.0, 0.45, 3.0)}
-_SUFFIX = re.compile(r'^_s(?P<scale>[0-9.]+)_v(?P<lo>[0-9.]+)-(?P<hi>[0-9.]+)$')
+_SUFFIX = re.compile(r'^_s(?P<scale>[0-9.]+)_v(?P<lo>[0-9.]+)-(?P<hi>[0-9.]+)(_d(?P<dead>0?\.[0-9]+)(?P<log>_log)?)?$')
 
 
 def spec_of(schema) -> Encoding:
@@ -84,21 +98,48 @@ def spec_of(schema) -> Encoding:
     if m is None:
         raise ValueError(f'schema {s} 的后缀 {rest!r} 不认识'
                          f'(能认的是 {_SUFFIX.pattern!r},或什么都不带 = 默认契约)')
-    return Encoding(float(m['scale']), float(m['lo']), float(m['hi']))
+    return Encoding(float(m['scale']), float(m['lo']), float(m['hi']), float(m['dead'] or 0.0), bool(m['log']))
 
 
 def suffix_of(enc: Encoding) -> str:
     """Encoding -> schema 后缀。默认契约给空串,于是老模型的名字原样保留。"""
-    return '' if tuple(enc) == tuple(DEFAULT_ENC) else f'_s{enc.scale:g}_v{enc.v_lo:g}-{enc.v_hi:g}'
+    if tuple(enc) == tuple(DEFAULT_ENC):
+        return ''
+    return (f'_s{enc.scale:g}_v{enc.v_lo:g}-{enc.v_hi:g}' + (f'_d{enc.dead:g}' if enc.dead else '')
+            + ('_log' if enc.log else ''))
 
 
 def action_to_speed(a: float, enc: Encoding = DEFAULT_ENC) -> float:
     a = min(1.0, max(-1.0, a))
-    return enc.v_lo + (a + 1.0) / 2.0 * (enc.v_hi - enc.v_lo)
+    d = enc.dead
+    if not d:
+        return enc.v_lo + (a + 1.0) / 2.0 * (enc.v_hi - enc.v_lo)
+    if a >= d:
+        f = (a - d) / (1.0 - d)
+        return enc.v_lo * (enc.v_hi / enc.v_lo) ** f if enc.log else enc.v_lo + f * (enc.v_hi - enc.v_lo)
+    return STOP_CMD if a > -d else BRAKE_CMD
+
+
+def release_brake(v_cmd: float, v_meas: float, release: float) -> float:
+    """松刹:刹车指令在发出那一刻按**测得的**车速判断,不高于 release 就改成中位(低速一直刹,电调会倒车)。
+    车上和仿真(RoadEnv.step)共用这一段;动力学收到什么就执行什么(docs/v4.5方案.md §2.1)。"""
+    return STOP_CMD if (v_cmd == BRAKE_CMD and v_meas <= release) else v_cmd
 
 
 def speed_to_action(v: float, enc: Encoding = DEFAULT_ENC) -> float:
-    return min(1.0, max(-1.0, 2.0 * (v - enc.v_lo) / (enc.v_hi - enc.v_lo) - 1.0))
+    """带 _d 的契约:STOP_CMD -> 0(死区正中),BRAKE_CMD(负数)-> -1,前进车速低于 v_lo 按 v_lo。"""
+    d = enc.dead
+    if not d:
+        return min(1.0, max(-1.0, 2.0 * (v - enc.v_lo) / (enc.v_hi - enc.v_lo) - 1.0))
+    if v < 0:
+        return -1.0
+    if v == STOP_CMD:
+        return 0.0
+    if enc.log:
+        f = math.log(max(v, enc.v_lo) / enc.v_lo) / math.log(enc.v_hi / enc.v_lo)
+    else:
+        f = max(0.0, v - enc.v_lo) / (enc.v_hi - enc.v_lo)
+    return min(1.0, d + f * (1.0 - d))
 
 
 def observe(ranges, angles, speed, cap, yaw_rate, last_action, scale=None):

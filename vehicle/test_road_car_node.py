@@ -6,13 +6,13 @@ import pytest
 
 from common.params import CarParams
 from common.pwm import action_to_steer, steer_to_turn
-from common.road_policy import RoadPolicy
+from common.road_policy import Encoding, RoadPolicy
 from simulation.fastsim.road import LEVELS, generate
 from simulation.fastsim.road_env import Plant, RoadEnv
 from vehicle import road_car_node
-from vehicle.road_car_node import AVOID_CLEAR, GUARD_STOP, LAUNCH_FROM, STUCK_SECONDS, RoadCarController
+from vehicle.road_car_node import AVOID_CLEAR, GUARD_STOP, LAUNCH_FROM, STUCK_SECONDS, RoadCarController, guard_speed, guard_stop
 from vehicle.scan_guard import BUMPER_AHEAD, LIDAR_X
-from vehicle.speed_loop import PWM_HARD_MAX
+from vehicle.speed_loop import PWM_FAST_MAX, PWM_HARD_MAX
 
 MODEL = 'models/road_v2/candidate_167.npz'
 P = CarParams()
@@ -84,6 +84,7 @@ def test_same_actions_as_training_env_on_a_fastsim_episode():
     ref = RoadPolicy(MODEL)
     spy = SpyPolicy(RoadPolicy(MODEL))
     ctl = RoadCarController(spy, pl.cap)
+    ctl.set_speed_cap(pl.cap)       # 开局是 Sloth 档(0.7);网页切档后才到 pl.cap
     ctl.on_enable(True, 0.0)
     for _ in range(120):
         t = env.t
@@ -236,3 +237,195 @@ def test_launch_jump_stays_below_measured_breakaway():
     """起步跳点紧贴高位实测最低破静点 1594 下方;不能跳过它。
     低位(上电锁成 ~1500)时破静 1552,这个跳点会冲出去 —— 靠"先开服务再开电调"的规程保证高位。"""
     assert P.pwm_mid < LAUNCH_FROM < 1594
+
+
+class DeadPolicy(FakePolicy):
+    """带停车 / 刹车死区的新契约(v4.5)。"""
+    enc = Encoding(5.0, 0.45, 5.0, 0.2, True)     # _s5_v0.45-5_d0.2_log
+
+
+def drive(ctl, t, speed):
+    ctl.on_scan(FakeScan(np.full(N, 5.0)), t)
+    feed(ctl, t, speed)
+    return ctl.tick(t)
+
+
+def test_dead_band_contract_stop_is_neutral():
+    ctl = ready(DeadPolicy((0.0, 0.0)))
+    assert drive(ctl, 10.05, 1.0)[0] == P.pwm_mid
+
+
+def test_dead_band_contract_brakes_only_above_release_speed():
+    """刹车:车速高于 brake_release_speed 发 brake_pwm;低了改中位,不倒车(同仿真 release_brake)。"""
+    ctl = ready(DeadPolicy((0.0, -1.0)))
+    assert drive(ctl, 10.05, P.brake_release_speed + 0.3)[0] == P.brake_pwm
+    assert drive(ctl, 10.10, P.brake_release_speed)[0] == P.pwm_mid
+
+
+def test_dead_band_contract_forward_after_brake_relaunches_by_jump():
+    """刹停后再给油:速度环清过状态,第一拍是起步跳点,不从刹车 PWM 往上爬。"""
+    pol = DeadPolicy((0.0, -1.0))
+    ctl = ready(pol)
+    drive(ctl, 10.05, 1.0)
+    pol.action = np.asarray((0.0, 1.0), np.float32)
+    assert drive(ctl, 10.10, 0.0)[0] == LAUNCH_FROM
+
+
+def test_guard_brakes_when_fast_and_sends_neutral_when_slow():
+    """截停:车速高于 brake_release_speed 发刹车(更快的模式要刹得住),低了回中位(防倒车)。"""
+    wall = np.full(N, 5.0)
+    ang = -math.pi + np.arange(N) * INC
+    wall[np.abs(ang) < 1.2] = BUMPER_AHEAD + 0.10
+    ctl = ready(DeadPolicy((0.0, -1.0)), ranges=wall)
+    feed(ctl, 10.05, 1.0)
+    assert ctl.tick(10.05)[0] == P.brake_pwm and ctl.event == 'guard'
+    feed(ctl, 10.10, P.brake_release_speed)
+    assert ctl.tick(10.10)[0] == P.pwm_mid and ctl.event == 'guard'
+
+
+def test_guard_stop_unchanged_up_to_base_speed_and_grows_with_speed():
+    """0.7 m/s 及以下还是 0.25 m(实车验证过的);1.2 / 2.5 m/s 加上多出来的延迟 + 刹车距离。"""
+    for v in (0.0, 0.5, P.guard_base_speed):
+        assert guard_stop(v, P) == GUARD_STOP
+    assert guard_stop(1.2, P) == pytest.approx(GUARD_STOP + 0.2 * 0.5 + (1.44 - 0.49) / 2.6)
+    assert guard_stop(2.5, P) > 2.5
+
+
+def test_guard_trips_earlier_at_higher_speed():
+    """同一面墙在 0.6 m 外:0.7 m/s 不截停,1.2 m/s 截停并刹车。"""
+    wall = np.full(N, 5.0)
+    ang = -math.pi + np.arange(N) * INC
+    wall[np.abs(ang) < 1.2] = BUMPER_AHEAD + 0.60
+    ctl = ready(FakePolicy(action=(0.0, 1.0)), ranges=wall)
+    feed(ctl, 10.05, 0.7)
+    ctl.tick(10.05)
+    assert ctl.event not in ('guard', 'stuck')
+    feed(ctl, 10.10, 1.2)
+    assert ctl.tick(10.10)[0] == P.brake_pwm and ctl.event == 'guard'
+
+
+def test_speed_cap_starts_at_sloth_and_follows_web_mode_within_max():
+    """开局 Sloth(0.7);网页切档改限速,但不超过 --speed-cap,也不低于模型训练下限。"""
+    ctl = RoadCarController(DeadPolicy(), 2.5)
+    assert ctl.rt.speed_cap == P.policy_mode_caps[0]
+    assert ctl.set_speed_cap(1.2) == 1.2
+    assert ctl.set_speed_cap(2.5) == 2.5
+    assert RoadCarController(DeadPolicy(), 1.2).set_speed_cap(2.5) == 1.2
+    assert ctl.set_speed_cap(0.0) == DeadPolicy.enc.v_lo
+    assert RoadCarController(DeadPolicy(), 0.5).rt.speed_cap == 0.5
+
+
+def test_guard_speed_inverts_guard_stop():
+    p = CarParams()
+    for v in (0.8, 1.2, 1.8, 2.5):
+        assert guard_speed(guard_stop(v, p), p) == pytest.approx(v)
+    assert guard_speed(GUARD_STOP - 0.01, p) == 0.0 and guard_speed(GUARD_STOP, p) == pytest.approx(p.guard_base_speed)
+
+
+def test_pwm_ceiling_follows_web_mode():
+    """MAD MAX(限速 > 1.2)才放到 1640;切回 Roaming / Sloth 立刻回到 1620。"""
+    ctl = ready(cap=2.5)
+    assert ctl.loop.cfg.pwm_max == PWM_HARD_MAX                # 开机限速 min(0.7, 2.5)
+    ctl.set_speed_cap(2.5)
+    assert ctl.loop.cfg.pwm_max == PWM_FAST_MAX
+    ctl.set_speed_cap(1.2)
+    assert ctl.loop.cfg.pwm_max == PWM_HARD_MAX
+    ctl2 = ready(cap=1.2)                                     # --speed-cap 1.2 时网页给 2.5 也放不开
+    ctl2.set_speed_cap(2.5)
+    assert ctl2.loop.cfg.pwm_max == PWM_HARD_MAX
+
+def test_dead_band_contract_forward_after_brake_while_rolling_keeps_throttle():
+    """刹一拍车还在滚:松刹第一拍接回刹车前的油门,不掉回起步跳点(10-22 实车锯齿)。"""
+    pol = DeadPolicy((0.0, 1.0))
+    ctl = ready(pol)
+    t, pwm = 10.1, None
+    for k in range(20):                            # 车速低于目标,PWM 往上爬
+        pwm = drive(ctl, t + 0.1 * k, 0.4)[0]
+    assert pwm > LAUNCH_FROM + 5
+    pol.action = np.asarray((0.0, -1.0), np.float32)
+    assert drive(ctl, t + 2.0, 1.2)[0] == P.brake_pwm
+    pol.action = np.asarray((0.0, 1.0), np.float32)
+    assert drive(ctl, t + 2.1, 0.5)[0] >= pwm - 2
+
+
+def _cone_ahead(x, y, r=0.07):
+    """雷达系 (x, y) 处一个半径 r 的桶,其余方向 5 m 外空。"""
+    ranges = np.full(N, 5.0)
+    ang = -math.pi + np.arange(N) * INC
+    a0, d = math.atan2(y, x), math.hypot(x, y)
+    ranges[np.abs(((ang - a0) + math.pi) % (2 * math.pi) - math.pi) < r / d] = d - r
+    return ranges
+
+
+def test_guard_escape_nudges_steer_instead_of_braking():
+    """1.8 m/s,1.6 m 外桶偏在直行路径边上:原规则截停刹车;--guard-escape 微调转角照常开,不刹。"""
+    scan = _cone_ahead(1.6, 0.15)
+    for escape in (False, True):
+        ctl = RoadCarController(FakePolicy(action=(0.0, 1.0)), 1.8, escape=escape)
+        ctl.on_scan(FakeScan(scan), 10.0)
+        ctl.on_encoder(0.0, 10.0); ctl.on_imu(0.0, 10.0); ctl.on_enable(True, 10.0)
+        feed(ctl, 10.05, 1.8)
+        pwm, servo = ctl.tick(10.05)
+        if escape:
+            assert ctl.event == 'escape' and pwm != P.brake_pwm
+            assert 0 < abs(ctl.steer_cmd) <= 0.15 + 1e-9
+        else:
+            assert ctl.event == 'guard' and pwm == P.brake_pwm
+
+
+def test_guard_escape_still_stops_for_a_wall():
+    """正前方 0.6 m 一堵墙:有逃生转角也躲不开,照样截停。"""
+    wall = np.full(N, 5.0)
+    ang = -math.pi + np.arange(N) * INC
+    wall[np.abs(ang) < 1.2] = BUMPER_AHEAD + 0.60
+    ctl = RoadCarController(FakePolicy(action=(0.0, 1.0)), 1.8, escape=True)
+    ctl.on_scan(FakeScan(wall), 10.0)
+    ctl.on_encoder(0.0, 10.0); ctl.on_imu(0.0, 10.0); ctl.on_enable(True, 10.0)
+    feed(ctl, 10.05, 1.2)
+    assert ctl.tick(10.05)[0] == P.brake_pwm and ctl.event == 'guard'
+
+
+def test_no_guard_drives_on_where_the_guard_would_stop():
+    """--no-guard(2026-10-24 用户定):正前方 0.6 m 一堵墙,截停版刹车;关了照常按模型给油。"""
+    wall = np.full(N, 5.0)
+    ang = -math.pi + np.arange(N) * INC
+    wall[np.abs(ang) < 1.2] = BUMPER_AHEAD + 0.60
+    pwms = []
+    for on in (True, False):
+        ctl = RoadCarController(FakePolicy(action=(0.0, 1.0)), 1.8, escape=True, guard_on=on)
+        ctl.on_scan(FakeScan(wall), 10.0)
+        ctl.on_encoder(0.0, 10.0); ctl.on_imu(0.0, 10.0); ctl.on_enable(True, 10.0)
+        feed(ctl, 10.05, 1.2)
+        pwms.append(ctl.tick(10.05)[0])
+    assert pwms[0] == P.brake_pwm and pwms[1] > P.pwm_mid
+
+
+def _release_at(speed, t=10.2):
+    ctl = ready(FakePolicy((0.5, 1.0)), cap=1.8)
+    feed(ctl, 10.1, speed)
+    ctl.tick(10.1)
+    ctl.on_scan(FakeScan(np.full(N, 5.0)), t)
+    ctl.on_encoder(speed, t); ctl.on_imu(0.0, t)
+    assert ctl.on_enable(False, t)                         # 刚松手:节点马上发 release_cmd
+    return ctl
+
+
+def test_release_at_speed_cuts_power_but_keeps_model_steering():
+    """松手(2026-10-24 用户定):车速 > COAST_STEER_V 时油门中位、转向仍跟模型;降到它以下回正结束。"""
+    from vehicle.road_car_node import COAST_STEER_V
+    ctl = _release_at(2.0)
+    model_servo = steer_to_turn(action_to_steer(0.5, P), P)
+    assert ctl.release_cmd(10.2) == (P.pwm_mid, model_servo)
+    t = 10.25
+    ctl.on_scan(FakeScan(np.full(N, 5.0)), t); ctl.on_encoder(1.5, t); ctl.on_imu(0.0, t); ctl.on_enable(False, t)
+    assert ctl.tick(t) == (P.pwm_mid, model_servo) and ctl.event == 'coast'
+    t = 10.3
+    ctl.on_scan(FakeScan(np.full(N, 5.0)), t); ctl.on_encoder(COAST_STEER_V - 0.1, t); ctl.on_imu(0.0, t); ctl.on_enable(False, t)
+    assert ctl.tick(t) == (P.pwm_mid, steer_to_turn(0.0, P)) and ctl.event == 'coast_end'
+    ctl.on_enable(False, 10.35)
+    assert ctl.tick(10.35) is None                         # 结束后照旧不发
+
+
+def test_release_when_slow_is_plain_neutral():
+    ctl = _release_at(0.5)
+    assert ctl.release_cmd(10.2) == (P.pwm_mid, steer_to_turn(0.0, P)) and not ctl.coast

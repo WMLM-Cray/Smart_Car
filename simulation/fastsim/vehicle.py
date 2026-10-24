@@ -46,16 +46,17 @@ class Car:
         ds = max(-p.steer_rate * dt, min(p.steer_rate * dt, target_steer - self.steer))
         self.steer += ds
 
-        # 摩擦圆:指令转角要求的横向加速度 a = v²·tan(δ)/L,超过 a_lat_max 就抓不住,
-        # 实际横摆角速度按比例打折 —— 车听话地少转,也就是推头。纵向也占用抓地力,
-        # 所以可用的横向预算先扣掉纵向那一份(简化的摩擦圆,不做轮胎滑移)。
+        # 摩擦圆:指令转角要求的横向加速度 a = v²·tan(δ)/L,实际只到 budget·tanh(a/budget) —— 越接近抓地上限
+        # 推头越多(10-24 实车 IMU:要 2.3 实际 1.8、要 3.0 实际 2.0、要 4.5 实际 2.45,budget≈2.6)。
+        # 纵向也占用抓地力,横向预算先扣掉纵向那一份(简化的摩擦圆,不做轮胎滑移)。
         self.slip = 0.0
         yaw_rate = self.v * math.tan(self.steer) / p.wheelbase
         a_lat = abs(self.v * yaw_rate)
         budget = math.sqrt(max(p.a_lat_max ** 2 - min(self.accel ** 2, p.a_lat_max ** 2), 0.0))
-        if a_lat > budget > 0.0:
-            self.slip = 1.0 - budget / a_lat        # 0=抓得住,接近 1=完全打滑
-            yaw_rate *= budget / a_lat
+        if a_lat > 1e-9 and budget > 0.0:
+            got = budget * math.tanh(a_lat / budget)
+            self.slip = 1.0 - got / a_lat           # 0=抓得住,接近 1=完全打滑
+            yaw_rate *= got / a_lat
         self.yaw_rate = yaw_rate
         yaw_mid = self.yaw + 0.5 * self.yaw_rate * dt   # 中点积分
         self.x += self.v * math.cos(yaw_mid) * dt

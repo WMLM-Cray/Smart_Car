@@ -5,6 +5,8 @@
       曲率上限按实测最小转弯半径 0.83~0.88m 再留 10%:R >= 0.95m。
 速度  按曲率限横向加速度,再倒推滑行减速(电调不刹车)、正推加速,
       上限取 min(速度上限, 这块电池能跑到的速度)。
+      能刹车的速度契约(_d)下:brake_release_speed 以上按 A_BRK 倒推(入弯更快、松油更晚),
+      光滑行来不及时标签给刹车(2026-10-19)。老契约逐位不变。
 跟踪  纯追踪,按指令延迟往前推一点位姿;转角经实测舵机曲线反查成动作。
       老师知道这一局的真实车辆参数(舵机增益、中位偏差),这是它的特权。
 """
@@ -17,10 +19,11 @@ import numpy as np
 from scipy.interpolate import CubicSpline
 from scipy.optimize import lsq_linear
 
+from common.params import CarParams
 from common.pwm import steer_to_turn_float
+from common.road_policy import BRAKE_CMD, V_HI, speed_to_action
 from simulation.fastsim.road import CONE, DS, EDGE, NONE, WALL, Road
-from simulation.fastsim.road_env import CONTROL_DT, RoadEnv
-from common.road_policy import V_HI, speed_to_action
+from simulation.fastsim.road_env import CONTROL_DT, PHYSICS_DT, RoadEnv
 
 R_MIN = 0.85                # 规划用最小转弯半径 m(车极限 0.828;0.95 是代码闸不是物理墙)
 # 车身两侧到边界至少留这么多(规划时)。锥桶立在边界线上,半径 0.14 要额外扣;
@@ -43,6 +46,11 @@ A_DEC = 0.45                # 计划减速度,比实测滑行 0.68~0.78 保守�
 # 以上两个和 SPEED_MARGIN 是 2026-09-26 从 0.35/0.6/0 收紧的:L5 的失败多是满速冲进弯
 # (松油晚了致命、早了无害,MSE 对两边一样罚)。老师在 A-D 上两圈只慢 0~1.8s
 
+A_BRK = 0.85               # 计划刹车减速度(brake_release_speed 以上):实测 1.3~2.6,和 A_DEC 对滑行一样打六折左右
+BRAKE_MARGIN = 0.05         # 车速比"只靠滑行来得及"的速度高出这么多才刹 m/s
+A_BRK_EST = 1.4             # 估已发出、还在纯滞后里的刹车会降多少车速用(10-12 实测 1.3~1.45)
+BRAKE_FLOOR = 0.7           # 不为低于它的目标刹车:平台 0.45~0.7(Plant.sample),车本来就稳不住更低的速度,
+                            # 只滑行的老师在这个速度过弯没问题;不设的话平台附近刹停再起步来回顿(2026-10-19 试跑)
 A_ACC = 0.4
 SPEED_MARGIN = 0.25         # 速度前瞻额外多看这么远 m(提前松油)
 HORIZON = 8.0               # 重规划看前方多远 m(雷达量程 10m)
@@ -59,6 +67,7 @@ class Plan:
     v: np.ndarray           # (m,) 计划车速
     bound: np.ndarray       # (m,) 每点允许的最大 |d|
     d: np.ndarray           # (m,) 求出的横向偏移
+    v_coast: np.ndarray | None = None   # (m,) 只靠滑行倒推的车速(只在 plan(brake=...) 时有)
 
 
 def curvature(pts: np.ndarray, gap: int = 3) -> np.ndarray:
@@ -76,9 +85,17 @@ def curvature(pts: np.ndarray, gap: int = 3) -> np.ndarray:
     return k
 
 
+def set_decel(a_dec: float | None = None, a_brk: float | None = None):
+    """改老师的计划滑行 / 刹车减速度(bev_train --teacher-dec/--teacher-brk,进程池 initializer 里调)。
+    plan()、Teacher、SeenTeacher 都在调用时读模块里的值。"""
+    global A_DEC, A_BRK
+    A_DEC = A_DEC if a_dec is None else a_dec
+    A_BRK = A_BRK if a_brk is None else a_brk
+
+
 def plan(road: Road, i0: int, d0: float, car_width: float, pl,
          horizon: float | None = None, r_min: float = R_MIN,
-         a_lat: float = A_LAT, v_end: float | None = None) -> Plan | str:
+         a_lat: float = A_LAT, v_end: float | None = None, brake: float | None = None) -> Plan | str:
     """返回 Plan,或者失败原因字符串('too_narrow' / 'curvature' / 'plan_error')。
 
     在 0.25m 一个的粗网格上解,再三次样条插回 5cm。粗点的边界取它前后半格内
@@ -90,6 +107,8 @@ def plan(road: Road, i0: int, d0: float, car_width: float, pl,
              毫无效果 —— 地板没跟着动。合并成一个,改一处就是改一处。
     a_lat    弯中横向加速度上限,决定标签里弯中能跑多快(见 A_LAT)
     v_end    窗口没到路终点时,末端车速不超过它(None = 不限;见 Teacher)
+    brake    计划刹车减速度(None = 不刹,老行为):brake_release_speed 以上按它倒推;
+             另外存一条只靠滑行(A_DEC)倒推的 v_coast,Teacher 拿来判断要不要刹
     """
     i1 = len(road.half) if horizon is None else min(len(road.half), i0 + int(horizon / DS) + 1)
     margin = np.vectorize(SIDE_MARGIN.get)
@@ -146,9 +165,18 @@ def plan(road: Road, i0: int, d0: float, car_width: float, pl,
     v = np.minimum(v_top, np.sqrt(a_lat / np.maximum(np.abs(kap), 1e-6)))
     if v_end is not None and i1 < len(road.half):
         v[-1] = min(v[-1], v_end)
-    for i in range(len(v) - 2, -1, -1):     # 倒推:前面要慢,这里就得提前松油
-        v[i] = min(v[i], math.sqrt(v[i + 1] ** 2 + 2 * A_DEC * (s[i + 1] - s[i])))
-    return Plan(pts, s, kap, v, np.minimum(hi_all, -lo_all), dense)
+    v_coast = None
+    if brake is not None:
+        # 只按弯和窗口末端倒推,不含限速:平台(0.45~0.7)可能高于限速,为守限速去刹会刹停再起步来回顿
+        v_coast = np.sqrt(a_lat / np.maximum(np.abs(kap), 1e-6))
+        v_coast[-1] = v[-1] if v[-1] < v_top else v_coast[-1]
+        for i in range(len(v) - 2, -1, -1):
+            v_coast[i] = min(v_coast[i], math.sqrt(v_coast[i + 1] ** 2 + 2 * A_DEC * (s[i + 1] - s[i])))
+        release = CarParams().brake_release_speed
+    for i in range(len(v) - 2, -1, -1):     # 倒推:前面要慢,这里就得提前松油(能刹车时 release 以上按刹车)
+        a = brake if (brake is not None and v[i + 1] >= release) else A_DEC
+        v[i] = min(v[i], math.sqrt(v[i + 1] ** 2 + 2 * a * (s[i + 1] - s[i])))
+    return Plan(pts, s, kap, v, np.minimum(hi_all, -lo_all), dense, v_coast)
 
 
 class Teacher:
@@ -170,6 +198,8 @@ class Teacher:
         # 能过 R_MIN 的速度。v_hi<=1 时这条只在窗口最后 0.8m 起作用、老师看的点在 0.6m 内,
         # 不受影响,所以只对高速契约加,默认契约逐位不变。2026-09-29 road_v2.5 引入。
         self.v_end = math.sqrt(a_lat * R_MIN) if env.pl.enc.v_hi > V_HI else None
+        self.brake = A_BRK if env.pl.enc.dead else None      # 能刹车的契约才规划刹车、给刹车标签
+        self.release = CarParams().brake_release_speed
         # privileged=False:老师按名义车辆参数算(学生看不到这一局的延迟/增益/中位/纯滞后/满电速度),
         # 真实偏差靠每拍重规划吸收。标签就只取决于学生看得到的东西。
         self.pl = env.pl if privileged else replace(env.pl, lag=0.5, steer_gain=1.0, servo_offset=0.0,
@@ -178,7 +208,7 @@ class Teacher:
     def _replan(self):
         env, car = self.env, self.env.car
         i, d = env.road.project((car.x, car.y), env.idx)
-        P = plan(env.road, i, d, env.cp.width, self.pl, HORIZON, R_REPLAN, self.a_lat, self.v_end)
+        P = plan(env.road, i, d, env.cp.width, self.pl, HORIZON, R_REPLAN, self.a_lat, self.v_end, self.brake)
         if isinstance(P, str):
             self.fails += 1
             return
@@ -213,4 +243,10 @@ class Teacher:
         # 速度看 (纯滞后 + 一拍) 之后要到的地方
         ahead = P.s[self.j] + v * (pl.dead_time + CONTROL_DT * (pl.lag + 1)) + SPEED_MARGIN
         kv = min(len(P.v) - 1, int(np.searchsorted(P.s, ahead)))
+        # 光滑行到前面来不及降下来:刹。扣掉已发出、还在纯滞后里的刹车,不然一直刹到车速降下来才松会刹过头
+        q = env.speed.queue
+        v_eff = car.v - A_BRK_EST * PHYSICS_DT * sum(1 for c in q if c < 0.0)
+        if (P.v_coast is not None and car.v > self.release
+                and v_eff > max(P.v_coast[kv], BRAKE_FLOOR) + BRAKE_MARGIN):
+            return np.array([steer_a, speed_to_action(BRAKE_CMD, env.pl.enc)], np.float32)
         return np.array([steer_a, speed_to_action(float(P.v[kv]), env.pl.enc)], np.float32)

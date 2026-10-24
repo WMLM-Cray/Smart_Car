@@ -158,8 +158,9 @@ class AttitudeFilter:
 class GroundFixer:
     """rows×cols 的掩码(铺满整幅原图) -> 车体系地面点。一个节点一个实例(带姿态平滑状态)。"""
 
-    def __init__(self, rows: int, cols: int, p: CarParams = CarParams()):
+    def __init__(self, rows: int, cols: int, p: CarParams = CarParams(), fill: bool = False):
         self.p, self.rows, self.cols = p, rows, cols
+        self.fill = fill                    # 补远处行间的缝(见 process)
         self.filter = AttitudeFilter()
         self.luts = {}
         self.row_px = p.camera_size[1] / rows
@@ -246,6 +247,8 @@ class GroundFixer:
         why = why or jwhy
         lut = self.lut(dp, dr)
         xy = lut.xy[floor.ravel() & lut.valid]
+        if self.fill:                       # 补远处行间的缝(GroundLut.fill_rows),再走对齐 / 截断
+            xy = np.vstack([xy, lut.fill_rows(floor)])
         n0 = len(xy)
         aligned, filled = 0, 0
         if len(walls):

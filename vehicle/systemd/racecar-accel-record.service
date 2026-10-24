@@ -1,0 +1,20 @@
+# 2026-10-24:直道 / 整车数据记录(calibration/accel_record.py,只订阅不发控制)开机自启。
+# 每次启动写 ~/drives/accel_<启动时间>/out.npz,每 5 s 落盘。停用:sudo systemctl disable --now racecar-accel-record
+[Unit]
+Description=HW-Autocar accel/encoder/IMU recorder (subscribe only)
+After=racecar-chassis.service
+Wants=racecar-chassis.service
+
+[Service]
+Type=simple
+User=orange-pi
+Environment=ROS_DOMAIN_ID=42
+WorkingDirectory=/home/orange-pi/autocar_v45
+ExecStart=/bin/bash -c "source /opt/ros/humble/setup.bash && exec python3 -m calibration.accel_record /home/orange-pi/drives/accel_$(date +%%m%%d_%%H%%M%%S)"
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/home/orange-pi/accel_record.log
+StandardError=append:/home/orange-pi/accel_record.log
+
+[Install]
+WantedBy=multi-user.target

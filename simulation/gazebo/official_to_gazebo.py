@@ -20,6 +20,7 @@ True,否则 Gazebo 里的赛道和验收的那条不是同一条。
 
 用法:
     python3 simulation/gazebo/official_to_gazebo.py --out runs/gz_official
+    python3 simulation/gazebo/official_to_gazebo.py --out runs/gz_official --tracks realA_1023   # 实车扫描图
 """
 from __future__ import annotations
 
@@ -36,7 +37,7 @@ if str(ROOT) not in sys.path:
 import numpy as np                      # noqa: E402
 import yaml                             # noqa: E402
 
-from evaluation.road_track import official   # noqa: E402
+from evaluation.road_track import official, real_track   # noqa: E402
 
 HEAD = """<?xml version='1.0' encoding='utf-8'?>
 <sdf version="1.6">
@@ -109,8 +110,9 @@ TAIL = """    <plugin name="gazebo_ros_state" filename="libgazebo_ros_state.so"/
 
 
 def convert(name: str):
-    """maps/ 原坐标:锥桶、中心线原样,起点 = START 框中心和该点切向。"""
-    road, lap_len = official(name, fill_v=True)
+    """maps/ 原坐标:锥桶、中心线原样,起点 = START 框中心和该点切向。
+    A-D 以外的名字 = maps/<name>.yaml 实车扫描的锥桶图(real_track,起点 = 实车起点),2026-10-23 加。"""
+    road, lap_len = official(name, fill_v=True) if name in ('A', 'B', 'C', 'D') else real_track(name)
     cen = np.asarray(road.centre, float)
     return dict(name=name, lap_len=lap_len, cones=np.asarray(road.cones, float), centre=cen,
                 half=np.asarray(road.half, float),
@@ -132,7 +134,7 @@ def main():
         lay_cones = [dict(id=f'c{i}', x=round(float(x), 4), y=round(float(y), 4))
                      for i, (x, y) in enumerate(c['cones'])]
         sx, sy, syaw = c['start']
-        lay = dict(track=f'official {name} (fill_v=True)',
+        lay = dict(track=f'official {name} (fill_v=True)' if name in ('A', 'B', 'C', 'D') else f'real {name} (maps/{name}.yaml)',
                    start_pose=dict(xy=[round(sx, 4), round(sy, 4)],
                                    yaw_deg=round(math.degrees(syaw), 3)),
                    cones=lay_cones)

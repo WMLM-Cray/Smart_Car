@@ -229,8 +229,9 @@ class Logbook:
                                 event=np.array([f[7] for f in F]), bev=np.stack([f[8] for f in F]),
                                 cam=np.array(cam, np.int32))                         # 这一帧对应的 cam_NNNN.jpg(-1 = 没有)
 
-    def render(self, cv2, px=2):
-        """当前段的全局图(BGR):黑 = 雷达障碍(证据 >= OCC_ON),浅绿 = 摄像头地面(证据 > 0),蓝线 = 路径,
+    def render(self, cv2, px=2, dot=None):
+        """dot:每格只画中间 dot×dot 像素的点(格子之间留白,点阵风格,px 要比 dot 大),默认整格涂满。
+        当前段的全局图(BGR):黑 = 雷达障碍(证据 >= OCC_ON),浅绿 = 摄像头地面(证据 > 0),蓝线 = 路径,
         黄短线 = 模型想打的方向(每 1 s 一根),红圈 = 标记编号,三角 = 车现在的位置。"""
         occ, fr = self.lidar.ij(OCC_ON)[0], self.free.ij(1)[0]
         P = np.array([(x, y) for _, x, y, *_ in self.path]).reshape(-1, 2)
@@ -242,9 +243,11 @@ class Logbook:
         h, w = int((i1 - i0 + 1) * px), int((j1 - j0 + 1) * px)
         img = np.full((h, w, 3), 255, np.uint8)
         to = lambda i, j: (int((j1 - j) * px), int((i1 - i) * px))     # x 朝上、y 朝左
+        lo = 0 if dot is None else (px - dot) // 2
+        hi = px if dot is None else lo + dot
         for cells, col in ((fr, (190, 235, 190)), (occ, (30, 30, 30))):
-            for dv in range(px):
-                for du in range(px):
+            for dv in range(lo, hi):
+                for du in range(lo, hi):
                     img[(i1 - cells[:, 0]) * px + dv, (j1 - cells[:, 1]) * px + du] = col
         m = px / CELL
         step = int(round(1.0 / CELL))

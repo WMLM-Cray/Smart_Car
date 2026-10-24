@@ -26,7 +26,7 @@ import json
 import math
 import pickle
 from concurrent.futures import ProcessPoolExecutor
-from dataclasses import astuple
+from dataclasses import astuple, replace
 
 import numpy as np
 
@@ -39,8 +39,8 @@ SCHEMA = 'road_v2.5'
 def _one(args):
     from common.road_policy import spec_of
     from training.road_check import sample_episode
-    seed, level = args
-    road, pl, start, _, _ = sample_episode(seed, level, enc=spec_of(SCHEMA), cap_max=CAP_MAX)
+    seed, level, cap = args
+    road, pl, start, _, _ = sample_episode(seed, level, enc=spec_of(SCHEMA), cap_max=cap or CAP_MAX, cap_min=cap)
     return dict(seed=seed, level=level, road=road, pl=pl, start=start)
 
 
@@ -55,7 +55,7 @@ def fingerprint(eps) -> str:
 
 
 def build(a):
-    jobs = [(a.seed0 + i, L) for L in a.levels.split(',') for i in range(a.per_level)]
+    jobs = [(a.seed0 + i, L, a.cap) for L in a.levels.split(',') for i in range(a.per_level)]
     with ProcessPoolExecutor(a.workers) as ex:
         eps = list(ex.map(_one, jobs, chunksize=4))
     with open(a.out, 'wb') as f:
@@ -76,7 +76,7 @@ def _init(path):
 
 
 def _run(args):
-    i, model, seg_period, seg_lag = args
+    i, model, seg_period, seg_lag, yolo, guard, seg_lut, seg_fill = args
     ep = _EPS[i]
     with np.load(model) as z:
         schema = str(z['schema'])
@@ -84,8 +84,9 @@ def _run(args):
         from common.bev_policy import BevPolicy
         from training.bev_env import BevEnv
         pol = BevPolicy(model)
-        b = BevEnv(ep['road'], ep['pl'], ep['seed'], ep['start'], noise=True, free=pol.free,
-                   seg_period=seg_period, seg_lag=seg_lag)
+        pl = replace(ep['pl'], enc=pol.enc)     # 动作按模型自己的速度契约解码(带 _d 的模型能停车 / 刹车);老模型的契约和这里一样,结果逐位不变
+        b = BevEnv(ep['road'], pl, ep['seed'], ep['start'], noise=True, free=pol.free, near=pol.near,
+                   seg_period=seg_period, seg_lag=seg_lag, yolo=yolo, guard=guard, seg_lut=seg_lut, seg_fill=seg_fill)
         why = None
         while why is None:
             why = b.step(pol(*b.observation()))
@@ -106,15 +107,17 @@ def run(a):
     with open(a.eps, 'rb') as f:
         eps = pickle.load(f)
     fp = fingerprint(eps)
-    levels = [e['level'] for e in eps]
+    idx = range(0, len(eps), a.every)          # 每 every 局取一局(各级按顺序排,取样后各级比例不变)
+    levels = [eps[i]['level'] for i in idx]
     with ProcessPoolExecutor(a.workers, initializer=_init, initargs=(a.eps,)) as ex:
-        rows = list(ex.map(_run, [(i, a.model, a.seg_period, a.seg_lag) for i in range(len(eps))], chunksize=2))
+        rows = list(ex.map(_run, [(i, a.model, a.seg_period, a.seg_lag, not a.no_yolo, a.guard, a.seg_lut, a.seg_fill) for i in idx],
+                           chunksize=2))
     for L in dict.fromkeys(levels):
         r = [x for x, l in zip(rows, levels) if l == L]
         print(L, 'n=%d ok=%.3f' % (len(r), np.mean([x['reason'] == 'goal' for x in r])))
     print('all %.4f' % np.mean([x['reason'] == 'goal' for x in rows]))
     with open(a.out, 'w') as f:
-        json.dump(dict(model=a.model, fingerprint=fp, seg_period=a.seg_period, seg_lag=a.seg_lag,
+        json.dump(dict(model=a.model, fingerprint=fp, seg_period=a.seg_period, seg_lag=a.seg_lag, yolo=not a.no_yolo, guard=a.guard, seg_lut=a.seg_lut, seg_fill=a.seg_fill, every=a.every,
                        levels=levels, rows=rows), f)
 
 
@@ -127,14 +130,28 @@ def mcnemar(a_ok, b_ok):
     return n01, n10, p
 
 
+def paired_diff_ci(a_ok, b_ok, z=1.96):
+    """B − A 通过率的配对差及 Wald 区间(z = 1.96 即 95% 双侧):返回 (差, 下限, 上限)。"""
+    n = len(a_ok)
+    n01, n10, _ = mcnemar(a_ok, b_ok)
+    d = (n01 - n10) / n
+    se = math.sqrt(max(0.0, (n01 + n10) - (n01 - n10) ** 2 / n)) / n
+    return d, d - z * se, d + z * se
+
+
 def compare(a):
     A, B = (json.load(open(p)) for p in (a.a, a.b))
     if A['fingerprint'] != B['fingerprint']:
         raise SystemExit('两份结果不是同一批局(指纹不同),不能配对比较')
-    ok = [[r['reason'] == 'goal' for r in sorted(X['rows'], key=lambda r: r['i'])] for X in (A, B)]
+    common = {r['i'] for r in A['rows']} & {r['i'] for r in B['rows']}     # 一方是 --every 取样时只比共同的局
+    ok = [[r['reason'] == 'goal' for r in sorted(X['rows'], key=lambda r: r['i']) if r['i'] in common] for X in (A, B)]
     n01, n10, p = mcnemar(*ok)
     print(f"A {A['model']}: {np.mean(ok[0]):.4f}\nB {B['model']}: {np.mean(ok[1]):.4f}\n"
           f"A 败 B 胜 {n01} / A 胜 B 败 {n10},McNemar p = {p:.4g}(n = {len(ok[0])})")
+    d, lo, hi = paired_diff_ci(*ok)
+    verdict = '不劣' if lo > -a.margin else ('劣' if hi < -a.margin else '不确定')
+    print(f"B − A = {100 * d:+.2f} 个百分点,95% 区间 {100 * lo:+.2f} ~ {100 * hi:+.2f};"
+          f"非劣界限 −{100 * a.margin:g}:{verdict}")
 
 
 def main():
@@ -146,6 +163,7 @@ def main():
     b.add_argument('--levels', default=','.join(LEVELS), help='无锥桶对照用 LE3,LE4')
     b.add_argument('--seed0', type=int, default=SEED0)
     b.add_argument('--workers', type=int, default=8)
+    b.add_argument('--cap', type=float, default=None, help='固定速度上限 m/s(默认在 [0.45, CAP_MAX] 随机抽;给了就是另一批局)')
     r = sub.add_parser('run')
     r.add_argument('--eps', required=True)
     r.add_argument('--model', required=True)
@@ -153,9 +171,16 @@ def main():
     r.add_argument('--workers', type=int, default=8)
     r.add_argument('--seg-period', type=float, default=0.1, help='bev_v2 假地面分割周期 s(实车 M2F-T 288 ~0.33)')
     r.add_argument('--seg-lag', type=float, default=0.0, help='假地面分割拍摄到登记的延迟 s(实车 ~0.35)')
+    r.add_argument('--no-yolo', action='store_true', help='锥桶层恒空(车上没跑 YOLO 时的部署条件)')
+    r.add_argument('--guard', action='store_true', help='按车上截停规则判失败(保险杠前 < 0.25 m = guard)')
+    r.add_argument('--seg-lut', action='store_true', help='假地面分割按车上的像素投影出点(部署条件)')
+    r.add_argument('--seg-fill', action='store_true', help='配 --seg-lut:补行间的缝(车上 --fill)')
+    r.add_argument('--every', type=int, default=1,
+                   help='每隔几局取一局(5 = 1600 局取 320):区分 80%% 和 90%% 用不着上千局,省时间')
     c = sub.add_parser('compare')
     c.add_argument('a')
     c.add_argument('b')
+    c.add_argument('--margin', type=float, default=0.01, help='非劣界限(B 比 A 最多低多少,0.01 = 1 个百分点)')
     a = ap.parse_args()
     {'build': build, 'run': run, 'compare': compare}[a.cmd](a)
 

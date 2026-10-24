@@ -4,6 +4,7 @@
 浏览器协议沿用 Astra-Rover 的 preview.html:
   t <油门‰> <方向盘‰> <刹车‰>   油门 -1000..1000(R 档为负),方向盘 >0 = 左
   e <0|1> 急停   l <0|1|2> 排挡 P/D/R   y <0|1|2> 模式 Sloth/Roaming/MAD MAX
+策略模式下模式 = 策略限速(CarParams.policy_mode_caps),发 /policy_speed_cap 给 road_car_node。
 输出和 racecar_teleop.py 一样发 /teleop_cmd_vel:linear.x = 电调 PWM,angular.z = 舵机值。
 """
 import base64, hashlib, json, math, os, signal, socket, struct, sys, threading, time
@@ -11,6 +12,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from common.params import CarParams
+from common.pwm import turn_to_steer
 
 import rclpy
 from rclpy.node import Node
@@ -18,9 +20,9 @@ from rclpy.signals import SignalHandlerOptions
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Imu, LaserScan
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, Float32
 
-from vehicle.scan_guard import ScanGuard
+from vehicle.scan_guard import ScanGuard, guard_stop
 from vehicle.scan_view import scan_payload
 from vehicle.mapping_control import MappingControl
 
@@ -30,7 +32,16 @@ HTML = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'index.html')
 # PWM 约定:中位和转向值从实测参数读取;前进/倒车起点仍按网页遥控设置。
 # ⚠️ 顶速上限放在服务端,不信任浏览器发来的数。数值偏保守,架空实测后再往上调。
 SPEED_MID, FWD_START, REV_START = CarParams().pwm_mid, 1600, 1500
-FWD_CAP = [1610, 1620, 1620]          # Sloth / Roaming / MAD MAX
+# Sloth 1600 = 平台 ~0.67 m/s(对应策略限速 0.7);Roaming 1620 ~1.1~1.2;MAD MAX 1640(2026-10-21 用户定,
+# 高位曲线外推 ~1.6 m/s,没实测;电调锁在低位时会快得多)。只有手动 MAD MAX 超过策略的 PWM 硬上限。
+FWD_CAP = [1600, 1620, 1680]          # Sloth / Roaming / MAD MAX(10-23 夜 1640 -> 1660,10-24 -> 1680 手动 ~4.3 m/s)
+# 手动前进 PWM 每秒最多加这么多:摇杆一把推到底不再瞬间给满,2026-10-20 MAD MAX(当时车上 1700)直跳翘头。
+# 只限加油,松油/回中位不限。1600 -> 1620 用 0.5 s。
+FWD_SLEW = 40.0
+POLICY_CAPS = CarParams().policy_mode_caps
+# 手动刹车:按刹车且车往前走得比 brake_release_speed 快就发 brake_pwm,慢了 / 编码器没数据回中位滑行
+# (同策略节点:刹到低速还给低 PWM 会变倒车)。原来按刹车只回中位滑行。
+BRAKE_PWM, BRAKE_RELEASE = CarParams().brake_pwm, CarParams().brake_release_speed
 # ⚠️ 倒车:厂家 teleop 用 1360 起步,实车上会窜出去(2026-09-17)。
 # 电调存在起转平台，平台速度随工况变化；手动 PWM 不保证目标车速。
 # 倒车仅保留 PWM 上限；不根据编码器速度截断输出，不能保证实际车速上限。
@@ -44,8 +55,11 @@ DUTY_TICKS = 6                        # 6 个 20Hz 周期 = 0.3s
 # 四个脚本各抄一份 84,改中位时漏改一个就会两套行为(当前中位为 81)。
 TURN_MID, TURN_SPAN = CarParams().turn_mid, CarParams().turn_span
 DEADMAN = 0.3                         # 这么久没收到 t 就回中位
+# 手动防撞(2026-10-24):按当前转角的扫掠路径看净空。净空小于按车速算的刹停距离 guard_stop(同策略)
+# 就把前进档位压到最慢一档、让车减速(不刹车,用户定手动不用那么严);只有贴到 GUARD_STOP 才回中位。
+# 原来只看正前方、固定 0.8 m 才压档,高速根本减不下来。
 GUARD_STOP = 0.25                     # 保险杠前净空小于这个就不许再往前(米)
-GUARD_SLOW = 0.8                      # 小于这个就把前进档位压到最慢一档
+GUARD_V_STALE = 3.0                   # 编码器没数据时按这个车速算减速距离(宁可早减)
 NEUTRAL_HOLD = 1.0                    # 回中位后续发这么久再静默,不跟导航的指令抢底盘
 POLICY_THR = 50                       # 策略模式下油门推过这个值(0..1000)才放行,松手即停
 # 策略模式的"摇杆数据多久算断"。比手动的 DEADMAN 宽:松手时网页立刻发 t 0,油门那条判据
@@ -67,12 +81,14 @@ class State:
         self.guard = 1                # 防撞开关,雷达掉线可以在网页上关掉
         self.policy = 0               # 策略模式:开了之后推着摇杆才让 policy_node 开车
         self.gap = None               # 保险杠前净空,None = 雷达没数据
+        self.sg = None                # Bridge 的 ScanGuard,手动防撞按当前转角算净空
         self.blocked = 0
         self.rev_block = 0            # 2=编码器无数据不许倒车；不再做超速截断
         self.tick = 0                 # 20Hz 计数,占空比用
         self.last_dir = 0
         self.dir_change_t = 0.0
         self.pwm, self.turn = SPEED_MID, TURN_MID
+        self.fwd_pwm, self.fwd_t = FWD_START, 0.0   # 手动前进上一拍的 PWM 和时刻(FWD_SLEW 用)
         self.spd = 0.0; self.enc_t = 0.0
         self.x = self.y = self.th = 0.0
         self.wz = self.ax = self.ay = 0.0
@@ -115,6 +131,8 @@ def compute(now):
         turn = round(TURN_MID + max(-1, min(1, S.steer / 1000)) * TURN_SPAN)
         t = max(-1.0, min(1.0, S.thr / 1000))
         want = 1 if t > 0 else -1 if t < 0 else 0
+        if S.brake > 20 and now - S.enc_t < 0.3 and S.spd > BRAKE_RELEASE:
+            return BRAKE_PWM, turn, True
         if S.brake > 20 or want == 0:
             return SPEED_MID, turn, True
         if want != S.last_dir:
@@ -127,14 +145,19 @@ def compute(now):
         if want > 0:
             cap = FWD_CAP[S.mode]
             if S.guard:
-                gap = S.gap
+                fresh = now - S.enc_t < 0.3
+                gap = S.sg.gap(turn_to_steer(turn)) if S.sg is not None else None
                 if gap is None or gap < GUARD_STOP:   # 雷达没数据也当挡着,总比撞上去强
                     S.blocked = 1
                     return SPEED_MID, turn, True
-                if gap < GUARD_SLOW:
+                if gap < guard_stop(max(S.spd, 0.0) if fresh else GUARD_V_STALE, CarParams()):
                     cap = FWD_CAP[0]
             S.blocked = 0
             pwm = creep_or_pwm(t, FWD_START, cap)
+            if now - S.fwd_t > 0.15:                  # 上一拍不在前进(回中位/倒车/截停):从起步 PWM 重新爬
+                S.fwd_pwm, S.fwd_t = FWD_START, now
+            pwm = min(pwm, S.fwd_pwm + FWD_SLEW * (now - S.fwd_t))
+            S.fwd_pwm, S.fwd_t = max(pwm, FWD_START), now
         else:
             fresh = now - S.enc_t < 0.3
             if not fresh:
@@ -152,12 +175,13 @@ class Bridge(Node):
         topic = self.declare_parameter('cmd_topic', '/teleop_cmd_vel').value
         self.pub = self.create_publisher(Twist, topic, 5)
         self.enable_pub = self.create_publisher(Bool, '/policy_enable', 1)
+        self.cap_pub = self.create_publisher(Float32, '/policy_speed_cap', 1)
         self.create_subscription(Odometry, '/encoder', self.on_enc, 10)
         # 策略模式下油门/转向是策略节点发的,这里不发;订阅回来给网页显示真实 PWM(2026-09-29)
         self.create_subscription(Twist, topic, self.on_cmd, 5)
         self.create_subscription(Odometry, '/odom_combined', self.on_odom, 10)
         self.create_subscription(Imu, '/IMU_data', self.on_imu, 10)
-        self.guard = ScanGuard()
+        self.guard = S.sg = ScanGuard()
         self.create_subscription(LaserScan, '/scan', self.on_scan, 1)
         self.idle_since = 0.0
         self.last_held = False
@@ -215,6 +239,9 @@ class Bridge(Node):
                     age, thr, src = now - S.last_t, S.thr, S.t_src
                 log_event(f'放行 {"开" if held else "关"}(油门 {thr},摇杆 {age:.2f}s 前,来自 {src})')
                 self.last_held = held
+            with S.lock:
+                cap = POLICY_CAPS[S.mode]
+            self.cap_pub.publish(Float32(data=float(cap)))     # 先发限速再发放行
             self.enable_pub.publish(Bool(data=held))
             return
 
