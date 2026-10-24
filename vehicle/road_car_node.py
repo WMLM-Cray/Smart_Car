@@ -38,7 +38,7 @@ from common.bev_policy import BevPolicy
 from common.bev_runtime import BevRuntime
 from common.road_policy import V_LO, RoadPolicy
 from common.road_runtime import STOP, RoadRuntime
-from vehicle.scan_guard import ScanGuard
+from vehicle.scan_guard import GUARD_STOP, ScanGuard, guard_stop
 from dataclasses import replace
 
 from vehicle.speed_loop import PWM_FAST_MAX, PWM_HARD_MAX, SpeedLoop, SpeedLoopConfig
@@ -49,15 +49,7 @@ FREE_TOPIC = '/ground_free'     # vehicle/ground_seg_node.py:车体系地面点,
 CONTROL_PERIOD = 0.05       # 20Hz,和训练的 CONTROL_DT 一致
 SENSOR_TIMEOUT = 0.3        # 实测 /encoder 34Hz、/scan 12Hz、/IMU_data 55Hz
 ENABLE_TIMEOUT = 0.3        # /policy_enable 是心跳不是开关
-GUARD_STOP = 0.25           # 同 steer_policy_node:保险杠前净空小于这个就回中位(米)
 CAP_TOPIC = '/policy_speed_cap'     # vehicle/server.py 按网页模式发的限速(Float32,m/s)
-
-
-def guard_stop(speed, p):
-    """截停距离:GUARD_STOP 在 guard_base_speed 下实车验证过;更快时加上多出来的延迟距离和刹车距离。"""
-    v0 = p.guard_base_speed
-    extra = p.guard_latency * (speed - v0) + (speed * speed - v0 * v0) / (2 * p.guard_brake_decel)
-    return GUARD_STOP + max(0.0, extra)
 
 
 def guard_speed(clear, p):

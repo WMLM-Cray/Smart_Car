@@ -52,6 +52,15 @@ SWEEP_STEP = 0.02          # 转弯时车身每推进这么多 m 查一次
 # 10-23 纯雷达 8 圈回算:2.5 m/s 原规则 28% 帧截停,加逃生转角后 0.2%,微调中位 0.03 rad、最大 0.12 rad
 ESCAPE_WINDOW = 0.15
 ESCAPE_STEP = 0.01
+GUARD_STOP = 0.25           # 保险杠前净空小于这个就截停(米),guard_base_speed 下实车验证过
+
+
+def guard_stop(speed, p):
+    """截停距离:GUARD_STOP 在 guard_base_speed 下实车验证过;更快时加上多出来的延迟距离和刹车距离。
+    策略(road_car_node)和网页手动(server)共用,2026-10-24 从 road_car_node 挪过来。"""
+    v0 = p.guard_base_speed
+    extra = p.guard_latency * (speed - v0) + (speed * speed - v0 * v0) / (2 * p.guard_brake_decel)
+    return GUARD_STOP + max(0.0, extra)
 
 
 class ScanGuard:

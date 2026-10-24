@@ -12,6 +12,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from common.params import CarParams
+from common.pwm import turn_to_steer
 
 import rclpy
 from rclpy.node import Node
@@ -21,7 +22,7 @@ from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Imu, LaserScan
 from std_msgs.msg import Bool, Float32
 
-from vehicle.scan_guard import ScanGuard
+from vehicle.scan_guard import ScanGuard, guard_stop
 from vehicle.scan_view import scan_payload
 from vehicle.mapping_control import MappingControl
 
@@ -54,8 +55,10 @@ DUTY_TICKS = 6                        # 6 个 20Hz 周期 = 0.3s
 # 四个脚本各抄一份 84,改中位时漏改一个就会两套行为(当前中位为 81)。
 TURN_MID, TURN_SPAN = CarParams().turn_mid, CarParams().turn_span
 DEADMAN = 0.3                         # 这么久没收到 t 就回中位
-GUARD_STOP = 0.25                     # 保险杠前净空小于这个就不许再往前(米)
-GUARD_SLOW = 0.8                      # 小于这个就把前进档位压到最慢一档
+# 手动防撞同策略(road_car_node,2026-10-24):按当前转角的扫掠路径看净空,截停距离 guard_stop 随车速变,
+# 截停时车还快就刹车(BRAKE_PWM),慢了回中位。原来只看正前方、固定 0.25 m 回中位滑行,高速根本停不住。
+GUARD_SLOW = 0.5                      # 截停距离外再留这么多(米):进了就把前进档位压到最慢一档
+GUARD_V_STALE = 3.0                   # 编码器没数据时按这个车速算截停距离(宁可早停)
 NEUTRAL_HOLD = 1.0                    # 回中位后续发这么久再静默,不跟导航的指令抢底盘
 POLICY_THR = 50                       # 策略模式下油门推过这个值(0..1000)才放行,松手即停
 # 策略模式的"摇杆数据多久算断"。比手动的 DEADMAN 宽:松手时网页立刻发 t 0,油门那条判据
@@ -77,6 +80,7 @@ class State:
         self.guard = 1                # 防撞开关,雷达掉线可以在网页上关掉
         self.policy = 0               # 策略模式:开了之后推着摇杆才让 policy_node 开车
         self.gap = None               # 保险杠前净空,None = 雷达没数据
+        self.sg = None                # Bridge 的 ScanGuard,手动防撞按当前转角算净空
         self.blocked = 0
         self.rev_block = 0            # 2=编码器无数据不许倒车；不再做超速截断
         self.tick = 0                 # 20Hz 计数,占空比用
@@ -140,11 +144,13 @@ def compute(now):
         if want > 0:
             cap = FWD_CAP[S.mode]
             if S.guard:
-                gap = S.gap
-                if gap is None or gap < GUARD_STOP:   # 雷达没数据也当挡着,总比撞上去强
+                fresh = now - S.enc_t < 0.3
+                gap = S.sg.gap(turn_to_steer(turn)) if S.sg is not None else None
+                need = guard_stop(max(S.spd, 0.0) if fresh else GUARD_V_STALE, CarParams())
+                if gap is None or gap < need:   # 雷达没数据也当挡着,总比撞上去强
                     S.blocked = 1
-                    return SPEED_MID, turn, True
-                if gap < GUARD_SLOW:
+                    return (BRAKE_PWM if fresh and S.spd > BRAKE_RELEASE else SPEED_MID), turn, True
+                if gap < need + GUARD_SLOW:
                     cap = FWD_CAP[0]
             S.blocked = 0
             pwm = creep_or_pwm(t, FWD_START, cap)
@@ -175,7 +181,7 @@ class Bridge(Node):
         self.create_subscription(Twist, topic, self.on_cmd, 5)
         self.create_subscription(Odometry, '/odom_combined', self.on_odom, 10)
         self.create_subscription(Imu, '/IMU_data', self.on_imu, 10)
-        self.guard = ScanGuard()
+        self.guard = S.sg = ScanGuard()
         self.create_subscription(LaserScan, '/scan', self.on_scan, 1)
         self.idle_since = 0.0
         self.last_held = False
