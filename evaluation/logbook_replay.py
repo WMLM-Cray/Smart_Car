@@ -17,16 +17,15 @@ from pathlib import Path
 
 import numpy as np
 import yaml
-from PIL import Image, ImageDraw
 from scipy.spatial import cKDTree
 
 from common import bev_view
 from common.cone_slam import ConeLocalizer, _fit_se2, relative, to_world
 from common.params import CarParams
-from evaluation.bev_video import S, font
 
 CELL, AHEAD, SIDE = bev_view.CELL, bev_view.AHEAD, bev_view.SIDE
 FPS = 20
+S = 480                         # 每个面板边长,同 evaluation/bev_video.S(画图才导入 PIL,测试不依赖它)
 
 
 def frame_points(bev):
@@ -104,6 +103,7 @@ def align_to_map(num, bev, poses, cones_map):
 
 def world_panel(cones, trail, pose, view):
     """同 evaluation/bev_video.world_panel 的画法,赛道是锥桶图(实车没有路沿真值)。"""
+    from PIL import Image, ImageDraw
     cx, cy, r = view
     k = S / (2 * r)
     to = lambda p: ((p[..., 0] - cx) * k + S / 2, S / 2 - (p[..., 1] - cy) * k)
@@ -124,6 +124,8 @@ def world_panel(cones, trail, pose, view):
 
 
 def render(seg: Path, out: Path, cones_map=None):
+    from PIL import Image, ImageDraw
+    from evaluation.bev_video import font
     z = np.load(seg / 'frames.npz')
     num, bev, ev = z['num'], z['bev'].astype(np.float32), z['event']
     if cones_map is not None:
