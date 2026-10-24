@@ -53,7 +53,7 @@ def test_release_and_push_again_restarts_from_launch_pwm(srv):
 
 
 def test_policy_caps_are_the_three_modes():
-    assert CarParams().policy_mode_caps == (0.7, 1.2, 2.5)
+    assert CarParams().policy_mode_caps == (0.7, 1.8, 4.0)        # 10-24 车上
 
 
 def test_brake_sends_brake_pwm_only_when_moving_forward_fast(srv):

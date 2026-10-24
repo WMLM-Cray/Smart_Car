@@ -34,7 +34,7 @@ HTML = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'index.html')
 SPEED_MID, FWD_START, REV_START = CarParams().pwm_mid, 1600, 1500
 # Sloth 1600 = 平台 ~0.67 m/s(对应策略限速 0.7);Roaming 1620 ~1.1~1.2;MAD MAX 1640(2026-10-21 用户定,
 # 高位曲线外推 ~1.6 m/s,没实测;电调锁在低位时会快得多)。只有手动 MAD MAX 超过策略的 PWM 硬上限。
-FWD_CAP = [1600, 1620, 1640]          # Sloth / Roaming / MAD MAX
+FWD_CAP = [1600, 1620, 1680]          # Sloth / Roaming / MAD MAX(10-23 夜 1640 -> 1660,10-24 -> 1680 手动 ~4.3 m/s)
 # 手动前进 PWM 每秒最多加这么多:摇杆一把推到底不再瞬间给满,2026-10-20 MAD MAX(当时车上 1700)直跳翘头。
 # 只限加油,松油/回中位不限。1600 -> 1620 用 0.5 s。
 FWD_SLEW = 40.0

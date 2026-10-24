@@ -66,7 +66,7 @@ class CarParams:
     guard_base_speed: float = 0.7   # [实测] 截停 0.25 m 验证过的车速
     guard_latency: float = 0.2      # [实测] 指令到车动 ~0.2 s(见 vehicle/road_car_node.py LAUNCH_FROM 注释)
     guard_brake_decel: float = 1.3  # [实测] 1.5 m/s 起刹 ~1.3 m/s²,取小的(docs/实测/2026-10-12-brake)
-    policy_mode_caps: tuple = (0.7, 1.2, 2.5)   # 网页 Sloth / Roaming / MAD MAX 对应的策略限速 m/s
+    policy_mode_caps: tuple = (0.7, 1.8, 4.0)   # 网页 Sloth / Roaming / MAD MAX 对应的策略限速 m/s(10-24 车上;原 1.2 / 2.5)
     v_fwd_full: float = 3.0         # [假设] 基础 Car 模型速度钳位；road_v2 实际速度由 SpeedPlant 决定
     v_rev_full: float = 1.5         # [假设]
     speed_tau: float = 0.35         # [假设] 电机+电调一阶响应时间常数 s

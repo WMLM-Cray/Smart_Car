@@ -52,9 +52,9 @@ class ReverseOutputTests(unittest.TestCase):
     def test_all_manual_forward_modes_obey_hard_limit(self):
         from vehicle.speed_loop import PWM_HARD_MAX
         self.state.guard = False
-        self.assertEqual(self.ns['FWD_CAP'][2], 1640)        # 手动 MAD MAX:用户 10-21 定的,唯一超过策略硬上限的档
+        self.assertEqual(self.ns['FWD_CAP'][2], 1680)        # 手动 MAD MAX(10-21 定 1640,10-24 1680),唯一超过策略硬上限的档
         for mode in range(3):
-            limit = PWM_HARD_MAX if mode < 2 else 1640
+            limit = PWM_HARD_MAX if mode < 2 else 1680
             self.state.mode = mode
             for throttle in (1, 100, 450, 700, 1000):
                 self.state.thr = throttle
