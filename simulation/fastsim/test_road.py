@@ -97,6 +97,20 @@ def _run_to(sp, v0, dt=0.01):
     return n
 
 
+def test_understeer_matches_1024_imu():
+    """runs/drive_1024c:按转角要 2.3 / 3.0 / 4.5 m/s² 横向加速度,实际 1.80 / 1.99 / 2.45(抓地 2.6 的 tanh)。"""
+    import math
+    from common.params import CarParams
+    from simulation.fastsim.vehicle import Car
+    from dataclasses import replace as rp
+    p = rp(CarParams(), steer_rate=100.0, speed_tau=1e-4, accel_max=1e3)
+    for want, got in ((2.3, 1.80), (3.0, 1.99), (4.5, 2.45)):
+        car = Car(p); car.reset(0.0, 0.0, 0.0); car.v = 2.0
+        steer = math.atan(want * p.wheelbase / 4.0)
+        car.step(2.0, steer, 0.01)
+        assert car.v * car.yaw_rate == pytest.approx(got, abs=0.15)
+
+
 def test_turn_drag_lowers_the_speed_reached_in_a_turn():
     """runs/drive_1024:实车 |δ|~0.3 rad 时车速只有目标的 0.8~0.88。turn_drag 只打折平台以上的目标,直行不变。"""
     pl = Plant(v_plateau=0.6, v_top=4.0, launch_delay=0.0, accel_up=5.0, decel=0.9, dead_time=0.2, turn_drag=2.0)

@@ -48,6 +48,7 @@ class Plant:
     decel: float = 0.73             # 滑行减速 m/s²
     brake_decel: float = 1.9        # 高速刹车减速上限 m/s²;低速按 BRAKE_A0 + BRAKE_K·v 变小(10-23 直道实测,见 SpeedPlant)
     v_over: float = 0.0             # 速度环超调 m/s:平台以上的目标实际跑到 目标 + v_over(10-24 加)
+    grip: float = 0.0               # 横向抓地上限 m/s²(0 = CarParams.a_lat_max;10-24 加,实测 ~2.6)
     turn_drag: float = 0.0          # 弯里掉速:平台以上的目标实际只跑到 目标 × (1 − turn_drag·δ²),δ = 前轮实际转角 rad
                                     # (10-24 加;runs/drive_1024:c005 |δ|~0.3 时 0.8 倍、c009 0.88 倍 → 1.3~2.2)
     relaunch_delay: float = 0.1     # 停稳后再给油,回中位直跳破静点要等的时间 s(不含 dead_time)
@@ -78,7 +79,8 @@ class Plant:
                      brake_decel=rng.uniform(1.8, 2.1), relaunch_delay=rng.uniform(0.0, 0.25),
                      # 速度环超调:10-23 夜策略 2.2 档直道跑到 2.39;平台以上的目标车速实际多跑这么多(新参数抽在最后)
                      v_over=rng.uniform(0.0, 0.2),
-                     turn_drag=rng.uniform(1.0, 3.0))     # 弯里掉速(10-24 加,抽在最后)
+                     turn_drag=rng.uniform(1.0, 3.0),     # 弯里掉速(10-24 加,抽在最后)
+                     grip=rng.uniform(2.3, 2.9))          # 横向抓地(10-24 实车 IMU 拟合 2.6,抽在最后)
 
 
 # 刹车 1470 的减速度随车速变大(10-23 直道 7 次实测:0.5 m/s 1.35、1.0 1.6、1.5 1.85、2.0 以上 ~2.0)
@@ -147,7 +149,8 @@ class RoadEnv:
         self.noise = noise
         self.robust = robust and noise     # 加强噪声(实车见过的):编码器毛刺、雷达整段缺失
         # 纵向由 SpeedPlant 给定,Car 只管跟上(tau 小于步长 = 直接等于)
-        self.cp = replace(car_params, steer_rate=pl.steer_rate, speed_tau=1e-4, accel_max=1e3)
+        self.cp = replace(car_params, steer_rate=pl.steer_rate, speed_tau=1e-4, accel_max=1e3,
+                          a_lat_max=pl.grip or car_params.a_lat_max)
         self.car = Car(self.cp)
         i0, d0, yaw0 = start
         c, h = road.centre[i0], road.heading[i0]
