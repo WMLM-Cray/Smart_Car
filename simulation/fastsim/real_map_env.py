@@ -28,7 +28,7 @@ class RealMapEnv(RoadEnv):
         self.world, self.pl, self.sense, self.road = world, pl, True, None
         self.rng = np.random.default_rng(seed)
         self.noise, self.robust = noise, False
-        self.cp = replace(car_params, steer_rate=pl.steer_rate, speed_tau=1e-4, accel_max=1e3)
+        self.cp = replace(car_params, steer_rate=pl.steer_rate, speed_tau=1e-4, accel_max=1e3, v_fwd_full=1e3)   # 同 RoadEnv
         self.car = Car(self.cp)
         self.car.reset(*start, steer_gain=pl.steer_gain)
         self.speed = SpeedPlant(pl)

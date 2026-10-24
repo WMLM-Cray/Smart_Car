@@ -149,7 +149,8 @@ class RoadEnv:
         self.noise = noise
         self.robust = robust and noise     # 加强噪声(实车见过的):编码器毛刺、雷达整段缺失
         # 纵向由 SpeedPlant 给定,Car 只管跟上(tau 小于步长 = 直接等于)
-        self.cp = replace(car_params, steer_rate=pl.steer_rate, speed_tau=1e-4, accel_max=1e3,
+        # v_fwd_full:车速全由 SpeedPlant 给,Car 不再钳(原 CarParams 的 3.0 让限速 3.5 / 4.0 实际跑不过 3,10-24 修)
+        self.cp = replace(car_params, steer_rate=pl.steer_rate, speed_tau=1e-4, accel_max=1e3, v_fwd_full=1e3,
                           a_lat_max=pl.grip or car_params.a_lat_max)
         self.car = Car(self.cp)
         i0, d0, yaw0 = start

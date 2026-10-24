@@ -97,6 +97,19 @@ def _run_to(sp, v0, dt=0.01):
     return n
 
 
+def test_road_env_car_is_not_clamped_at_3_mps():
+    """限速 4.0 时车真能跑到 4(原来 Car 被 CarParams.v_fwd_full=3.0 钳住,10-24 修)。"""
+    from dataclasses import replace as rp
+    road = generate(np.random.default_rng(0), next(l for l in LEVELS if l.name == 'L1'))
+    pl = rp(Plant.sample(np.random.default_rng(1)), cap=4.0, v_top=4.5, accel_up=5.0, turn_drag=0.0, v_over=0.0, launch_delay=0.0)
+    env = RoadEnv(road, pl, 0)
+    env.speed.v = 3.9
+    env.speed.queue = [4.0] * len(env.speed.queue)
+    env.speed.step(4.0)
+    env.car.step(env.speed.v, 0.0, 0.01)
+    assert env.car.v > 3.5
+
+
 def test_understeer_matches_1024_imu():
     """runs/drive_1024c:按转角要 2.3 / 3.0 / 4.5 m/s² 横向加速度,实际 1.80 / 1.99 / 2.45(抓地 2.6 的 tanh)。"""
     import math
