@@ -257,3 +257,14 @@ def test_pose_integrator_straight_and_circle():
     for _ in range(n):
         p.step(v, v / r, dt)
     assert p.x == pytest.approx(0.0, abs=1e-3) and p.y == pytest.approx(2 * r, abs=1e-3)
+
+
+def test_self_box_drops_the_rear_antennas_but_keeps_everything_else():
+    """车尾两根天线(后轴系 (-0.6, ±0.25),10-24 实车每帧都有)不进 BEV;车前、车侧、车后远处照常。"""
+    p = CarParams()
+    want = [(-0.6, 0.25), (-0.6, -0.25), (-0.1, 0.0), (1.0, 0.0), (-0.6, 0.8), (-1.5, 0.0), (0.3, 0.3)]
+    ang = [math.atan2(y, x - p.lidar_x) for x, y in want]
+    r = [math.hypot(x - p.lidar_x, y) for x, y in want]
+    pts = lidar_points(r + [math.inf], ang + [0.0], (0.0, 0.0, 0.0), p)
+    np.testing.assert_allclose(pts, np.array(want[3:]), atol=1e-9)
+

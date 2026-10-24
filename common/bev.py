@@ -110,6 +110,11 @@ def lidar_points(ranges, angles, pose, params: CarParams = CarParams(), lidar_ya
     r = np.asarray(ranges, dtype=np.float64)
     a = np.asarray(angles, dtype=np.float64)
     ok = np.isfinite(r) & (r >= params.lidar_min) & (r <= max_range)
+    x0, x1, hy = params.self_box                    # 车身自遮挡(车尾天线),后轴系
+    rr = np.where(ok, r, 0.0)                       # inf × 0 会出 nan 警告
+    bx = params.lidar_x + rr * np.cos(a + lidar_yaw)
+    by = rr * np.sin(a + lidar_yaw)
+    ok &= ~((bx >= x0) & (bx <= x1) & (np.abs(by) <= hy))
     x, y, yaw = pose
     ox, oy = x + params.lidar_x * math.cos(yaw), y + params.lidar_x * math.sin(yaw)
     world = a[ok] + yaw + lidar_yaw
