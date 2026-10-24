@@ -1,4 +1,4 @@
-"""网页手动防撞(vehicle/server.py compute)按策略那套:转角扫掠净空、截停距离随车速、车快就刹车。
+"""网页手动防撞(vehicle/server.py compute):按当前转角扫掠净空;不够刹停距离(随车速)就压到最慢档减速,贴到 0.25 m 才回中位。
 server 顶层 import 了 rclpy / ROS 消息,这里用空模块顶上,只测 compute。"""
 import sys
 import types
@@ -42,23 +42,24 @@ def S(monkeypatch):
     return st
 
 
-def test_fast_and_close_brakes_instead_of_coasting(S):
-    S.spd, S.sg = 3.0, FakeGuard(2.0)               # 3 m/s 截停距离 ~3.5 m,前方只有 2 m
+def test_fast_and_close_slows_down_without_braking(S):
+    S.spd, S.sg = 3.0, FakeGuard(2.0)               # 3 m/s 刹停要 ~3.5 m,前方只有 2 m:压到最慢档,不刹车
     assert guard_stop(3.0, CarParams()) > 2.0
     pwm, _, active = srv.compute(100.0)
-    assert active and pwm == srv.BRAKE_PWM and S.blocked == 1
+    assert active and srv.SPEED_MID < pwm <= srv.FWD_CAP[0] and S.blocked == 0
 
 
-def test_slow_and_close_goes_neutral_not_reverse(S):
+def test_touching_goes_neutral(S):
     S.spd, S.sg = 0.2, FakeGuard(0.1)
     pwm, _, _ = srv.compute(100.0)
     assert pwm == srv.SPEED_MID and S.blocked == 1
 
 
-def test_same_gap_is_fine_when_slow(S):
-    S.spd, S.sg = 0.5, FakeGuard(2.0)               # 慢的时候 2 m 足够,照常前进
+def test_same_gap_is_full_gear_when_slow(S):
+    S.spd, S.sg = 0.5, FakeGuard(2.0)               # 慢的时候 2 m 足够,不压档
+    S.fwd_pwm, S.fwd_t = srv.FWD_CAP[2], 99.99
     pwm, _, _ = srv.compute(100.0)
-    assert pwm >= srv.FWD_START and S.blocked == 0
+    assert pwm > srv.FWD_CAP[0] and S.blocked == 0
 
 
 def test_clearance_follows_current_steering(S):
@@ -71,4 +72,4 @@ def test_clearance_follows_current_steering(S):
 def test_no_scan_still_blocks(S):
     S.spd, S.sg = 1.0, FakeGuard(None)
     pwm, _, _ = srv.compute(100.0)
-    assert S.blocked == 1 and pwm in (srv.BRAKE_PWM, srv.SPEED_MID)
+    assert S.blocked == 1 and pwm == srv.SPEED_MID

@@ -55,10 +55,11 @@ DUTY_TICKS = 6                        # 6 个 20Hz 周期 = 0.3s
 # 四个脚本各抄一份 84,改中位时漏改一个就会两套行为(当前中位为 81)。
 TURN_MID, TURN_SPAN = CarParams().turn_mid, CarParams().turn_span
 DEADMAN = 0.3                         # 这么久没收到 t 就回中位
-# 手动防撞同策略(road_car_node,2026-10-24):按当前转角的扫掠路径看净空,截停距离 guard_stop 随车速变,
-# 截停时车还快就刹车(BRAKE_PWM),慢了回中位。原来只看正前方、固定 0.25 m 回中位滑行,高速根本停不住。
-GUARD_SLOW = 0.5                      # 截停距离外再留这么多(米):进了就把前进档位压到最慢一档
-GUARD_V_STALE = 3.0                   # 编码器没数据时按这个车速算截停距离(宁可早停)
+# 手动防撞(2026-10-24):按当前转角的扫掠路径看净空。净空小于按车速算的刹停距离 guard_stop(同策略)
+# 就把前进档位压到最慢一档、让车减速(不刹车,用户定手动不用那么严);只有贴到 GUARD_STOP 才回中位。
+# 原来只看正前方、固定 0.8 m 才压档,高速根本减不下来。
+GUARD_STOP = 0.25                     # 保险杠前净空小于这个就不许再往前(米)
+GUARD_V_STALE = 3.0                   # 编码器没数据时按这个车速算减速距离(宁可早减)
 NEUTRAL_HOLD = 1.0                    # 回中位后续发这么久再静默,不跟导航的指令抢底盘
 POLICY_THR = 50                       # 策略模式下油门推过这个值(0..1000)才放行,松手即停
 # 策略模式的"摇杆数据多久算断"。比手动的 DEADMAN 宽:松手时网页立刻发 t 0,油门那条判据
@@ -146,11 +147,10 @@ def compute(now):
             if S.guard:
                 fresh = now - S.enc_t < 0.3
                 gap = S.sg.gap(turn_to_steer(turn)) if S.sg is not None else None
-                need = guard_stop(max(S.spd, 0.0) if fresh else GUARD_V_STALE, CarParams())
-                if gap is None or gap < need:   # 雷达没数据也当挡着,总比撞上去强
+                if gap is None or gap < GUARD_STOP:   # 雷达没数据也当挡着,总比撞上去强
                     S.blocked = 1
-                    return (BRAKE_PWM if fresh and S.spd > BRAKE_RELEASE else SPEED_MID), turn, True
-                if gap < need + GUARD_SLOW:
+                    return SPEED_MID, turn, True
+                if gap < guard_stop(max(S.spd, 0.0) if fresh else GUARD_V_STALE, CarParams()):
                     cap = FWD_CAP[0]
             S.blocked = 0
             pwm = creep_or_pwm(t, FWD_START, cap)
