@@ -55,8 +55,15 @@ A_ACC = 0.4               # 前向传播加速 m/s²(与老师一致)
 
 
 def v_profile(road, lap_len: float, s_target: float, a_lat_sup: float | None,
-              v_cap: float, v_top: float, v_start: float, decel_nom: float):
-    """第二圈的速度上限曲线(先验地图 + 摩擦假设)。返回 (s_grid, v_grid) 供插值。"""
+              v_cap: float, v_top: float, v_start: float, decel_nom: float,
+              a_acc: float = A_ACC, a_dec: float = A_DEC,
+              a_lat_low: float | None = None, kappa_split: float = 0.55):
+    """第二圈的速度上限曲线(先验地图 + 摩擦假设)。返回 (s_grid, v_grid) 供插值。
+    a_acc/a_dec:前向加速/后向制动假设 m/s²,默认与老师一致的保守值;
+    v_source=plan 时建议用贴近真实的 0.6/0.55(Plant accel_up 0.4~1.0, decel 0.68~0.78,
+    留 dead_time 0.28s 滞后余量)。
+    a_lat_low/kappa_split:急弯分档 —— κ≥kappa_split 的弯用更低的横向加速度假设
+    (急弯转向跟不上/外抛撞锥,实测 A@s58.5 κ0.79 在 1.8 档 8/30 撞)。None=不分档。"""
     i_lo, i_hi = int((lap_len - 1.0) / DS), int((s_target + 1.0) / DS)
     i_hi = min(i_hi, len(road.s) - 1)
     pts = road.centre[i_lo:i_hi]
@@ -65,23 +72,32 @@ def v_profile(road, lap_len: float, s_target: float, a_lat_sup: float | None,
         v = np.full(len(s), min(v_cap, v_top))
     else:
         kap = curvature(pts, gap=6)       # 0.3m 基线,和老师一致
+        alat = a_lat_sup if a_lat_low is None else np.where(
+            np.abs(kap) >= kappa_split, a_lat_low, a_lat_sup)
         v = np.minimum(min(v_cap, v_top),
-                       np.sqrt(a_lat_sup / np.maximum(np.abs(kap), 1e-6)))
+                       np.sqrt(alat / np.maximum(np.abs(kap), 1e-6)))
     v[0] = min(v[0], v_start)
-    for i in range(1, len(v)):            # 前向:加速上限
-        v[i] = min(v[i], math.sqrt(v[i - 1] ** 2 + 2 * A_ACC * (s[i] - s[i - 1])))
-    for i in range(len(v) - 2, -1, -1):   # 后向:制动上限(保守 0.45)
-        v[i] = min(v[i], math.sqrt(v[i + 1] ** 2 + 2 * A_DEC * (s[i + 1] - s[i])))
+    for i in range(1, len(s)):            # 前向:加速上限
+        v[i] = min(v[i], math.sqrt(v[i - 1] ** 2 + 2 * a_acc * (s[i] - s[i - 1])))
+    for i in range(len(v) - 2, -1, -1):   # 后向:制动上限
+        v[i] = min(v[i], math.sqrt(v[i + 1] ** 2 + 2 * a_dec * (s[i + 1] - s[i])))
     # 停车曲线:距目标点 s_target 剩余的距离只允许滑行可到的速度
     v = np.minimum(v, np.sqrt(np.maximum(0.0, 2.0 * decel_nom * (s_target - s))))
     return s, v
 
 
 def run(args):
-    """一局:同一条车(同 Plant)跑两圈+停车。args=(model, track, seed, cap1, cap2, a_lat_sup, decel_nom[, record]):
-    record=True 时每 0.1s 记 [t,x,y,v,s,lap] 进 out['trace'](供走线动画用)。"""
-    record = len(args) > 7 and args[7]   # args=(model,track,seed,cap1,cap2,a_lat,decel[,record])
+    """一局:同一条车(同 Plant)跑两圈+停车。
+    args=(model, track, seed, cap1, cap2, a_lat_sup, decel_nom[, record, v_source, a_acc, a_dec]):
+    record=True 时每 0.1s 记 [t,x,y,v,s,lap] 进 out['trace'](供走线动画用);
+    v_source: 'model'=min(模型速度,v_plan) 安全压顶(默认); 'plan'=速度全听 v_plan,模型只管转向。"""
+    record = len(args) > 7 and args[7]   # args=(model,track,seed,cap1,cap2,a_lat,decel[,record,v_source,a_acc,a_dec])
     model, name, seed, cap1, cap2, a_lat_sup, decel_nom = args[:7]
+    v_source = args[8] if len(args) > 8 else 'model'
+    a_acc = args[9] if len(args) > 9 else A_ACC
+    a_dec = args[10] if len(args) > 10 else A_DEC
+    a_lat_low = args[11] if len(args) > 11 else None
+    kappa_split = args[12] if len(args) > 12 else 0.55
     road, lap_len = official(name, True, laps=3)      # 3 圈长:跑 2 圈+停车余量,不触发 goal
     rng = np.random.default_rng(seed)
     enc = _enc(model)
@@ -97,7 +113,10 @@ def run(args):
     def act_capped(v_plan_now: float | None):
         a = pol(env.observation())
         if v_plan_now is not None:
-            v_cmd = min(action_to_speed(float(a[1]), enc), v_plan_now)
+            if v_source == 'plan':        # 纵向全听规划器,模型只出转向(方案C完整形态)
+                v_cmd = v_plan_now
+            else:                         # 安全压顶:min(模型速度, v_plan)
+                v_cmd = min(action_to_speed(float(a[1]), enc), v_plan_now)
             return [float(a[0]), speed_to_action(v_cmd, enc)]
         return a
 
@@ -116,12 +135,17 @@ def run(args):
             v_end_lap1 = env.car.v
             env.pl.cap = cap2                                   # 第二圈放开速度上限
             vg_s, vg_v = v_profile(road, lap_len, s_target, a_lat_sup,
-                                   cap2, pl.v_top, max(v_end_lap1, 0.3), decel_nom)
+                                   cap2, pl.v_top, max(v_end_lap1, 0.3), decel_nom,
+                                   a_acc, a_dec, a_lat_low, kappa_split)
         if s_now >= 2.0 * lap_len and len(laps) == 1:           # 第二圈过线(计时点)
             laps.append(env.t - laps[0])                        # 第二圈纯用时
         tick(len(laps))
-        v_plan_now = (float(np.interp(s_now, vg_s, vg_v))
-                      if vg_s is not None and s_now <= s_target else None)
+        if vg_s is not None and s_now <= s_target:
+            v_plan_now = float(np.interp(s_now, vg_s, vg_v))
+        elif v_source == 'plan' and len(laps) == 0:
+            v_plan_now = cap1      # 第一圈也听规划器:恒 cap1 慢速探索(模型只出转向)
+        else:
+            v_plan_now = None
         near_stop = s_now >= s_target - 0.5                     # 只有终点附近才允许进停车段
         # 必须先记完第二圈过线(len(laps)==2)才允许松油:停车曲线把松油点压到过线点
         # 之前时,车会以 v_lo 蠕行过线再停(晚 ~0.1m),不能没过线就 break
@@ -130,7 +154,10 @@ def run(args):
             break                                               # 进入停车段
         why = env.step(act_capped(v_plan_now))
     if why is not None:                                         # 两圈内就撞/出界/超时
-        out.update(reason=why, laps=laps + [None] * (2 - len(laps)))
+        i_fail, _ = road.project((env.car.x, env.car.y), env.idx)
+        out.update(reason=why, laps=laps + [None] * (2 - len(laps)),
+                   fail_s=float(road.s[i_fail]), fail_v=float(env.car.v),
+                   fail_xy=[float(env.car.x), float(env.car.y)])
         return out
     if len(laps) < 2:                                           # 兜底:松油前没检测到过线
         laps.append(env.t - laps[0])
@@ -182,6 +209,16 @@ def main():
     ap.add_argument('--decel-nom', type=float, default=0.42,
                     help='停车规划用的名义滑行减速度;实际能力 0.68~0.78,但指令有 '
                          '0.35s 死区滞后,高速档按 0.42 规划才停得进框(cap1.0 时 0.73 也够)')
+    ap.add_argument('--v-source', choices=['model', 'plan'], default='model',
+                    help='model=min(模型速度,v_plan)安全压顶(默认);plan=纵向全听v_plan,模型只管转向')
+    ap.add_argument('--a-acc', type=float, default=0.4,
+                    help='前向传播加速假设 m/s²(Plant accel_up 0.4~1.0;plan模式建议0.6)')
+    ap.add_argument('--a-dec', type=float, default=0.45,
+                    help='后向传播制动假设 m/s²(Plant decel 0.68~0.78,留死区余量;plan模式建议0.55)')
+    ap.add_argument('--a-lat-low', type=float, default=None,
+                    help='急弯(κ≥kappa-split)用的更低横向加速度假设;None=不分档')
+    ap.add_argument('--kappa-split', type=float, default=0.55,
+                    help='急弯曲率分档阈值 1/m')
     ap.add_argument('--count', type=int, default=30)
     ap.add_argument('--workers', type=int, default=8)
     ap.add_argument('--seed-start', type=int, default=96_000_000)
@@ -191,7 +228,8 @@ def main():
     if max(a.cap1, a.cap2) > enc.v_hi:
         raise SystemExit(f'速度上限超出契约 {enc}')
     lats = [None if x is None or str(x).lower() == 'none' else float(x) for x in a.a_lat_sup]
-    jobs = [(a.model, t, a.seed_start + i, a.cap1, a.cap2, lat, a.decel_nom)
+    jobs = [(a.model, t, a.seed_start + i, a.cap1, a.cap2, lat, a.decel_nom, False,
+             a.v_source, a.a_acc, a.a_dec, a.a_lat_low, a.kappa_split)
             for t in a.tracks for lat in lats for i in range(a.count)]
     with ProcessPoolExecutor(a.workers) as ex:
         rows = list(ex.map(run, jobs))
@@ -214,10 +252,12 @@ def main():
                 stop_lat_absmax=float(np.max(np.abs([r['stop_lat'] for r in ok]))) if ok else None,
                 in_box=sum(r['in_box'] for r in ok) / len(ok) if ok else None)
     print(json.dumps(dict(model=a.model, cap1=a.cap1, cap2=a.cap2, decel_nom=a.decel_nom,
+                          v_source=a.v_source, a_acc=a.a_acc, a_dec=a.a_dec,
                           summary=summary), ensure_ascii=False, indent=1))
     if a.out:
         Path(a.out).write_text(json.dumps(dict(
             model=a.model, cap1=a.cap1, cap2=a.cap2, decel_nom=a.decel_nom,
+            v_source=a.v_source, a_acc=a.a_acc, a_dec=a.a_dec,
             summary=summary, episodes=rows), ensure_ascii=False, indent=1), encoding='utf-8')
 
 

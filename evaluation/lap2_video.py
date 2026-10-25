@@ -27,7 +27,7 @@ from matplotlib.collections import LineCollection
 from evaluation.road_lap2 import run
 from evaluation.road_track import _boundaries, _cones, official
 
-V_MAX_DISPLAY = 2.0          # 色标上限 m/s
+V_MAX_DISPLAY = 2.5          # 色标上限 m/s(plan 模式可达 2.4)
 STEP = 3                     # 每 3 个 trace 点一帧(3 倍速)
 FPS = 10
 
@@ -121,18 +121,25 @@ def main():
     ap.add_argument('--cap1', type=float, default=0.5)
     ap.add_argument('--cap2', type=float, default=1.0)
     ap.add_argument('--a-lat-sup', default='1.0')
+    ap.add_argument('--v-source', choices=['model', 'plan'], default='model')
+    ap.add_argument('--a-acc', type=float, default=0.4)
+    ap.add_argument('--a-dec', type=float, default=0.45)
+    ap.add_argument('--a-lat-low', type=float, default=None)
+    ap.add_argument('--kappa-split', type=float, default=0.55)
     ap.add_argument('--seed', type=int, default=96000000)
     ap.add_argument('--out-dir', default='runs/eval_final/videos')
     a = ap.parse_args()
     lat = None if str(a.a_lat_sup).lower() == 'none' else float(a.a_lat_sup)
     out_dir = Path(a.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    tag = 'plan' if a.v_source == 'plan' else 'model'
     for k, tr in enumerate(a.tracks):
-        ep = run((a.model, tr, a.seed + k, a.cap1, a.cap2, lat, 0.42, True))
+        ep = run((a.model, tr, a.seed + k, a.cap1, a.cap2, lat, 0.42, True,
+                  a.v_source, a.a_acc, a.a_dec, a.a_lat_low, a.kappa_split))
         if 'trace' not in ep:
             print(f'赛道 {tr} 未完成({ep["reason"]}),跳过')
             continue
-        out = out_dir / f'track{tr}_cap{a.cap2}.gif'
+        out = out_dir / f'track{tr}_cap{a.cap2}_{tag}.gif'
         make_video(tr, ep, out)
         print(f'{tr}: lap1={ep["laps"][0]:.1f}s lap2={ep["laps"][1]:.1f}s '
               f'in_box={ep["in_box"]} -> {out}')

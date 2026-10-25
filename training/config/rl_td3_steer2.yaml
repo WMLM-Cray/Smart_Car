@@ -1,0 +1,51 @@
+# RL(TD3)高速转向专项二阶段 —— 目标:官方赛道 lap2 稳定 18s 档。
+# 一阶段(rl_td3_steer.yaml, 剖面 1.8/1.4)成果:四赛道 100%/20.2s;
+# 外推评测 2.6/1.8 已到 18.85s 但完成率 97%/入框 93% —— 分布外推退化。
+# 本阶段把训练剖面直接对齐 2.6/1.8,让高速转向形态进入分布内。
+# 热启动 = 一阶段最优 candidate_002;池/种子与一阶段一致(30M 高速池)。
+
+schema: road_v2.5
+
+# ===== 高速赛道池(共用 runs/rl_pool_fast.pkl) =====
+pool_seed0: 30000000
+count: 4000
+mix: 'L5:0.2,L5s:0.2,L6h:0.15,L6f:0.15,L4:0.15,L6:0.1,L3:0.05'
+cap_max: 2.4
+
+# ===== 奖励(与一阶段一致,激进档) =====
+crash: 15.0
+time_cost: 0.0
+slip: 0.3
+max_steps: 3000
+
+# ===== 转向专项二阶段:v_plan 剖面对齐 2.6/1.8(核心差异) =====
+v_plan_a_lat: 2.6            # 普通弯横向加速度假设 m/s²(一阶段 1.8)
+v_plan_a_lat_low: 1.8        # 急弯(κ≥split)降档(一阶段 1.4)
+v_plan_kappa_split: 0.55     # 急弯分档阈值 1/m
+v_plan_a_acc: 0.6            # 前向加速假设(贴近真实 accel_up 0.4~1.0)
+v_plan_a_dec: 0.55           # 制动假设(真实 decel 0.68~0.78 留死区余量)
+
+# ===== TD3(init = 一阶段最优 candidate_002,见命令行 --init) =====
+iters: 40
+episodes: 112
+workers: 7
+torch_threads: 2
+seed: 0
+gamma: 0.99
+tau: 0.005
+lr: 0.00005
+lr_critic: 0.0003
+batch: 256
+buffer: 500000
+utd: 1.0
+max_updates: 20000
+warmup: 5000
+explore_std: 0.1
+target_noise: 0.2
+noise_clip: 0.5
+policy_delay: 2
+rounds: 8
+bc: 3.0                     # 锚定的"初始模型"= 一阶段 candidate_002
+eval_every: 3
+eval_levels: 'L5,L5s,L6h,L4c,L6f'
+eval_count: 240
