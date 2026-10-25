@@ -225,6 +225,8 @@ def main():
     ap.add_argument('--seg-fill', action='store_true', help='配 --seg-lut:补行间的缝(车上 ground_seg_node --fill)')
     ap.add_argument('--schema', default=SCHEMA, choices=(SCHEMA, SCHEMA_V2, SCHEMA_V25), help='bev_v1(5 通道)/ bev_v2(6 通道)/ bev_v2.5(双图近场分支);支持从旧模型 --init 热启动')
     a = ap.parse_args()
+    if a.teacher_grip_fb is not None and not a.teacher_grip_fb > 0:
+        ap.error('--teacher-grip-fb 要 > 0(关就不传;0 会把速度标签恒压到 0.7)')
     enc = spec_of('spica_v3' + a.contract) if a.contract else Encoding(a.speed_scale, V_LO, a.v_hi)
 
     import torch

@@ -56,3 +56,12 @@ def test_grip_feedback_caps_speed_label_when_wheels_are_turned_hard():
     v_ok = math.sqrt(2.0 * cp.wheelbase / math.tan(math.radians(19))) - pl.v_over
     assert labels[0][0] == labels[1][0]                      # 转角标签不受影响
     assert on <= max(v_ok, RT.BRAKE_FLOOR) + 0.05 < off
+
+
+def test_grip_feedback_zero_is_rejected_not_silently_on():
+    """0 不是关(会把速度标签恒压到 BRAKE_FLOOR),要报错;关就传 None。"""
+    import pytest
+    for bad in (0.0, -1.0):
+        with pytest.raises(ValueError):
+            RT.set_grip_feedback(bad)
+    assert RT.GRIP_FB is None

@@ -90,8 +90,10 @@ GRIP_FB = None             # 推头反馈:按实际前轮转角限速 v <= sqrt(
 
 
 def set_grip_feedback(a_lat: float | None = None):
-    """bev_train --teacher-grip-fb,进程池 initializer 里调;Teacher / SeenTeacher 调用时读。"""
+    """bev_train --teacher-grip-fb,进程池 initializer 里调;Teacher / SeenTeacher 调用时读。None = 关。"""
     global GRIP_FB
+    if a_lat is not None and not a_lat > 0:      # 0 不是关:会把速度标签恒压到 BRAKE_FLOOR
+        raise ValueError(f'推头反馈侧向加速度要 > 0(关就不传),给的是 {a_lat}')
     GRIP_FB = a_lat
 
 
