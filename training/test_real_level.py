@@ -29,3 +29,30 @@ def test_set_decel_raises_planned_speed_before_corners():
     assert np.all(fast.v >= base.v - 1e-9) and fast.v.mean() > base.v.mean()
     assert np.all(fast.v_coast >= base.v_coast - 1e-9) and fast.v_coast.mean() > base.v_coast.mean()
     assert (RT.A_DEC, RT.A_BRK) == old
+
+
+def test_grip_feedback_caps_speed_label_when_wheels_are_turned_hard():
+    """推头反馈(road_teacher.set_grip_feedback,bev_train --teacher-grip-fb):前轮实际打 19° 时速度标签
+    不超过 sqrt(a·L/tan δ) − v_over;关着时和原来逐位一样。"""
+    import math
+    from dataclasses import replace
+
+    from common.road_policy import action_to_speed
+    from simulation.fastsim.road_env import RoadEnv
+    road, _ = real_track('realA_1023')
+    pl = replace(Plant.sample(np.random.default_rng(0), ENC, 4.0, 4.0), cap=4.0)
+    cp = CarParams()
+    labels = []
+    for fb in (None, 2.0):
+        env = RoadEnv(road, pl, seed=0)
+        env.car.v, env.car.steer = 3.0, math.radians(19)
+        P = RT.plan(road, 0, 0.0, cp.width, pl, a_lat=2.0)
+        RT.set_grip_feedback(fb)
+        try:
+            labels.append(RT.Teacher(env, P, replan=False, a_lat=2.0)())
+        finally:
+            RT.set_grip_feedback(None)
+    off, on = (action_to_speed(float(a[1]), ENC) for a in labels)
+    v_ok = math.sqrt(2.0 * cp.wheelbase / math.tan(math.radians(19))) - pl.v_over
+    assert labels[0][0] == labels[1][0]                      # 转角标签不受影响
+    assert on <= max(v_ok, RT.BRAKE_FLOOR) + 0.05 < off

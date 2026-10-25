@@ -39,11 +39,11 @@ def perturb(road, rng, jitter, drop):
 
 
 def run(args):
-    model, name, seed, cap, car, fill_v, jitter, drop, escape, no_seg, no_guard = (*args, False, False, False)[:11]
+    model, name, seed, cap, car, fill_v, jitter, drop, escape, no_seg, no_guard, cap_lap1 = (*args, False, False, False, None)[:12]
     road, lap_len = official(name, fill_v) if name in 'ABCD' else real_track(name)    # 其他名字 = maps/<name>.yaml 实车赛道
     road = perturb(road, np.random.default_rng(seed + 7), jitter, drop)
     pol = BevPolicy(model)
-    pl = replace(Plant.sample(np.random.default_rng(seed), pol.enc), cap=cap)
+    pl = replace(Plant.sample(np.random.default_rng(seed), pol.enc), cap=cap if cap_lap1 is None else cap_lap1)
     kw = ({**CAR, 'guard': 'escape'} if escape else CAR) if car else {}
     kw = {**kw, 'no_seg': True} if no_seg else kw
     kw = {**kw, 'guard': False} if no_guard else kw            # 车上 road_car_node --no-guard
@@ -53,6 +53,8 @@ def run(args):
         why = benv.step(pol(*benv.observation()))
         if road.s[benv.env.idx] >= lap_len * (len(laps) + 1) and len(laps) < LAPS:
             laps.append(benv.env.t)
+            if cap_lap1 is not None:                           # 过起点线换档,BEV 不清(同车上网页换档 set_speed_cap)
+                benv.env.pl = replace(benv.env.pl, cap=cap)
     car_ = benv.env.car
     return dict(track=name, seed=seed, cap=cap, reason=why, n_escape=benv.n_escape,
                 laps=[laps[0]] + list(np.diff(laps)) if laps else [], time=benv.env.t,
@@ -72,11 +74,12 @@ def main():
     ap.add_argument('--guard-escape', action='store_true', help="配 --car:截停先找逃生转角(BevEnv guard='escape')")
     ap.add_argument('--no-guard', action='store_true', help='配 --car:不截停(同车上 road_car_node --no-guard,2026-10-24);撞桶 / 出界照样算失败')
     ap.add_argument('--no-seg', action='store_true', help='纯雷达模型(bev_train --no-seg 训的):FREE 层恒空,同车上 road_car_node --no-seg')
+    ap.add_argument('--cap-lap1', type=float, default=None, help='第一圈限速;过起点线换成 --caps(比赛一圈建图、二圈冲刺)')
     ap.add_argument('--no-fill-v', action='store_true', help='黄 V 不补桶(按规则只有胶带)')
     ap.add_argument('--cone-jitter', type=float, default=0.0, help='每局桶位置高斯抖动 m')
     ap.add_argument('--cone-drop', type=float, default=0.0, help='每局每个桶被拿掉的概率')
     a = ap.parse_args()
-    jobs = [(a.model, t, a.seed_start + i, cap, a.car, not a.no_fill_v, a.cone_jitter, a.cone_drop, a.guard_escape, a.no_seg, a.no_guard)
+    jobs = [(a.model, t, a.seed_start + i, cap, a.car, not a.no_fill_v, a.cone_jitter, a.cone_drop, a.guard_escape, a.no_seg, a.no_guard, a.cap_lap1)
             for t in a.tracks for cap in a.caps for i in range(a.count)]
     with ProcessPoolExecutor(a.workers) as ex:
         rows = list(ex.map(run, jobs))

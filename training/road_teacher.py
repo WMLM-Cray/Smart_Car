@@ -85,6 +85,16 @@ def curvature(pts: np.ndarray, gap: int = 3) -> np.ndarray:
     return k
 
 
+GRIP_FB = None             # 推头反馈:按实际前轮转角限速 v <= sqrt(GRIP_FB·L / tan|δ|) − v_over(None = 关,老配置逐位不变)
+                           # 2026-10-24:全知老师 realA_1023 限速 4.0 弯中打 19° 还一路加到 4.0,推头 80% 撞外侧(runs/teacher_trace.py)
+
+
+def set_grip_feedback(a_lat: float | None = None):
+    """bev_train --teacher-grip-fb,进程池 initializer 里调;Teacher / SeenTeacher 调用时读。"""
+    global GRIP_FB
+    GRIP_FB = a_lat
+
+
 def set_decel(a_dec: float | None = None, a_brk: float | None = None):
     """改老师的计划滑行 / 刹车减速度(bev_train --teacher-dec/--teacher-brk,进程池 initializer 里调)。
     plan()、Teacher、SeenTeacher 都在调用时读模块里的值。"""
@@ -249,4 +259,9 @@ class Teacher:
         if (P.v_coast is not None and car.v > self.release
                 and v_eff > max(P.v_coast[kv], BRAKE_FLOOR) + BRAKE_MARGIN):
             return np.array([steer_a, speed_to_action(BRAKE_CMD, env.pl.enc)], np.float32)
-        return np.array([steer_a, speed_to_action(float(P.v[kv]), env.pl.enc)], np.float32)
+        v_plan = float(P.v[kv])
+        if GRIP_FB is not None:     # 规划线以为能加速,实际要打的角说明车在推头:按实际转角的侧向加速度限速(不刹,滑行也吃抓地)
+            t = math.tan(abs(car.steer))
+            if t > 1e-3:
+                v_plan = min(v_plan, max(BRAKE_FLOOR, math.sqrt(GRIP_FB * cp.wheelbase / t) - pl.v_over))
+        return np.array([steer_a, speed_to_action(v_plan, env.pl.enc)], np.float32)
