@@ -28,7 +28,7 @@ from common.road_policy import V_LO, Encoding, spec_of
 from simulation.fastsim.road import LEVELS
 from training.bev_env import BevEnv, SeenTeacher
 from training.road_check import sample_episode
-from training.road_teacher import set_decel
+from training.road_teacher import set_decel, set_grip_feedback
 
 TRAIN_SEED0, SELECT_SEED0 = 30_000_000, 60_000_000     # 和 road_train(10M/50M)、测试(90M+)都不重叠
 
@@ -98,9 +98,10 @@ def run_episode(seed, level, weights=None, beta=0.0, collect=False, enc=None, a_
 LAG_MIN = 0     # --lag-min,进程池 initializer 里设(_init)
 
 
-def _init(a_dec, a_brk, lag_min):
+def _init(a_dec, a_brk, lag_min, grip_fb=None):
     global LAG_MIN
     set_decel(a_dec, a_brk)
+    set_grip_feedback(grip_fb)
     LAG_MIN = lag_min
 
 
@@ -184,6 +185,8 @@ def main():
     ap.add_argument('--a-lat', type=float, default=0.45)
     ap.add_argument('--cap-max', type=float, default=1.8)
     ap.add_argument('--teacher-dec', type=float, default=None, help='老师计划滑行减速度(默认 road_teacher.A_DEC 0.45;实测 0.68~0.78)')
+    ap.add_argument('--teacher-grip-fb', type=float, default=None,
+                    help='老师推头反馈:按实际前轮转角限速到侧向加速度这么多 m/s²(road_teacher.GRIP_FB;默认关)')
     ap.add_argument('--teacher-brk', type=float, default=None, help='老师计划刹车减速度(默认 road_teacher.A_BRK 0.85;实测 1.3~1.45)')
     ap.add_argument('--cap-min', type=float, default=None, help='速度上限抽取下限(默认契约的 v_lo)')
     ap.add_argument('--contract', default=None,
@@ -222,6 +225,8 @@ def main():
     ap.add_argument('--seg-fill', action='store_true', help='配 --seg-lut:补行间的缝(车上 ground_seg_node --fill)')
     ap.add_argument('--schema', default=SCHEMA, choices=(SCHEMA, SCHEMA_V2, SCHEMA_V25), help='bev_v1(5 通道)/ bev_v2(6 通道)/ bev_v2.5(双图近场分支);支持从旧模型 --init 热启动')
     a = ap.parse_args()
+    if a.teacher_grip_fb is not None and not a.teacher_grip_fb > 0:
+        ap.error('--teacher-grip-fb 要 > 0(关就不传;0 会把速度标签恒压到 0.7)')
     enc = spec_of('spica_v3' + a.contract) if a.contract else Encoding(a.speed_scale, V_LO, a.v_hi)
 
     import torch
@@ -267,7 +272,7 @@ def main():
     brng = np.random.default_rng(a.seed + 1)
     wy = torch.tensor([1.0, 0.5], device=dev)
     seed = TRAIN_SEED0
-    with ProcessPoolExecutor(a.workers, initializer=_init, initargs=(a.teacher_dec, a.teacher_brk, a.lag_min)) as ex:
+    with ProcessPoolExecutor(a.workers, initializer=_init, initargs=(a.teacher_dec, a.teacher_brk, a.lag_min, a.teacher_grip_fb)) as ex:
         for r in range(a.rounds):
             beta = max(0.0, a.beta0 - r / 4)
             wts = None if (r == 0 and a.init is None) else weights_of(ema)
