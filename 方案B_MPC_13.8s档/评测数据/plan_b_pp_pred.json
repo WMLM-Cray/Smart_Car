@@ -1,0 +1,101 @@
+{
+ "jobs": 36,
+ "summary": {
+  "A cap3.2 lb0.3 ff0 pd0": {
+   "ok": "0/3",
+   "reasons": {
+    "collision": 3
+   },
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "A cap3.2 lb0.3 ff0 pd1": {
+   "ok": "0/3",
+   "reasons": {
+    "collision": 3
+   },
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "A cap3.2 lb0.3 ff0 pd2": {
+   "ok": "0/3",
+   "reasons": {
+    "collision": 3
+   },
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "A cap3.2 lb0.3 ff0.7 pd0": {
+   "ok": "0/3",
+   "reasons": {
+    "collision": 3
+   },
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "A cap3.2 lb0.3 ff0.7 pd1": {
+   "ok": "0/3",
+   "reasons": {
+    "collision": 3
+   },
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "A cap3.2 lb0.3 ff0.7 pd2": {
+   "ok": "0/3",
+   "reasons": {
+    "collision": 3
+   },
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "A cap3.2 lb0.45 ff0 pd0": {
+   "ok": "0/3",
+   "reasons": {
+    "collision": 3
+   },
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "A cap3.2 lb0.45 ff0 pd1": {
+   "ok": "0/3",
+   "reasons": {
+    "collision": 3
+   },
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "A cap3.2 lb0.45 ff0 pd2": {
+   "ok": "0/3",
+   "reasons": {
+    "collision": 3
+   },
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "A cap3.2 lb0.45 ff0.7 pd0": {
+   "ok": "0/3",
+   "reasons": {
+    "collision": 3
+   },
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "A cap3.2 lb0.45 ff0.7 pd1": {
+   "ok": "0/3",
+   "reasons": {
+    "collision": 3
+   },
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "A cap3.2 lb0.45 ff0.7 pd2": {
+   "ok": "0/3",
+   "reasons": {
+    "collision": 3
+   },
+   "lap2": null,
+   "fails_mean": 0.0
+  }
+ }
+}

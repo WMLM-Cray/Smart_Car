@@ -1,0 +1,128 @@
+{
+ "jobs": 9,
+ "summary": {
+  "A cap2.4": {
+   "ok": "3/3",
+   "reasons": {
+    "goal": 3
+   },
+   "lap2": 16.17,
+   "fails_mean": 3.7
+  },
+  "A cap3.2": {
+   "ok": "2/3",
+   "reasons": {
+    "collision": 1,
+    "goal": 2
+   },
+   "lap2": 14.43,
+   "fails_mean": 1.3
+  },
+  "A cap4.0": {
+   "ok": "0/3",
+   "reasons": {
+    "collision": 3
+   },
+   "lap2": null,
+   "fails_mean": 0.0
+  }
+ },
+ "rows": [
+  {
+   "track": "A",
+   "seed": 96200000,
+   "cap": 2.4,
+   "ok": true,
+   "why": "goal",
+   "laps": [
+    17.099999999999874,
+    15.85000000000214
+   ],
+   "fails": 3
+  },
+  {
+   "track": "A",
+   "seed": 96200001,
+   "cap": 2.4,
+   "ok": true,
+   "why": "goal",
+   "laps": [
+    17.44999999999993,
+    16.300000000001926
+   ],
+   "fails": 2
+  },
+  {
+   "track": "A",
+   "seed": 96200002,
+   "cap": 2.4,
+   "ok": true,
+   "why": "goal",
+   "laps": [
+    17.499999999999936,
+    16.3500000000019
+   ],
+   "fails": 6
+  },
+  {
+   "track": "A",
+   "seed": 96200000,
+   "cap": 3.2,
+   "ok": false,
+   "why": "collision",
+   "laps": [],
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96200001,
+   "cap": 3.2,
+   "ok": true,
+   "why": "goal",
+   "laps": [
+    15.849999999999707,
+    14.350000000002215
+   ],
+   "fails": 3
+  },
+  {
+   "track": "A",
+   "seed": 96200002,
+   "cap": 3.2,
+   "ok": true,
+   "why": "goal",
+   "laps": [
+    15.69999999999971,
+    14.500000000002212
+   ],
+   "fails": 1
+  },
+  {
+   "track": "A",
+   "seed": 96200000,
+   "cap": 4.0,
+   "ok": false,
+   "why": "collision",
+   "laps": [],
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96200001,
+   "cap": 4.0,
+   "ok": false,
+   "why": "collision",
+   "laps": [],
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96200002,
+   "cap": 4.0,
+   "ok": false,
+   "why": "collision",
+   "laps": [],
+   "fails": 0
+  }
+ ]
+}
