@@ -1,0 +1,3607 @@
+{
+ "jobs": 256,
+ "summary": {
+  "A cap2.4 alat3 gfb3": {
+   "ok": "3/4",
+   "reasons": {
+    "goal": 3,
+    "collision": 1
+   },
+   "lap1": 17.42,
+   "lap2": 16.12,
+   "fails_mean": 1.2
+  },
+  "A cap2.4 alat3 gfb5": {
+   "ok": "2/4",
+   "reasons": {
+    "collision": 2,
+    "goal": 2
+   },
+   "lap1": 17.15,
+   "lap2": 15.83,
+   "fails_mean": 0.8
+  },
+  "A cap2.4 alat5 gfb3": {
+   "ok": "3/4",
+   "reasons": {
+    "goal": 3,
+    "collision": 1
+   },
+   "lap1": 17.32,
+   "lap2": 15.97,
+   "fails_mean": 1.0
+  },
+  "A cap2.4 alat5 gfb5": {
+   "ok": "2/4",
+   "reasons": {
+    "collision": 2,
+    "goal": 2
+   },
+   "lap1": 17.02,
+   "lap2": 15.68,
+   "fails_mean": 0.5
+  },
+  "A cap2.8 alat3 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "A cap2.8 alat3 gfb5": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "A cap2.8 alat5 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "A cap2.8 alat5 gfb5": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "A cap3.2 alat3 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "A cap3.2 alat3 gfb5": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "A cap3.2 alat5 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "A cap3.2 alat5 gfb5": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "A cap3.6 alat3 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "A cap3.6 alat3 gfb5": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "A cap3.6 alat5 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "A cap3.6 alat5 gfb5": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "B cap2.4 alat3 gfb3": {
+   "ok": "3/4",
+   "reasons": {
+    "goal": 3,
+    "collision": 1
+   },
+   "lap1": 17.08,
+   "lap2": 15.73,
+   "fails_mean": 2.8
+  },
+  "B cap2.4 alat3 gfb5": {
+   "ok": "2/4",
+   "reasons": {
+    "collision": 2,
+    "goal": 2
+   },
+   "lap1": 16.8,
+   "lap2": 15.48,
+   "fails_mean": 0.8
+  },
+  "B cap2.4 alat5 gfb3": {
+   "ok": "2/4",
+   "reasons": {
+    "collision": 2,
+    "goal": 2
+   },
+   "lap1": 17.05,
+   "lap2": 15.78,
+   "fails_mean": 1.0
+  },
+  "B cap2.4 alat5 gfb5": {
+   "ok": "2/4",
+   "reasons": {
+    "collision": 2,
+    "goal": 2
+   },
+   "lap1": 16.7,
+   "lap2": 15.38,
+   "fails_mean": 1.0
+  },
+  "B cap2.8 alat3 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "B cap2.8 alat3 gfb5": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "B cap2.8 alat5 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "B cap2.8 alat5 gfb5": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "B cap3.2 alat3 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "B cap3.2 alat3 gfb5": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "B cap3.2 alat5 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "B cap3.2 alat5 gfb5": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "B cap3.6 alat3 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "B cap3.6 alat3 gfb5": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "B cap3.6 alat5 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "B cap3.6 alat5 gfb5": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "C cap2.4 alat3 gfb3": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 17.61,
+   "lap2": 16.28,
+   "fails_mean": 21.2
+  },
+  "C cap2.4 alat3 gfb5": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 17.15,
+   "lap2": 15.78,
+   "fails_mean": 22.5
+  },
+  "C cap2.4 alat5 gfb3": {
+   "ok": "3/4",
+   "reasons": {
+    "goal": 3,
+    "collision": 1
+   },
+   "lap1": 17.47,
+   "lap2": 16.18,
+   "fails_mean": 16.5
+  },
+  "C cap2.4 alat5 gfb5": {
+   "ok": "2/4",
+   "reasons": {
+    "goal": 2,
+    "collision": 2
+   },
+   "lap1": 16.92,
+   "lap2": 15.58,
+   "fails_mean": 12.5
+  },
+  "C cap2.8 alat3 gfb3": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 17.06,
+   "lap2": 15.61,
+   "fails_mean": 23.5
+  },
+  "C cap2.8 alat3 gfb5": {
+   "ok": "3/4",
+   "reasons": {
+    "goal": 3,
+    "collision": 1
+   },
+   "lap1": 16.23,
+   "lap2": 14.85,
+   "fails_mean": 15.5
+  },
+  "C cap2.8 alat5 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "C cap2.8 alat5 gfb5": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "C cap3.2 alat3 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "C cap3.2 alat3 gfb5": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "C cap3.2 alat5 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "C cap3.2 alat5 gfb5": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "C cap3.6 alat3 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "C cap3.6 alat3 gfb5": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "C cap3.6 alat5 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "C cap3.6 alat5 gfb5": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "D cap2.4 alat3 gfb3": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 17.17,
+   "lap2": 15.74,
+   "fails_mean": 22.0
+  },
+  "D cap2.4 alat3 gfb5": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 16.66,
+   "lap2": 15.29,
+   "fails_mean": 24.8
+  },
+  "D cap2.4 alat5 gfb3": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 16.99,
+   "lap2": 15.6,
+   "fails_mean": 23.8
+  },
+  "D cap2.4 alat5 gfb5": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 16.57,
+   "lap2": 15.2,
+   "fails_mean": 24.5
+  },
+  "D cap2.8 alat3 gfb3": {
+   "ok": "3/4",
+   "reasons": {
+    "goal": 3,
+    "collision": 1
+   },
+   "lap1": 16.52,
+   "lap2": 15.2,
+   "fails_mean": 15.8
+  },
+  "D cap2.8 alat3 gfb5": {
+   "ok": "3/4",
+   "reasons": {
+    "goal": 3,
+    "collision": 1
+   },
+   "lap1": 15.92,
+   "lap2": 14.58,
+   "fails_mean": 15.5
+  },
+  "D cap2.8 alat5 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "D cap2.8 alat5 gfb5": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "D cap3.2 alat3 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "D cap3.2 alat3 gfb5": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "D cap3.2 alat5 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "D cap3.2 alat5 gfb5": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "D cap3.6 alat3 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "D cap3.6 alat3 gfb5": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "D cap3.6 alat5 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "D cap3.6 alat5 gfb5": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  }
+ },
+ "rows": [
+  {
+   "track": "A",
+   "seed": 96000000,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.049999999999866,
+    15.750000000002178
+   ],
+   "time": 32.950000000002014,
+   "fails": 2
+  },
+  {
+   "track": "A",
+   "seed": 96000001,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.549999999999944,
+    16.2500000000019
+   ],
+   "time": 33.98000000000181,
+   "fails": 2
+  },
+  {
+   "track": "A",
+   "seed": 96000002,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 10.01999999999983,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000003,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.64999999999996,
+    16.350000000001845
+   ],
+   "time": 34.18000000000177,
+   "fails": 1
+  },
+  {
+   "track": "A",
+   "seed": 96000000,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.319999999999867,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000001,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "goal",
+   "laps": [
+    17.14999999999988,
+    15.850000000002122
+   ],
+   "time": 33.140000000001976,
+   "fails": 2
+  },
+  {
+   "track": "A",
+   "seed": 96000002,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.62999999999986,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000003,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "goal",
+   "laps": [
+    17.14999999999988,
+    15.800000000002132
+   ],
+   "time": 33.13000000000198,
+   "fails": 1
+  },
+  {
+   "track": "A",
+   "seed": 96000000,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    16.999999999999858,
+    15.600000000002225
+   ],
+   "time": 32.78000000000205,
+   "fails": 1
+  },
+  {
+   "track": "A",
+   "seed": 96000001,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.44999999999993,
+    16.100000000001966
+   ],
+   "time": 33.73000000000186,
+   "fails": 2
+  },
+  {
+   "track": "A",
+   "seed": 96000002,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.799999999999857,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000003,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.499999999999936,
+    16.20000000000193
+   ],
+   "time": 33.87000000000183,
+   "fails": 1
+  },
+  {
+   "track": "A",
+   "seed": 96000000,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.279999999999868,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000001,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "goal",
+   "laps": [
+    17.049999999999866,
+    15.700000000002188
+   ],
+   "time": 32.91000000000202,
+   "fails": 1
+  },
+  {
+   "track": "A",
+   "seed": 96000002,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.519999999999863,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000003,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "goal",
+   "laps": [
+    16.999999999999858,
+    15.650000000002215
+   ],
+   "time": 32.82000000000204,
+   "fails": 1
+  },
+  {
+   "track": "A",
+   "seed": 96000000,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.239999999999869,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000001,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.449999999999864,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000002,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.769999999999879,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000003,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.60999999999986,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000000,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.069999999999894,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000001,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.429999999999886,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000002,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.509999999999884,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000003,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.339999999999867,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000000,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.2199999999998905,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000001,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.269999999999868,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000002,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.649999999999881,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000003,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.399999999999865,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000000,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 6.989999999999895,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000001,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.199999999999891,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000002,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.4099999999998865,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000003,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.16999999999987,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000000,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.309999999999889,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000001,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.459999999999885,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000002,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.69999999999988,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000003,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.659999999999881,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000000,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 6.989999999999895,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000001,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.2199999999998905,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000002,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.459999999999885,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000003,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.389999999999887,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000000,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.839999999999962,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000001,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.9499999999999598,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000002,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.6699999999999657,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000003,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.5399999999999685,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000000,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.839999999999962,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000001,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.899999999999961,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000002,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.6699999999999657,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000003,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.5399999999999685,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000000,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.279999999999889,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000001,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.439999999999886,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000002,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.6899999999998805,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000003,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.6399999999998816,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000000,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 6.989999999999895,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000001,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.209999999999891,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000002,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.459999999999885,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000003,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.389999999999887,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000000,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.839999999999962,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000001,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.92999999999996,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000002,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.6699999999999657,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000003,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.5399999999999685,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000000,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.839999999999962,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000001,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.899999999999961,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000002,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.6699999999999657,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000003,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.5399999999999685,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000000,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    16.799999999999827,
+    15.450000000002326
+   ],
+   "time": 32.40000000000212,
+   "fails": 7
+  },
+  {
+   "track": "B",
+   "seed": 96000001,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.19999999999989,
+    15.850000000002105
+   ],
+   "time": 33.190000000001966,
+   "fails": 4
+  },
+  {
+   "track": "B",
+   "seed": 96000002,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 11.229999999999805,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000003,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.249999999999897,
+    15.900000000002077
+   ],
+   "time": 33.28000000000195,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000000,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [
+    16.399999999999764
+   ],
+   "time": 24.580000000001043,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000001,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "goal",
+   "laps": [
+    16.849999999999834,
+    15.550000000002289
+   ],
+   "time": 32.540000000002095,
+   "fails": 3
+  },
+  {
+   "track": "B",
+   "seed": 96000002,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 9.769999999999836,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000003,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "goal",
+   "laps": [
+    16.74999999999982,
+    15.400000000002354
+   ],
+   "time": 32.30000000000214,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000000,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 10.809999999999814,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000001,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.049999999999866,
+    15.800000000002168
+   ],
+   "time": 33.000000000002004,
+   "fails": 4
+  },
+  {
+   "track": "B",
+   "seed": 96000002,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 10.949999999999811,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000003,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.049999999999866,
+    15.750000000002178
+   ],
+   "time": 32.92000000000202,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000000,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 9.419999999999844,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000001,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "goal",
+   "laps": [
+    16.69999999999981,
+    15.400000000002372
+   ],
+   "time": 32.23000000000216,
+   "fails": 4
+  },
+  {
+   "track": "B",
+   "seed": 96000002,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 9.699999999999838,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000003,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "goal",
+   "laps": [
+    16.69999999999981,
+    15.350000000002382
+   ],
+   "time": 32.18000000000217,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000000,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 9.399999999999844,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000001,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 9.379999999999844,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000002,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 9.509999999999842,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000003,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 9.479999999999842,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000000,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.039999999999894,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000001,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.109999999999872,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000002,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.329999999999867,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000003,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.079999999999872,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000000,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.869999999999855,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000001,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 9.15999999999985,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000002,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.469999999999864,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000003,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 10.279999999999825,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000000,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 6.919999999999897,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000001,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.049999999999873,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000002,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.3599999999998875,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000003,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 9.039999999999852,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000000,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.949999999999875,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000001,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.559999999999883,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000002,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.649999999999881,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000003,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.289999999999868,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000000,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 6.929999999999897,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000001,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.169999999999892,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000002,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.369999999999887,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000003,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.299999999999889,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000000,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.059999999999894,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000001,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.299999999999889,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000002,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.849999999999962,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000003,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.6799999999999655,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000000,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 6.819999999999899,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000001,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.059999999999894,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000002,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.849999999999962,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000003,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.6799999999999655,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000000,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.24999999999989,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000001,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.419999999999886,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000002,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.6399999999998816,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000003,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.269999999999868,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000000,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 6.929999999999897,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000001,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.129999999999892,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000002,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.349999999999888,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000003,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.269999999999889,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000000,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.019999999999895,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000001,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.24999999999989,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000002,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.849999999999962,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000003,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.6799999999999655,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000000,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 6.7799999999999,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000001,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 6.979999999999896,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000002,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.849999999999962,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000003,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.6799999999999655,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000000,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.299999999999905,
+    16.05000000000203
+   ],
+   "time": 33.46000000000191,
+   "fails": 28
+  },
+  {
+   "track": "C",
+   "seed": 96000001,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.799999999999983,
+    16.450000000001772
+   ],
+   "time": 34.37000000000173,
+   "fails": 26
+  },
+  {
+   "track": "C",
+   "seed": 96000002,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.549999999999944,
+    16.10000000000193
+   ],
+   "time": 33.79000000000185,
+   "fails": 19
+  },
+  {
+   "track": "C",
+   "seed": 96000003,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.799999999999983,
+    16.500000000001762
+   ],
+   "time": 34.450000000001715,
+   "fails": 12
+  },
+  {
+   "track": "C",
+   "seed": 96000000,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "goal",
+   "laps": [
+    16.849999999999834,
+    15.550000000002289
+   ],
+   "time": 32.5300000000021,
+   "fails": 21
+  },
+  {
+   "track": "C",
+   "seed": 96000001,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "goal",
+   "laps": [
+    17.349999999999913,
+    16.05000000000201
+   ],
+   "time": 33.5200000000019,
+   "fails": 18
+  },
+  {
+   "track": "C",
+   "seed": 96000002,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "goal",
+   "laps": [
+    17.14999999999988,
+    15.550000000002182
+   ],
+   "time": 32.81000000000204,
+   "fails": 23
+  },
+  {
+   "track": "C",
+   "seed": 96000003,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "goal",
+   "laps": [
+    17.249999999999897,
+    15.950000000002067
+   ],
+   "time": 33.32000000000194,
+   "fails": 28
+  },
+  {
+   "track": "C",
+   "seed": 96000000,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.049999999999866,
+    15.850000000002158
+   ],
+   "time": 33.030000000002,
+   "fails": 16
+  },
+  {
+   "track": "C",
+   "seed": 96000001,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.64999999999996,
+    16.300000000001855
+   ],
+   "time": 34.08000000000179,
+   "fails": 23
+  },
+  {
+   "track": "C",
+   "seed": 96000002,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 13.079999999999766,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000003,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.699999999999967,
+    16.400000000001818
+   ],
+   "time": 34.23000000000176,
+   "fails": 27
+  },
+  {
+   "track": "C",
+   "seed": 96000000,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "goal",
+   "laps": [
+    16.649999999999803,
+    15.3500000000024
+   ],
+   "time": 32.12000000000218,
+   "fails": 23
+  },
+  {
+   "track": "C",
+   "seed": 96000001,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 12.90999999999977,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000002,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 12.789999999999772,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000003,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "goal",
+   "laps": [
+    17.19999999999989,
+    15.800000000002115
+   ],
+   "time": 33.13000000000198,
+   "fails": 27
+  },
+  {
+   "track": "C",
+   "seed": 96000000,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    16.599999999999795,
+    15.400000000002407
+   ],
+   "time": 32.12000000000218,
+   "fails": 23
+  },
+  {
+   "track": "C",
+   "seed": 96000001,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    16.999999999999858,
+    15.600000000002225
+   ],
+   "time": 32.740000000002055,
+   "fails": 24
+  },
+  {
+   "track": "C",
+   "seed": 96000002,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.499999999999936,
+    15.650000000002038
+   ],
+   "time": 33.26000000000195,
+   "fails": 24
+  },
+  {
+   "track": "C",
+   "seed": 96000003,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.14999999999988,
+    15.800000000002132
+   ],
+   "time": 33.040000000001996,
+   "fails": 23
+  },
+  {
+   "track": "C",
+   "seed": 96000000,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "goal",
+   "laps": [
+    15.849999999999707,
+    14.550000000002246
+   ],
+   "time": 30.490000000001967,
+   "fails": 18
+  },
+  {
+   "track": "C",
+   "seed": 96000001,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "goal",
+   "laps": [
+    16.349999999999756,
+    14.90000000000233
+   ],
+   "time": 31.360000000002103,
+   "fails": 22
+  },
+  {
+   "track": "C",
+   "seed": 96000002,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [
+    16.649999999999803
+   ],
+   "time": 19.660000000000274,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000003,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "goal",
+   "laps": [
+    16.49999999999978,
+    15.10000000000236
+   ],
+   "time": 31.72000000000216,
+   "fails": 22
+  },
+  {
+   "track": "C",
+   "seed": 96000000,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.3099999999999734,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000001,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 4.549999999999947,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000002,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.559999999999968,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000003,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 4.40999999999995,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000000,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.3099999999999734,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000001,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 4.549999999999947,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000002,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.559999999999968,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000003,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 4.40999999999995,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000000,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [
+    16.599999999999795
+   ],
+   "time": 18.36000000000007,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000001,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.3899999999999717,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000002,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.329999999999973,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000003,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.139999999999977,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000000,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.2599999999999745,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000001,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.3899999999999717,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000002,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.329999999999973,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000003,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.1299999999999772,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000000,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.1999999999999758,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000001,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.289999999999974,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000002,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.319999999999973,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000003,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.139999999999977,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000000,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.189999999999976,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000001,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.2599999999999745,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000002,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.319999999999973,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000003,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.1199999999999775,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000000,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [
+    16.449999999999772
+   ],
+   "time": 18.310000000000063,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000001,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.1699999999999764,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000002,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.3099999999999734,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000003,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.1199999999999775,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000000,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.049999999999979,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000001,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.1699999999999764,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000002,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.3099999999999734,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000003,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.1199999999999775,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000000,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.1999999999999758,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000001,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.0599999999999787,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000002,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.279999999999974,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000003,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.099999999999978,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000000,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 2.99999999999998,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000001,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.049999999999979,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000002,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.2699999999999743,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000003,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.0699999999999785,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000000,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    16.849999999999834,
+    15.550000000002289
+   ],
+   "time": 32.5300000000021,
+   "fails": 15
+  },
+  {
+   "track": "D",
+   "seed": 96000001,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.19999999999989,
+    15.850000000002105
+   ],
+   "time": 33.200000000001964,
+   "fails": 23
+  },
+  {
+   "track": "D",
+   "seed": 96000002,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.349999999999913,
+    15.550000000002111
+   ],
+   "time": 33.040000000001996,
+   "fails": 22
+  },
+  {
+   "track": "D",
+   "seed": 96000003,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.299999999999905,
+    16.00000000000204
+   ],
+   "time": 33.46000000000191,
+   "fails": 28
+  },
+  {
+   "track": "D",
+   "seed": 96000000,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "goal",
+   "laps": [
+    16.399999999999764,
+    15.200000000002376
+   ],
+   "time": 31.750000000002164,
+   "fails": 25
+  },
+  {
+   "track": "D",
+   "seed": 96000001,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "goal",
+   "laps": [
+    16.799999999999827,
+    15.400000000002336
+   ],
+   "time": 32.35000000000213,
+   "fails": 23
+  },
+  {
+   "track": "D",
+   "seed": 96000002,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "goal",
+   "laps": [
+    16.649999999999803,
+    15.050000000002353
+   ],
+   "time": 31.830000000002176,
+   "fails": 23
+  },
+  {
+   "track": "D",
+   "seed": 96000003,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "goal",
+   "laps": [
+    16.799999999999827,
+    15.500000000002316
+   ],
+   "time": 32.43000000000212,
+   "fails": 28
+  },
+  {
+   "track": "D",
+   "seed": 96000000,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    16.649999999999803,
+    15.250000000002384
+   ],
+   "time": 32.040000000002195,
+   "fails": 22
+  },
+  {
+   "track": "D",
+   "seed": 96000001,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.099999999999874,
+    15.75000000000216
+   ],
+   "time": 32.97000000000201,
+   "fails": 24
+  },
+  {
+   "track": "D",
+   "seed": 96000002,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.049999999999866,
+    15.550000000002218
+   ],
+   "time": 32.72000000000206,
+   "fails": 21
+  },
+  {
+   "track": "D",
+   "seed": 96000003,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.14999999999988,
+    15.850000000002122
+   ],
+   "time": 33.13000000000198,
+   "fails": 28
+  },
+  {
+   "track": "D",
+   "seed": 96000000,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "goal",
+   "laps": [
+    16.24999999999974,
+    15.000000000002345
+   ],
+   "time": 31.40000000000211,
+   "fails": 25
+  },
+  {
+   "track": "D",
+   "seed": 96000001,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "goal",
+   "laps": [
+    16.69999999999981,
+    15.350000000002382
+   ],
+   "time": 32.18000000000217,
+   "fails": 23
+  },
+  {
+   "track": "D",
+   "seed": 96000002,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "goal",
+   "laps": [
+    16.649999999999803,
+    15.10000000000236
+   ],
+   "time": 31.86000000000218,
+   "fails": 24
+  },
+  {
+   "track": "D",
+   "seed": 96000003,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "goal",
+   "laps": [
+    16.69999999999981,
+    15.350000000002382
+   ],
+   "time": 32.190000000002165,
+   "fails": 26
+  },
+  {
+   "track": "D",
+   "seed": 96000000,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    16.24999999999974,
+    14.90000000000233
+   ],
+   "time": 31.28000000000209,
+   "fails": 20
+  },
+  {
+   "track": "D",
+   "seed": 96000001,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    16.599999999999795,
+    15.3500000000024
+   ],
+   "time": 32.06000000000219,
+   "fails": 21
+  },
+  {
+   "track": "D",
+   "seed": 96000002,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 12.86999999999977,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000003,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    16.69999999999981,
+    15.350000000002382
+   ],
+   "time": 32.16000000000217,
+   "fails": 22
+  },
+  {
+   "track": "D",
+   "seed": 96000000,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "goal",
+   "laps": [
+    15.599999999999712,
+    14.300000000002163
+   ],
+   "time": 30.00000000000189,
+   "fails": 20
+  },
+  {
+   "track": "D",
+   "seed": 96000001,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "goal",
+   "laps": [
+    15.999999999999703,
+    14.750000000002304
+   ],
+   "time": 30.860000000002024,
+   "fails": 21
+  },
+  {
+   "track": "D",
+   "seed": 96000002,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [
+    16.29999999999975
+   ],
+   "time": 19.51000000000025,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000003,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "goal",
+   "laps": [
+    16.149999999999725,
+    14.700000000002298
+   ],
+   "time": 30.96000000000204,
+   "fails": 21
+  },
+  {
+   "track": "D",
+   "seed": 96000000,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.3099999999999734,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000001,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 4.549999999999947,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000002,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.559999999999968,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000003,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 4.40999999999995,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000000,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.3099999999999734,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000001,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 4.549999999999947,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000002,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.559999999999968,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000003,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 4.40999999999995,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000000,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [
+    16.29999999999975
+   ],
+   "time": 17.9,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000001,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.3899999999999717,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000002,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.329999999999973,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000003,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.139999999999977,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000000,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.2599999999999745,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000001,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.3899999999999717,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000002,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.329999999999973,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000003,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.1299999999999772,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000000,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.1999999999999758,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000001,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.289999999999974,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000002,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.319999999999973,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000003,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.139999999999977,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000000,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.189999999999976,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000001,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.2599999999999745,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000002,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.319999999999973,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000003,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.1199999999999775,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000000,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 12.079999999999787,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000001,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.1699999999999764,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000002,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.3099999999999734,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000003,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.1199999999999775,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000000,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.049999999999979,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000001,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.1699999999999764,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000002,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.3099999999999734,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000003,
+   "cap": 3.6,
+   "a_lat": 3.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.1199999999999775,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000000,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.1999999999999758,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000001,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.0599999999999787,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000002,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.279999999999974,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000003,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.099999999999978,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000000,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 2.99999999999998,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000001,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.049999999999979,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000002,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.2699999999999743,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000003,
+   "cap": 3.6,
+   "a_lat": 5.0,
+   "grip_fb": 5.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.0699999999999785,
+   "fails": 0
+  }
+ ]
+}

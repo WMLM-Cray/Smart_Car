@@ -1,0 +1,293 @@
+{
+ "jobs": 18,
+ "summary": {
+  "A cap4.0 ge2.3 wt0.3": {
+   "ok": "3/3",
+   "reasons": {
+    "goal": 3
+   },
+   "lap2": 14.48,
+   "fails_mean": 1.7
+  },
+  "A cap4.0 ge2.45 wt0.3": {
+   "ok": "2/3",
+   "reasons": {
+    "collision": 1,
+    "goal": 2
+   },
+   "lap2": 14.48,
+   "fails_mean": 1.0
+  },
+  "A cap4.0 ge2.6 wt0.3": {
+   "ok": "1/3",
+   "reasons": {
+    "collision": 2,
+    "goal": 1
+   },
+   "lap2": 14.3,
+   "fails_mean": 0.3
+  },
+  "A cap5.0 ge2.3 wt0.3": {
+   "ok": "3/3",
+   "reasons": {
+    "goal": 3
+   },
+   "lap2": 14.23,
+   "fails_mean": 1.0
+  },
+  "A cap5.0 ge2.45 wt0.3": {
+   "ok": "2/3",
+   "reasons": {
+    "collision": 1,
+    "goal": 2
+   },
+   "lap2": 14.23,
+   "fails_mean": 1.3
+  },
+  "A cap5.0 ge2.6 wt0.3": {
+   "ok": "1/3",
+   "reasons": {
+    "collision": 2,
+    "goal": 1
+   },
+   "lap2": 14.0,
+   "fails_mean": 0.3
+  }
+ },
+ "rows": [
+  {
+   "track": "A",
+   "seed": 96200000,
+   "cap": 4.0,
+   "ge": 2.3,
+   "wt": 0.3,
+   "ok": true,
+   "why": "goal",
+   "laps": [
+    15.899999999999705,
+    14.050000000002177
+   ],
+   "fails": 1
+  },
+  {
+   "track": "A",
+   "seed": 96200001,
+   "cap": 4.0,
+   "ge": 2.3,
+   "wt": 0.3,
+   "ok": true,
+   "why": "goal",
+   "laps": [
+    16.399999999999764,
+    14.700000000002298
+   ],
+   "fails": 2
+  },
+  {
+   "track": "A",
+   "seed": 96200002,
+   "cap": 4.0,
+   "ge": 2.3,
+   "wt": 0.3,
+   "ok": true,
+   "why": "goal",
+   "laps": [
+    16.349999999999756,
+    14.700000000002298
+   ],
+   "fails": 2
+  },
+  {
+   "track": "A",
+   "seed": 96200000,
+   "cap": 4.0,
+   "ge": 2.45,
+   "wt": 0.3,
+   "ok": false,
+   "why": "collision",
+   "laps": [],
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96200001,
+   "cap": 4.0,
+   "ge": 2.45,
+   "wt": 0.3,
+   "ok": true,
+   "why": "goal",
+   "laps": [
+    16.199999999999733,
+    14.400000000002251
+   ],
+   "fails": 1
+  },
+  {
+   "track": "A",
+   "seed": 96200002,
+   "cap": 4.0,
+   "ge": 2.45,
+   "wt": 0.3,
+   "ok": true,
+   "why": "goal",
+   "laps": [
+    16.04999999999971,
+    14.550000000002274
+   ],
+   "fails": 2
+  },
+  {
+   "track": "A",
+   "seed": 96200000,
+   "cap": 4.0,
+   "ge": 2.6,
+   "wt": 0.3,
+   "ok": false,
+   "why": "collision",
+   "laps": [],
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96200001,
+   "cap": 4.0,
+   "ge": 2.6,
+   "wt": 0.3,
+   "ok": true,
+   "why": "goal",
+   "laps": [
+    15.949999999999704,
+    14.300000000002225
+   ],
+   "fails": 1
+  },
+  {
+   "track": "A",
+   "seed": 96200002,
+   "cap": 4.0,
+   "ge": 2.6,
+   "wt": 0.3,
+   "ok": false,
+   "why": "collision",
+   "laps": [],
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96200000,
+   "cap": 5.0,
+   "ge": 2.3,
+   "wt": 0.3,
+   "ok": true,
+   "why": "goal",
+   "laps": [
+    15.799999999999708,
+    13.700000000002104
+   ],
+   "fails": 1
+  },
+  {
+   "track": "A",
+   "seed": 96200001,
+   "cap": 5.0,
+   "ge": 2.3,
+   "wt": 0.3,
+   "ok": true,
+   "why": "goal",
+   "laps": [
+    16.399999999999764,
+    14.600000000002282
+   ],
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96200002,
+   "cap": 5.0,
+   "ge": 2.3,
+   "wt": 0.3,
+   "ok": true,
+   "why": "goal",
+   "laps": [
+    16.29999999999975,
+    14.400000000002251
+   ],
+   "fails": 2
+  },
+  {
+   "track": "A",
+   "seed": 96200000,
+   "cap": 5.0,
+   "ge": 2.45,
+   "wt": 0.3,
+   "ok": false,
+   "why": "collision",
+   "laps": [],
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96200001,
+   "cap": 5.0,
+   "ge": 2.45,
+   "wt": 0.3,
+   "ok": true,
+   "why": "goal",
+   "laps": [
+    16.149999999999725,
+    14.250000000002228
+   ],
+   "fails": 3
+  },
+  {
+   "track": "A",
+   "seed": 96200002,
+   "cap": 5.0,
+   "ge": 2.45,
+   "wt": 0.3,
+   "ok": true,
+   "why": "goal",
+   "laps": [
+    16.04999999999971,
+    14.20000000000222
+   ],
+   "fails": 1
+  },
+  {
+   "track": "A",
+   "seed": 96200000,
+   "cap": 5.0,
+   "ge": 2.6,
+   "wt": 0.3,
+   "ok": false,
+   "why": "collision",
+   "laps": [],
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96200001,
+   "cap": 5.0,
+   "ge": 2.6,
+   "wt": 0.3,
+   "ok": true,
+   "why": "goal",
+   "laps": [
+    15.999999999999703,
+    14.000000000002187
+   ],
+   "fails": 1
+  },
+  {
+   "track": "A",
+   "seed": 96200002,
+   "cap": 5.0,
+   "ge": 2.6,
+   "wt": 0.3,
+   "ok": false,
+   "why": "collision",
+   "laps": [],
+   "fails": 0
+  }
+ ]
+}

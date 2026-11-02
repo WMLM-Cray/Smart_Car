@@ -1,0 +1,2936 @@
+{
+ "jobs": 192,
+ "summary": {
+  "A cap2.0 alat2 gfb3": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 19.24,
+   "lap2": 18.06,
+   "fails_mean": 2.5
+  },
+  "A cap2.0 alat3 gfb3": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 18.89,
+   "lap2": 17.66,
+   "fails_mean": 2.2
+  },
+  "A cap2.0 alat5 gfb3": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 18.79,
+   "lap2": 17.59,
+   "fails_mean": 3.5
+  },
+  "A cap2.4 alat2 gfb3": {
+   "ok": "3/4",
+   "reasons": {
+    "goal": 3,
+    "collision": 1
+   },
+   "lap1": 18.22,
+   "lap2": 16.95,
+   "fails_mean": 1.0
+  },
+  "A cap2.4 alat3 gfb3": {
+   "ok": "3/4",
+   "reasons": {
+    "goal": 3,
+    "collision": 1
+   },
+   "lap1": 17.45,
+   "lap2": 16.2,
+   "fails_mean": 0.8
+  },
+  "A cap2.4 alat5 gfb3": {
+   "ok": "3/4",
+   "reasons": {
+    "goal": 3,
+    "collision": 1
+   },
+   "lap1": 17.32,
+   "lap2": 15.97,
+   "fails_mean": 1.0
+  },
+  "A cap2.8 alat2 gfb3": {
+   "ok": "1/4",
+   "reasons": {
+    "collision": 3,
+    "goal": 1
+   },
+   "lap1": 18.2,
+   "lap2": 16.8,
+   "fails_mean": 0.5
+  },
+  "A cap2.8 alat3 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "A cap2.8 alat5 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "A cap3.2 alat2 gfb3": {
+   "ok": "1/4",
+   "reasons": {
+    "collision": 3,
+    "goal": 1
+   },
+   "lap1": 18.1,
+   "lap2": 16.55,
+   "fails_mean": 0.5
+  },
+  "A cap3.2 alat3 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "A cap3.2 alat5 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "B cap2.0 alat2 gfb3": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 18.65,
+   "lap2": 17.41,
+   "fails_mean": 3.8
+  },
+  "B cap2.0 alat3 gfb3": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 18.39,
+   "lap2": 17.1,
+   "fails_mean": 3.8
+  },
+  "B cap2.0 alat5 gfb3": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 18.39,
+   "lap2": 17.1,
+   "fails_mean": 3.8
+  },
+  "B cap2.4 alat2 gfb3": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 17.56,
+   "lap2": 16.15,
+   "fails_mean": 0.8
+  },
+  "B cap2.4 alat3 gfb3": {
+   "ok": "3/4",
+   "reasons": {
+    "goal": 3,
+    "collision": 1
+   },
+   "lap1": 17.13,
+   "lap2": 15.75,
+   "fails_mean": 1.0
+  },
+  "B cap2.4 alat5 gfb3": {
+   "ok": "2/4",
+   "reasons": {
+    "collision": 2,
+    "goal": 2
+   },
+   "lap1": 17.05,
+   "lap2": 15.78,
+   "fails_mean": 1.0
+  },
+  "B cap2.8 alat2 gfb3": {
+   "ok": "3/4",
+   "reasons": {
+    "goal": 3,
+    "collision": 1
+   },
+   "lap1": 17.28,
+   "lap2": 15.8,
+   "fails_mean": 2.2
+  },
+  "B cap2.8 alat3 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "B cap2.8 alat5 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "B cap3.2 alat2 gfb3": {
+   "ok": "3/4",
+   "reasons": {
+    "goal": 3,
+    "collision": 1
+   },
+   "lap1": 17.22,
+   "lap2": 15.5,
+   "fails_mean": 1.0
+  },
+  "B cap3.2 alat3 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "B cap3.2 alat5 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "C cap2.0 alat2 gfb3": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 19.41,
+   "lap2": 18.18,
+   "fails_mean": 25.8
+  },
+  "C cap2.0 alat3 gfb3": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 19.09,
+   "lap2": 17.85,
+   "fails_mean": 26.8
+  },
+  "C cap2.0 alat5 gfb3": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 19.04,
+   "lap2": 17.8,
+   "fails_mean": 26.8
+  },
+  "C cap2.4 alat2 gfb3": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 18.2,
+   "lap2": 16.91,
+   "fails_mean": 21.8
+  },
+  "C cap2.4 alat3 gfb3": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 17.71,
+   "lap2": 16.34,
+   "fails_mean": 22.2
+  },
+  "C cap2.4 alat5 gfb3": {
+   "ok": "3/4",
+   "reasons": {
+    "goal": 3,
+    "collision": 1
+   },
+   "lap1": 17.48,
+   "lap2": 16.18,
+   "fails_mean": 18.5
+  },
+  "C cap2.8 alat2 gfb3": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 17.86,
+   "lap2": 16.54,
+   "fails_mean": 21.0
+  },
+  "C cap2.8 alat3 gfb3": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 17.22,
+   "lap2": 15.88,
+   "fails_mean": 21.0
+  },
+  "C cap2.8 alat5 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "C cap3.2 alat2 gfb3": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 17.75,
+   "lap2": 16.34,
+   "fails_mean": 22.0
+  },
+  "C cap3.2 alat3 gfb3": {
+   "ok": "1/4",
+   "reasons": {
+    "collision": 3,
+    "goal": 1
+   },
+   "lap1": 17.1,
+   "lap2": 15.6,
+   "fails_mean": 5.8
+  },
+  "C cap3.2 alat5 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "D cap2.0 alat2 gfb3": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 18.71,
+   "lap2": 17.41,
+   "fails_mean": 26.5
+  },
+  "D cap2.0 alat3 gfb3": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 18.4,
+   "lap2": 17.15,
+   "fails_mean": 25.8
+  },
+  "D cap2.0 alat5 gfb3": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 18.4,
+   "lap2": 17.15,
+   "fails_mean": 25.8
+  },
+  "D cap2.4 alat2 gfb3": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 17.6,
+   "lap2": 16.33,
+   "fails_mean": 25.2
+  },
+  "D cap2.4 alat3 gfb3": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 17.2,
+   "lap2": 15.84,
+   "fails_mean": 24.5
+  },
+  "D cap2.4 alat5 gfb3": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 16.99,
+   "lap2": 15.6,
+   "fails_mean": 23.8
+  },
+  "D cap2.8 alat2 gfb3": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 17.3,
+   "lap2": 16.03,
+   "fails_mean": 22.2
+  },
+  "D cap2.8 alat3 gfb3": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 16.74,
+   "lap2": 15.39,
+   "fails_mean": 21.0
+  },
+  "D cap2.8 alat5 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "D cap3.2 alat2 gfb3": {
+   "ok": "4/4",
+   "reasons": {
+    "goal": 4
+   },
+   "lap1": 17.2,
+   "lap2": 15.74,
+   "fails_mean": 21.8
+  },
+  "D cap3.2 alat3 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  },
+  "D cap3.2 alat5 gfb3": {
+   "ok": "0/4",
+   "reasons": {
+    "collision": 4
+   },
+   "lap1": null,
+   "lap2": null,
+   "fails_mean": 0.0
+  }
+ },
+ "rows": [
+  {
+   "track": "A",
+   "seed": 96000000,
+   "cap": 2.0,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.850000000000147,
+    17.80000000000113
+   ],
+   "time": 36.820000000001244,
+   "fails": 4
+  },
+  {
+   "track": "A",
+   "seed": 96000001,
+   "cap": 2.0,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    19.600000000000264,
+    18.500000000000725
+   ],
+   "time": 38.29000000000095,
+   "fails": 4
+  },
+  {
+   "track": "A",
+   "seed": 96000002,
+   "cap": 2.0,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    19.100000000000186,
+    17.70000000000106
+   ],
+   "time": 36.99000000000121,
+   "fails": 1
+  },
+  {
+   "track": "A",
+   "seed": 96000003,
+   "cap": 2.0,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    19.400000000000233,
+    18.250000000000846
+   ],
+   "time": 37.83000000000104,
+   "fails": 1
+  },
+  {
+   "track": "A",
+   "seed": 96000000,
+   "cap": 2.0,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.500000000000092,
+    17.300000000001354
+   ],
+   "time": 36.010000000001405,
+   "fails": 1
+  },
+  {
+   "track": "A",
+   "seed": 96000001,
+   "cap": 2.0,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    19.25000000000021,
+    18.10000000000093
+   ],
+   "time": 37.5500000000011,
+   "fails": 3
+  },
+  {
+   "track": "A",
+   "seed": 96000002,
+   "cap": 2.0,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.75000000000013,
+    17.300000000001265
+   ],
+   "time": 36.23000000000136,
+   "fails": 2
+  },
+  {
+   "track": "A",
+   "seed": 96000003,
+   "cap": 2.0,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    19.05000000000018,
+    17.95000000000103
+   ],
+   "time": 37.20000000000117,
+   "fails": 3
+  },
+  {
+   "track": "A",
+   "seed": 96000000,
+   "cap": 2.0,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.35000000000007,
+    17.250000000001418
+   ],
+   "time": 35.80000000000145,
+   "fails": 3
+  },
+  {
+   "track": "A",
+   "seed": 96000001,
+   "cap": 2.0,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    19.200000000000202,
+    18.000000000000966
+   ],
+   "time": 37.39000000000113,
+   "fails": 4
+  },
+  {
+   "track": "A",
+   "seed": 96000002,
+   "cap": 2.0,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.600000000000108,
+    17.20000000000134
+   ],
+   "time": 35.97000000000141,
+   "fails": 4
+  },
+  {
+   "track": "A",
+   "seed": 96000003,
+   "cap": 2.0,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    19.00000000000017,
+    17.900000000001057
+   ],
+   "time": 37.070000000001194,
+   "fails": 3
+  },
+  {
+   "track": "A",
+   "seed": 96000000,
+   "cap": 2.4,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.000000000000014,
+    16.85000000000162
+   ],
+   "time": 35.010000000001604,
+   "fails": 2
+  },
+  {
+   "track": "A",
+   "seed": 96000001,
+   "cap": 2.4,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.30000000000006,
+    16.900000000001505
+   ],
+   "time": 35.39000000000153,
+   "fails": 1
+  },
+  {
+   "track": "A",
+   "seed": 96000002,
+   "cap": 2.4,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 10.229999999999826,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000003,
+   "cap": 2.4,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.35000000000007,
+    17.100000000001447
+   ],
+   "time": 35.62000000000148,
+   "fails": 1
+  },
+  {
+   "track": "A",
+   "seed": 96000000,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.14999999999988,
+    15.900000000002112
+   ],
+   "time": 33.190000000001966,
+   "fails": 1
+  },
+  {
+   "track": "A",
+   "seed": 96000001,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.549999999999944,
+    16.30000000000189
+   ],
+   "time": 34.0300000000018,
+   "fails": 2
+  },
+  {
+   "track": "A",
+   "seed": 96000002,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 10.05999999999983,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000003,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.64999999999996,
+    16.400000000001835
+   ],
+   "time": 34.22000000000176,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000000,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    16.999999999999858,
+    15.600000000002225
+   ],
+   "time": 32.78000000000205,
+   "fails": 1
+  },
+  {
+   "track": "A",
+   "seed": 96000001,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.44999999999993,
+    16.100000000001966
+   ],
+   "time": 33.73000000000186,
+   "fails": 2
+  },
+  {
+   "track": "A",
+   "seed": 96000002,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.799999999999857,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000003,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.499999999999936,
+    16.20000000000193
+   ],
+   "time": 33.87000000000183,
+   "fails": 1
+  },
+  {
+   "track": "A",
+   "seed": 96000000,
+   "cap": 2.8,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.839999999999856,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000001,
+   "cap": 2.8,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [
+    18.200000000000045
+   ],
+   "time": 27.00000000000142,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000002,
+   "cap": 2.8,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 9.039999999999852,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000003,
+   "cap": 2.8,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.200000000000045,
+    16.80000000000156
+   ],
+   "time": 35.150000000001576,
+   "fails": 2
+  },
+  {
+   "track": "A",
+   "seed": 96000000,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.359999999999866,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000001,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 9.439999999999843,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000002,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.63999999999986,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000003,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.599999999999861,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000000,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.22999999999989,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000001,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.269999999999868,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000002,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.649999999999881,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000003,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.399999999999865,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000000,
+   "cap": 3.2,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.839999999999856,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000001,
+   "cap": 3.2,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.999999999999853,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000002,
+   "cap": 3.2,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 9.039999999999852,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000003,
+   "cap": 3.2,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.10000000000003,
+    16.550000000001646
+   ],
+   "time": 34.79000000000165,
+   "fails": 2
+  },
+  {
+   "track": "A",
+   "seed": 96000000,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.459999999999885,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000001,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.569999999999883,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000002,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.749999999999879,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000003,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.379999999999866,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000000,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.23999999999989,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000001,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.4099999999998865,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000002,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 4.109999999999957,
+   "fails": 0
+  },
+  {
+   "track": "A",
+   "seed": 96000003,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 4.009999999999959,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000000,
+   "cap": 2.0,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.30000000000006,
+    17.200000000001445
+   ],
+   "time": 35.67000000000147,
+   "fails": 4
+  },
+  {
+   "track": "B",
+   "seed": 96000001,
+   "cap": 2.0,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    19.00000000000017,
+    17.800000000001077
+   ],
+   "time": 36.970000000001214,
+   "fails": 4
+  },
+  {
+   "track": "B",
+   "seed": 96000002,
+   "cap": 2.0,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.5500000000001,
+    17.150000000001366
+   ],
+   "time": 35.84000000000144,
+   "fails": 5
+  },
+  {
+   "track": "B",
+   "seed": 96000003,
+   "cap": 2.0,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.75000000000013,
+    17.500000000001226
+   ],
+   "time": 36.44000000000132,
+   "fails": 2
+  },
+  {
+   "track": "B",
+   "seed": 96000000,
+   "cap": 2.0,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.000000000000014,
+    16.80000000000163
+   ],
+   "time": 34.950000000001616,
+   "fails": 4
+  },
+  {
+   "track": "B",
+   "seed": 96000001,
+   "cap": 2.0,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.75000000000013,
+    17.500000000001226
+   ],
+   "time": 36.43000000000132,
+   "fails": 4
+  },
+  {
+   "track": "B",
+   "seed": 96000002,
+   "cap": 2.0,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.250000000000053,
+    16.800000000001543
+   ],
+   "time": 35.19000000000157,
+   "fails": 4
+  },
+  {
+   "track": "B",
+   "seed": 96000003,
+   "cap": 2.0,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.5500000000001,
+    17.300000000001337
+   ],
+   "time": 36.0500000000014,
+   "fails": 3
+  },
+  {
+   "track": "B",
+   "seed": 96000000,
+   "cap": 2.0,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.000000000000014,
+    16.80000000000163
+   ],
+   "time": 34.950000000001616,
+   "fails": 4
+  },
+  {
+   "track": "B",
+   "seed": 96000001,
+   "cap": 2.0,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.75000000000013,
+    17.500000000001226
+   ],
+   "time": 36.43000000000132,
+   "fails": 4
+  },
+  {
+   "track": "B",
+   "seed": 96000002,
+   "cap": 2.0,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.250000000000053,
+    16.800000000001543
+   ],
+   "time": 35.19000000000157,
+   "fails": 4
+  },
+  {
+   "track": "B",
+   "seed": 96000003,
+   "cap": 2.0,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.5500000000001,
+    17.300000000001337
+   ],
+   "time": 36.0500000000014,
+   "fails": 3
+  },
+  {
+   "track": "B",
+   "seed": 96000000,
+   "cap": 2.4,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.349999999999913,
+    15.850000000002051
+   ],
+   "time": 33.33000000000194,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000001,
+   "cap": 2.4,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.699999999999967,
+    16.350000000001828
+   ],
+   "time": 34.19000000000177,
+   "fails": 3
+  },
+  {
+   "track": "B",
+   "seed": 96000002,
+   "cap": 2.4,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.499999999999936,
+    16.05000000000196
+   ],
+   "time": 33.68000000000187,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000003,
+   "cap": 2.4,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.699999999999967,
+    16.350000000001828
+   ],
+   "time": 34.18000000000177,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000000,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    16.799999999999827,
+    15.450000000002326
+   ],
+   "time": 32.390000000002125,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000001,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.299999999999905,
+    15.90000000000206
+   ],
+   "time": 33.33000000000194,
+   "fails": 4
+  },
+  {
+   "track": "B",
+   "seed": 96000002,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 10.939999999999811,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000003,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.299999999999905,
+    15.90000000000206
+   ],
+   "time": 33.340000000001936,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000000,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 10.809999999999814,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000001,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.049999999999866,
+    15.800000000002168
+   ],
+   "time": 33.000000000002004,
+   "fails": 4
+  },
+  {
+   "track": "B",
+   "seed": 96000002,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 10.949999999999811,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000003,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.049999999999866,
+    15.750000000002178
+   ],
+   "time": 32.92000000000202,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000000,
+   "cap": 2.8,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.099999999999874,
+    15.5500000000022
+   ],
+   "time": 32.790000000002046,
+   "fails": 3
+  },
+  {
+   "track": "B",
+   "seed": 96000001,
+   "cap": 2.8,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.349999999999913,
+    15.950000000002031
+   ],
+   "time": 33.42000000000192,
+   "fails": 4
+  },
+  {
+   "track": "B",
+   "seed": 96000002,
+   "cap": 2.8,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.769999999999857,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000003,
+   "cap": 2.8,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.39999999999992,
+    15.900000000002024
+   ],
+   "time": 33.43000000000192,
+   "fails": 2
+  },
+  {
+   "track": "B",
+   "seed": 96000000,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 9.379999999999844,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000001,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 9.389999999999844,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000002,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 9.399999999999844,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000003,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 9.469999999999843,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000000,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.869999999999855,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000001,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 9.15999999999985,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000002,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.469999999999864,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000003,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 10.279999999999825,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000000,
+   "cap": 3.2,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.049999999999866,
+    15.300000000002267
+   ],
+   "time": 32.47000000000211,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000001,
+   "cap": 3.2,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.299999999999905,
+    15.600000000002119
+   ],
+   "time": 32.98000000000201,
+   "fails": 2
+  },
+  {
+   "track": "B",
+   "seed": 96000002,
+   "cap": 3.2,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.769999999999857,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000003,
+   "cap": 3.2,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.299999999999905,
+    15.600000000002119
+   ],
+   "time": 33.010000000002,
+   "fails": 2
+  },
+  {
+   "track": "B",
+   "seed": 96000000,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.999999999999874,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000001,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.15999999999987,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000002,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.8299999999998775,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000003,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.279999999999868,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000000,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 7.939999999999875,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000001,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 8.139999999999871,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000002,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.849999999999962,
+   "fails": 0
+  },
+  {
+   "track": "B",
+   "seed": 96000003,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.8799999999999613,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000000,
+   "cap": 2.0,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    19.05000000000018,
+    17.90000000000104
+   ],
+   "time": 37.10000000000119,
+   "fails": 25
+  },
+  {
+   "track": "C",
+   "seed": 96000001,
+   "cap": 2.0,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    19.750000000000288,
+    18.55000000000066
+   ],
+   "time": 38.46000000000092,
+   "fails": 27
+  },
+  {
+   "track": "C",
+   "seed": 96000002,
+   "cap": 2.0,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    19.300000000000217,
+    17.90000000000095
+   ],
+   "time": 37.34000000000114,
+   "fails": 25
+  },
+  {
+   "track": "C",
+   "seed": 96000003,
+   "cap": 2.0,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    19.550000000000257,
+    18.350000000000772
+   ],
+   "time": 38.060000000001,
+   "fails": 26
+  },
+  {
+   "track": "C",
+   "seed": 96000000,
+   "cap": 2.0,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.650000000000116,
+    17.55000000000125
+   ],
+   "time": 36.360000000001335,
+   "fails": 28
+  },
+  {
+   "track": "C",
+   "seed": 96000001,
+   "cap": 2.0,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    19.50000000000025,
+    18.25000000000081
+   ],
+   "time": 37.94000000000102,
+   "fails": 28
+  },
+  {
+   "track": "C",
+   "seed": 96000002,
+   "cap": 2.0,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.900000000000155,
+    17.500000000001172
+   ],
+   "time": 36.5500000000013,
+   "fails": 25
+  },
+  {
+   "track": "C",
+   "seed": 96000003,
+   "cap": 2.0,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    19.300000000000217,
+    18.10000000000091
+   ],
+   "time": 37.5500000000011,
+   "fails": 26
+  },
+  {
+   "track": "C",
+   "seed": 96000000,
+   "cap": 2.0,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.600000000000108,
+    17.50000000000128
+   ],
+   "time": 36.24000000000136,
+   "fails": 28
+  },
+  {
+   "track": "C",
+   "seed": 96000001,
+   "cap": 2.0,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    19.45000000000024,
+    18.200000000000838
+   ],
+   "time": 37.83000000000104,
+   "fails": 28
+  },
+  {
+   "track": "C",
+   "seed": 96000002,
+   "cap": 2.0,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.850000000000147,
+    17.4500000000012
+   ],
+   "time": 36.44000000000132,
+   "fails": 25
+  },
+  {
+   "track": "C",
+   "seed": 96000003,
+   "cap": 2.0,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    19.25000000000021,
+    18.05000000000094
+   ],
+   "time": 37.48000000000111,
+   "fails": 26
+  },
+  {
+   "track": "C",
+   "seed": 96000000,
+   "cap": 2.4,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.000000000000014,
+    16.70000000000165
+   ],
+   "time": 34.850000000001636,
+   "fails": 26
+  },
+  {
+   "track": "C",
+   "seed": 96000001,
+   "cap": 2.4,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.35000000000007,
+    17.050000000001457
+   ],
+   "time": 35.550000000001496,
+   "fails": 23
+  },
+  {
+   "track": "C",
+   "seed": 96000002,
+   "cap": 2.4,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.10000000000003,
+    16.750000000001606
+   ],
+   "time": 35.0200000000016,
+   "fails": 17
+  },
+  {
+   "track": "C",
+   "seed": 96000003,
+   "cap": 2.4,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.35000000000007,
+    17.150000000001437
+   ],
+   "time": 35.64000000000148,
+   "fails": 21
+  },
+  {
+   "track": "C",
+   "seed": 96000000,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.44999999999993,
+    16.150000000001956
+   ],
+   "time": 33.73000000000186,
+   "fails": 17
+  },
+  {
+   "track": "C",
+   "seed": 96000001,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.799999999999983,
+    16.400000000001782
+   ],
+   "time": 34.32000000000174,
+   "fails": 25
+  },
+  {
+   "track": "C",
+   "seed": 96000002,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.749999999999975,
+    16.15000000000185
+   ],
+   "time": 34.0400000000018,
+   "fails": 21
+  },
+  {
+   "track": "C",
+   "seed": 96000003,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.84999999999999,
+    16.650000000001715
+   ],
+   "time": 34.64000000000168,
+   "fails": 26
+  },
+  {
+   "track": "C",
+   "seed": 96000000,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.099999999999874,
+    15.80000000000215
+   ],
+   "time": 33.030000000002,
+   "fails": 27
+  },
+  {
+   "track": "C",
+   "seed": 96000001,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.64999999999996,
+    16.300000000001855
+   ],
+   "time": 34.08000000000179,
+   "fails": 23
+  },
+  {
+   "track": "C",
+   "seed": 96000002,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 13.049999999999766,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000003,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.699999999999967,
+    16.450000000001808
+   ],
+   "time": 34.26000000000175,
+   "fails": 24
+  },
+  {
+   "track": "C",
+   "seed": 96000000,
+   "cap": 2.8,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.64999999999996,
+    16.300000000001855
+   ],
+   "time": 34.08000000000179,
+   "fails": 22
+  },
+  {
+   "track": "C",
+   "seed": 96000001,
+   "cap": 2.8,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.799999999999983,
+    16.600000000001742
+   ],
+   "time": 34.500000000001705,
+   "fails": 21
+  },
+  {
+   "track": "C",
+   "seed": 96000002,
+   "cap": 2.8,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.950000000000006,
+    16.50000000000171
+   ],
+   "time": 34.550000000001695,
+   "fails": 21
+  },
+  {
+   "track": "C",
+   "seed": 96000003,
+   "cap": 2.8,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.050000000000022,
+    16.750000000001624
+   ],
+   "time": 34.92000000000162,
+   "fails": 20
+  },
+  {
+   "track": "C",
+   "seed": 96000000,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    16.849999999999834,
+    15.700000000002259
+   ],
+   "time": 32.690000000002065,
+   "fails": 19
+  },
+  {
+   "track": "C",
+   "seed": 96000001,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.14999999999988,
+    15.850000000002122
+   ],
+   "time": 33.11000000000198,
+   "fails": 22
+  },
+  {
+   "track": "C",
+   "seed": 96000002,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.549999999999944,
+    15.95000000000196
+   ],
+   "time": 33.62000000000188,
+   "fails": 22
+  },
+  {
+   "track": "C",
+   "seed": 96000003,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.349999999999913,
+    16.00000000000202
+   ],
+   "time": 33.450000000001914,
+   "fails": 21
+  },
+  {
+   "track": "C",
+   "seed": 96000000,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.3099999999999734,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000001,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 4.549999999999947,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000002,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.559999999999968,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000003,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 4.40999999999995,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000000,
+   "cap": 3.2,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.59999999999995,
+    16.200000000001893
+   ],
+   "time": 33.91000000000182,
+   "fails": 22
+  },
+  {
+   "track": "C",
+   "seed": 96000001,
+   "cap": 3.2,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.64999999999996,
+    16.400000000001835
+   ],
+   "time": 34.150000000001775,
+   "fails": 21
+  },
+  {
+   "track": "C",
+   "seed": 96000002,
+   "cap": 3.2,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.749999999999975,
+    16.20000000000184
+   ],
+   "time": 34.0400000000018,
+   "fails": 21
+  },
+  {
+   "track": "C",
+   "seed": 96000003,
+   "cap": 3.2,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.000000000000014,
+    16.55000000000168
+   ],
+   "time": 34.63000000000168,
+   "fails": 24
+  },
+  {
+   "track": "C",
+   "seed": 96000000,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [
+    16.999999999999858
+   ],
+   "time": 18.900000000000155,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000001,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.099999999999874,
+    15.60000000000219
+   ],
+   "time": 32.78000000000205,
+   "fails": 23
+  },
+  {
+   "track": "C",
+   "seed": 96000002,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.5999999999999672,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000003,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.179999999999976,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000000,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.229999999999975,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000001,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.319999999999973,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000002,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.319999999999973,
+   "fails": 0
+  },
+  {
+   "track": "C",
+   "seed": 96000003,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.1299999999999772,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000000,
+   "cap": 2.0,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.35000000000007,
+    17.150000000001437
+   ],
+   "time": 35.68000000000147,
+   "fails": 28
+  },
+  {
+   "track": "D",
+   "seed": 96000001,
+   "cap": 2.0,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    19.00000000000017,
+    17.750000000001087
+   ],
+   "time": 36.910000000001226,
+   "fails": 27
+  },
+  {
+   "track": "D",
+   "seed": 96000002,
+   "cap": 2.0,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.650000000000116,
+    17.15000000000133
+   ],
+   "time": 35.94000000000142,
+   "fails": 25
+  },
+  {
+   "track": "D",
+   "seed": 96000003,
+   "cap": 2.0,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.850000000000147,
+    17.60000000000117
+   ],
+   "time": 36.62000000000128,
+   "fails": 26
+  },
+  {
+   "track": "D",
+   "seed": 96000000,
+   "cap": 2.0,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.000000000000014,
+    16.80000000000163
+   ],
+   "time": 34.98000000000161,
+   "fails": 25
+  },
+  {
+   "track": "D",
+   "seed": 96000001,
+   "cap": 2.0,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.80000000000014,
+    17.550000000001198
+   ],
+   "time": 36.510000000001305,
+   "fails": 25
+  },
+  {
+   "track": "D",
+   "seed": 96000002,
+   "cap": 2.0,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.200000000000045,
+    16.80000000000156
+   ],
+   "time": 35.14000000000158,
+   "fails": 25
+  },
+  {
+   "track": "D",
+   "seed": 96000003,
+   "cap": 2.0,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.600000000000108,
+    17.45000000000129
+   ],
+   "time": 36.20000000000137,
+   "fails": 28
+  },
+  {
+   "track": "D",
+   "seed": 96000000,
+   "cap": 2.0,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.000000000000014,
+    16.80000000000163
+   ],
+   "time": 34.960000000001614,
+   "fails": 25
+  },
+  {
+   "track": "D",
+   "seed": 96000001,
+   "cap": 2.0,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.80000000000014,
+    17.550000000001198
+   ],
+   "time": 36.510000000001305,
+   "fails": 25
+  },
+  {
+   "track": "D",
+   "seed": 96000002,
+   "cap": 2.0,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.200000000000045,
+    16.80000000000156
+   ],
+   "time": 35.14000000000158,
+   "fails": 25
+  },
+  {
+   "track": "D",
+   "seed": 96000003,
+   "cap": 2.0,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    18.600000000000108,
+    17.45000000000129
+   ],
+   "time": 36.20000000000137,
+   "fails": 28
+  },
+  {
+   "track": "D",
+   "seed": 96000000,
+   "cap": 2.4,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.299999999999905,
+    16.10000000000202
+   ],
+   "time": 33.550000000001894,
+   "fails": 27
+  },
+  {
+   "track": "D",
+   "seed": 96000001,
+   "cap": 2.4,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.799999999999983,
+    16.500000000001762
+   ],
+   "time": 34.44000000000172,
+   "fails": 24
+  },
+  {
+   "track": "D",
+   "seed": 96000002,
+   "cap": 2.4,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.59999999999995,
+    16.250000000001883
+   ],
+   "time": 34.000000000001805,
+   "fails": 27
+  },
+  {
+   "track": "D",
+   "seed": 96000003,
+   "cap": 2.4,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.699999999999967,
+    16.450000000001808
+   ],
+   "time": 34.300000000001745,
+   "fails": 23
+  },
+  {
+   "track": "D",
+   "seed": 96000000,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    16.899999999999842,
+    15.700000000002241
+   ],
+   "time": 32.76000000000205,
+   "fails": 27
+  },
+  {
+   "track": "D",
+   "seed": 96000001,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.299999999999905,
+    15.90000000000206
+   ],
+   "time": 33.33000000000194,
+   "fails": 26
+  },
+  {
+   "track": "D",
+   "seed": 96000002,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.249999999999897,
+    15.650000000002127
+   ],
+   "time": 33.020000000002,
+   "fails": 17
+  },
+  {
+   "track": "D",
+   "seed": 96000003,
+   "cap": 2.4,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.349999999999913,
+    16.100000000002
+   ],
+   "time": 33.57000000000189,
+   "fails": 28
+  },
+  {
+   "track": "D",
+   "seed": 96000000,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    16.649999999999803,
+    15.250000000002384
+   ],
+   "time": 32.040000000002195,
+   "fails": 22
+  },
+  {
+   "track": "D",
+   "seed": 96000001,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.099999999999874,
+    15.75000000000216
+   ],
+   "time": 32.97000000000201,
+   "fails": 24
+  },
+  {
+   "track": "D",
+   "seed": 96000002,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.049999999999866,
+    15.550000000002218
+   ],
+   "time": 32.72000000000206,
+   "fails": 21
+  },
+  {
+   "track": "D",
+   "seed": 96000003,
+   "cap": 2.4,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.14999999999988,
+    15.850000000002122
+   ],
+   "time": 33.13000000000198,
+   "fails": 28
+  },
+  {
+   "track": "D",
+   "seed": 96000000,
+   "cap": 2.8,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.049999999999866,
+    15.800000000002168
+   ],
+   "time": 32.950000000002014,
+   "fails": 22
+  },
+  {
+   "track": "D",
+   "seed": 96000001,
+   "cap": 2.8,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.299999999999905,
+    16.00000000000204
+   ],
+   "time": 33.400000000001924,
+   "fails": 22
+  },
+  {
+   "track": "D",
+   "seed": 96000002,
+   "cap": 2.8,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.39999999999992,
+    16.150000000001974
+   ],
+   "time": 33.650000000001874,
+   "fails": 22
+  },
+  {
+   "track": "D",
+   "seed": 96000003,
+   "cap": 2.8,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.44999999999993,
+    16.150000000001956
+   ],
+   "time": 33.71000000000186,
+   "fails": 23
+  },
+  {
+   "track": "D",
+   "seed": 96000000,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    16.399999999999764,
+    15.200000000002376
+   ],
+   "time": 31.73000000000216,
+   "fails": 22
+  },
+  {
+   "track": "D",
+   "seed": 96000001,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    16.69999999999981,
+    15.400000000002372
+   ],
+   "time": 32.240000000002155,
+   "fails": 21
+  },
+  {
+   "track": "D",
+   "seed": 96000002,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    16.94999999999985,
+    15.400000000002283
+   ],
+   "time": 32.440000000002115,
+   "fails": 19
+  },
+  {
+   "track": "D",
+   "seed": 96000003,
+   "cap": 2.8,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    16.899999999999842,
+    15.550000000002271
+   ],
+   "time": 32.55000000000209,
+   "fails": 22
+  },
+  {
+   "track": "D",
+   "seed": 96000000,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.3099999999999734,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000001,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 4.549999999999947,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000002,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.559999999999968,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000003,
+   "cap": 2.8,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 4.40999999999995,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000000,
+   "cap": 3.2,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.049999999999866,
+    15.550000000002218
+   ],
+   "time": 32.71000000000206,
+   "fails": 23
+  },
+  {
+   "track": "D",
+   "seed": 96000001,
+   "cap": 3.2,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.19999999999989,
+    15.850000000002105
+   ],
+   "time": 33.150000000001974,
+   "fails": 21
+  },
+  {
+   "track": "D",
+   "seed": 96000002,
+   "cap": 3.2,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.249999999999897,
+    15.750000000002107
+   ],
+   "time": 33.12000000000198,
+   "fails": 21
+  },
+  {
+   "track": "D",
+   "seed": 96000003,
+   "cap": 3.2,
+   "a_lat": 2.0,
+   "grip_fb": 3.0,
+   "teacher": "goal",
+   "laps": [
+    17.299999999999905,
+    15.800000000002079
+   ],
+   "time": 33.21000000000196,
+   "fails": 22
+  },
+  {
+   "track": "D",
+   "seed": 96000000,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [
+    16.549999999999788
+   ],
+   "time": 18.23000000000005,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000001,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [
+    16.649999999999803
+   ],
+   "time": 18.5600000000001,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000002,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.5999999999999672,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000003,
+   "cap": 3.2,
+   "a_lat": 3.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.179999999999976,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000000,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.229999999999975,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000001,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.319999999999973,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000002,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.3099999999999734,
+   "fails": 0
+  },
+  {
+   "track": "D",
+   "seed": 96000003,
+   "cap": 3.2,
+   "a_lat": 5.0,
+   "grip_fb": 3.0,
+   "teacher": "collision",
+   "laps": [],
+   "time": 3.1299999999999772,
+   "fails": 0
+  }
+ ]
+}
