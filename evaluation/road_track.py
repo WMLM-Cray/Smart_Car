@@ -170,8 +170,12 @@ def official(name: str, fill_v: bool = False, laps: int = LAPS) -> tuple[Road, f
                       dict(kind=f'track{name}', fill_v=fill_v))
 
 
-def _ring_centre(outer, inner):
-    """闭合内外边界 -> (平滑中心线(逆时针), 外边界加密, 内边界加密, 左余量, 右余量)。"""
+def _ring_centre(outer, inner, sigma: float = 0.5):
+    """闭合内外边界 -> (平滑中心线(逆时针), 外边界加密, 内边界加密, 左余量, 右余量)。
+
+    sigma = 中心线周期高斯平滑的 σ(米)。特权几何(密边界)用默认 0.5;第一圈锥桶链
+    恢复出的边界是稀疏折线、角点更尖,需要更大 σ 才能把弦斗掉的角磨回真弧线。
+    """
     od, idn = _closed_dense(outer), _closed_dense(inner)
     if len(outer) == len(inner):                    # B-D:一一配对
         mid = (outer + inner) / 2
@@ -180,8 +184,9 @@ def _ring_centre(outer, inner):
                                   idn[:, None, 1] - od[None, :, 1]), axis=1)
         mid = (idn + od[near]) / 2
     cen = _closed_dense(mid)
-    k = np.arange(-30, 31)
-    w = np.exp(-0.5 * (k * DS / 0.5) ** 2)
+    r = int(round(3 * sigma / DS))
+    k = np.arange(-r, r + 1)
+    w = np.exp(-0.5 * (k * DS / sigma) ** 2)
     w /= w.sum()
     cen = np.einsum('ijk,j->ik', cen[(np.arange(len(cen))[:, None] + k[None, :]) % len(cen)], w)
     cen = _closed_dense(cen)
@@ -231,6 +236,62 @@ def real_track(name: str = 'realA_1020', laps: int = LAPS) -> tuple[Road, float]
     i0 = int(np.argmin(np.hypot(*(cen - np.array(lay['start'], float)).T)))
     return _ring_road(cen, dl, dr, np.full(len(cen), CONE), np.vstack([inner, outer]), outer, inner, i0, laps,
                       dict(kind=name))
+
+
+def color_cones(name):
+    """maps/<track>_cones.csv 分色锥桶 -> (蓝/外, 红/内) 两张坐标表。蓝 = 外边界、红 = 内边界。"""
+    rows = _cones(name)
+    blue = np.array([[float(r['x']), float(r['y'])] for r in rows if r['color'] == 'blue'])
+    red = np.array([[float(r['x']), float(r['y'])] for r in rows if r['color'] == 'red'])
+    return blue, red
+
+
+def _sort_along(pts, ref):
+    """把锥桶/胶带点按到参考折线 ref(第一圈轨迹,闭合中心线)的最近点弧长排序成沿赛道方向的环。"""
+    pts = np.asarray(pts, float).reshape(-1, 2)
+    if len(pts) < 2:
+        return pts
+    d = np.hypot(pts[:, None, 0] - ref[None, :, 0], pts[:, None, 1] - ref[None, :, 1])
+    return pts[np.argsort(np.argmin(d, axis=1))]
+
+
+@lru_cache(maxsize=16)
+def _tape_and_ref(name):
+    """(排序参照闭合中心线, 外胶带点, 内胶带点)。
+
+    胶带点 = 无桶边界段(黄 V)的真实边界,锥桶感知不到、但胶带能观到 —— 特权几何只用来
+    提供这两个东西:排序方向(第一圈轨迹)与胶带观测(物理可观测物),不直接给边界折线。
+    """
+    outer, inner, cones, _start = _boundaries(name)
+    cen, od, idn, _dl, _dr = _ring_centre(outer, inner)
+    def dist(pts, edge):
+        return np.min(np.hypot(pts[:, None, 0] - edge[None, :, 0], pts[:, None, 1] - edge[None, :, 1]), axis=1)
+    bare = [e[dist(e, cones) > GAP] for e in (od, idn)]
+    return cen, bare[0], bare[1]
+
+
+def recovered_road(name, blue, red, anchor, laps=LAPS):
+    """全自主边界恢复:第一圈建图的分色锥桶(带误差)+ 胶带观测 -> 中心线 Road。
+
+    blue/red = 建图得到的外/内锥桶坐标(蓝=外、红=内),已含抖动/漏检/误检。
+    anchor    = 真路 START 中心点,用来对齐起跑,圈时口径与特权一致。
+    返回 (Road, 一圈长度)。与 official 一样,中心线是 laps 圈再多 1.5m。
+    """
+    ref, tape_outer, tape_inner = _tape_and_ref(name)
+    blue = np.asarray(blue, float).reshape(-1, 2)
+    red = np.asarray(red, float).reshape(-1, 2)
+    outer = _sort_along(np.vstack([blue, tape_outer]) if len(tape_outer) else blue, ref)
+    inner = _sort_along(np.vstack([red, tape_inner]) if len(tape_inner) else red, ref)
+    # 内外点数天然不等(蓝≠红),直接走 _ring_centre 的最近点配对(A 路径):相位无关、耐稀疏,
+    # 不会像等弧长切分那样因内外周长不同而让中点左右摆动(那会造出高频曲率尖峰,plan 直接 curvature 失败)。
+    # 稀疏锥桶链的角比密边界尖,σ 提到 ~0.7(≈一个锥桶间距)把弦斗掉的角磨回真弧线(D 的 0.85m 最小弯
+    # 尤其敏感,σ=0.5 时恢复线 κ=0.88 已压到 plan 拒绝线附近,σ=0.7 压回 0.63 ≈ 特权)。
+    cen, od, idn, dl, dr = _ring_centre(outer, inner, sigma=0.7)
+    i0 = int(np.argmin(np.hypot(*(cen - np.asarray(anchor, float)).T)))
+    mat = np.full(len(cen), CONE)
+    return _ring_road(cen, dl, dr, np.asarray(mat), np.vstack([blue, red]), outer, inner, i0, laps,
+                      dict(kind=f'track{name}_auto'))
+
 
 def _schema(path):
     with np.load(path) as z:
